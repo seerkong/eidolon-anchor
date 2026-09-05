@@ -150,6 +150,8 @@ export type LlmProviderRetryDiagnosticData = {
   maxRetries: number;
   delaySeconds?: number;
   elapsedSeconds?: number;
+  cumulativeBackoffSeconds?: number;
+  operationId?: string;
   error?: string;
   classificationReason?: string;
   classificationLayer?: string;

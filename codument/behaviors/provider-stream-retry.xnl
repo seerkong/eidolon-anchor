@@ -1,44 +1,66 @@
 <Behavior #provider-stream-retry apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #stream-failure-recovery (
-      <Statement ?01M18J9T1K89E0X058HF5MX1VB>
-      Provider stream consumption SHALL classify upstream temporary failures with the same retry policy used for request establishment, but SHALL retry only when no assistant content, reasoning, or tool-call output has been observed for the failed attempt.
-      </?01M18J9T1K89E0X058HF5MX1VB>
+      <Statement ?01M1RSWVM52641FXXN7F1YTH6X>
+      系统SHALL区分transport流重试和已知预工具派发的完整Chat turn恢复；使用独立退避预算、操作截止与取消，单一owner执行有界指数重试，不重复工具副作用。
+      </?01M1RSWVM52641FXXN7F1YTH6X>
       <Suites [
-        <Suite #stream-failure-recovery-cases { name = "Provider stream failure recovery" } (
+        <Suite #recovery { name = "Provider turn recovery" } (
           <Cases [
-            <Case #retry-before-visible-output (
-              <Given ?01M18J9T1MMDT9QCF0NH7XZ4XW>
-              A provider request establishes a stream and emits a retryable upstream failure before any visible assistant content, reasoning, or tool call is observed.
-              </?01M18J9T1MMDT9QCF0NH7XZ4XW>
-              <When ?01M18J9T1MMDT9QCF0NH7XZ4XX>
-              The runtime consumes the provider stream.
-              </?01M18J9T1MMDT9QCF0NH7XZ4XX>
-              <Then ?01M18J9T1MMDT9QCF0NH7XZ4XY>
-              The runtime SHALL retry the same request contract according to the configured provider retry policy.
-              </?01M18J9T1MMDT9QCF0NH7XZ4XY>
+            <Case #long-initial-request (
+              <Given ?01M1RSWVM52641FXXN7F1YTH6Y>
+              首请求执行超过120秒但没有取消或操作截止
+              </?01M1RSWVM52641FXXN7F1YTH6Y>
+              <When ?01M1RSWVM52641FXXN7F1YTH6Z>
+              发生瞬时网络失败
+              </?01M1RSWVM52641FXXN7F1YTH6Z>
+              <Then ?01M1RSWVM52641FXXN7F1YTH70>
+              系统SHALL以独立累计退避预算调度指数重试，记录请求耗时与等待耗时，保持次数和deadline上限。
+              </?01M1RSWVM52641FXXN7F1YTH70>
             )>
-            <Case #do-not-retry-after-visible-output (
-              <Given ?01M18J9T1MMDT9QCF0NH7XZ4XZ>
-              A provider stream has emitted any assistant content, reasoning, or tool-call fragment before a retryable transport/provider failure.
-              </?01M18J9T1MMDT9QCF0NH7XZ4XZ>
-              <When ?01M18J9T1MMDT9QCF0NH7XZ4Y0>
-              The stream fails.
-              </?01M18J9T1MMDT9QCF0NH7XZ4Y0>
-              <Then ?01M18J9T1MMDT9QCF0NH7XZ4Y1>
-              The runtime SHALL NOT replay the request automatically and SHALL preserve the failure as indeterminate-after-accept.
-              </?01M18J9T1MMDT9QCF0NH7XZ4Y1>
+            <Case #partial-output-turn-recovery (
+              <Given ?01M1RSWVM52641FXXN7F1YTH71>
+              已知Chat预工具派发completion收到部分思考、文本或工具JSON后断连
+              </?01M1RSWVM52641FXXN7F1YTH71>
+              <When ?01M1RSWVM52641FXXN7F1YTH72>
+              上层turn owner恢复
+              </?01M1RSWVM52641FXXN7F1YTH72>
+              <Then ?01M1RSWVM52641FXXN7F1YTH73>
+              系统SHALL重新创建完整completion及解析器，失败片段不进入成功message/canonical history；相同请求上下文、工具仅执行成功结果一次，底层不得叠加自动重试。
+              </?01M1RSWVM52641FXXN7F1YTH73>
             )>
-            <Case #retry-diagnostics (
-              <Given ?01M18J9T1MMDT9QCF0NH7XZ4Y2>
-              A stream failure is retried or terminates retry evaluation.
-              </?01M18J9T1MMDT9QCF0NH7XZ4Y2>
-              <When ?01M18J9T1MMDT9QCF0NH7XZ4Y3>
-              The runtime records provider diagnostics.
-              </?01M18J9T1MMDT9QCF0NH7XZ4Y3>
-              <Then ?01M18J9T1MMDT9QCF0NH7XZ4Y4>
-              Each actual attempt, retry decision, attempt number, retry count, termination reason, and replay-safety classification SHALL be observable.
-              </?01M18J9T1MMDT9QCF0NH7XZ4Y4>
+            <Case #unsafe-lower-stream (
+              <Given ?01M1RSWVM52641FXXN7F1YTH74>
+              低层流已输出且没有具备预派发证明的turn owner
+              </?01M1RSWVM52641FXXN7F1YTH74>
+              <When ?01M1RSWVM52641FXXN7F1YTH75>
+              流中断
+              </?01M1RSWVM52641FXXN7F1YTH75>
+              <Then ?01M1RSWVM52641FXXN7F1YTH76>
+              系统SHALL保留indeterminate-after-accept，不在同一解析器拼接重放；Responses服务端状态恢复不在此范围。
+              </?01M1RSWVM52641FXXN7F1YTH76>
+            )>
+            <Case #cancel-and-terminal (
+              <Given ?01M1RSWVM52641FXXN7F1YTH77>
+              取消、操作deadline、退避预算或次数已耗尽，或401/400不可重试
+              </?01M1RSWVM52641FXXN7F1YTH77>
+              <When ?01M1RSWVM52641FXXN7F1YTH78>
+              重试调度
+              </?01M1RSWVM52641FXXN7F1YTH78>
+              <Then ?01M1RSWVM52641FXXN7F1YTH79>
+              系统SHALL停止且不启动新请求；等待支持取消，保存明确终止诊断。
+              </?01M1RSWVM52641FXXN7F1YTH79>
+            )>
+            <Case #durable-neutral-diagnostics (
+              <Given ?01M1RSWVM52641FXXN7F1YTH7A>
+              任意DeepSeek协议官方或兼容端点发生重试决策
+              </?01M1RSWVM52641FXXN7F1YTH7A>
+              <When ?01M1RSWVM52641FXXN7F1YTH7B>
+              session日志启用
+              </?01M1RSWVM52641FXXN7F1YTH7B>
+              <Then ?01M1RSWVM52641FXXN7F1YTH7C>
+              系统SHALL持久化actor/operation、attempt、分类、延迟和停止原因，不以provider名区分恢复能力，不记录密钥或请求正文。
+              </?01M1RSWVM52641FXXN7F1YTH7C>
             )>
           ]>
         )>

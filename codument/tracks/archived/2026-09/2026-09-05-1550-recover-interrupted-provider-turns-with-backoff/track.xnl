@@ -1,0 +1,68 @@
+<Track #recover-interrupted-provider-turns-with-backoff apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "有界指数退避恢复中断Provider turn，保持取消、上下文和工具执行安全。" description = "分离请求与退避预算；Chat预派发turn恢复；诊断持久化、验证安装和归档。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-05T11:29:15.477Z" updated_at = "2026-09-05T12:50:03.399Z" modeling_base_commit = "f28c0d6fb0e4a2f8971e86c37d229b5e5bf29752" engineering_base_commit = "f28c0d6fb0e4a2f8971e86c37d229b5e5bf29752" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+  ]>
+  <TaskSpace #space_recover-interrupted-provider-turns-with-backoff { name = "recover-interrupted-provider-turns-with-backoff" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "预算与取消" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "预算回归和实现" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1RNN6QGQWAK6T7TKGA6GAHG>
+            先验红长首请求，再在ProviderErrors与provider_retry测试实现独立累计退避预算、次数上限、显式deadline与可取消等待。
+            </?01M1RNN6QGQWAK6T7TKGA6GAHG>
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1RNN6QH4VWHDYWVJ9HVE40G>
+              121秒首请求仍重试；指数退避、截止与取消通过。
+              </?01M1RNN6QH4VWHDYWVJ9HVE40G>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "完整turn恢复和诊断" status = "DONE" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "预派发Chat turn恢复" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1RNN6QH4VWHDYWVJ9HVE40H>
+            AiAgentExecutor共享完成边界管理Chat turn恢复，local-only owner交接防止低层重试乘法；重建解析器，不复用partial文本/思考/tool JSON；未派发工具才允许重启，Responses不放宽。
+            </?01M1RNN6QH4VWHDYWVJ9HVE40H>
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M1RNN6QH4VWHDYWVJ9HVE40J>
+              streaming/cooperative同路径，失败片段不污染成功message，请求一致，工具仅执行一次。
+              </?01M1RNN6QH4VWHDYWVJ9HVE40J>
+            ]>
+          )>
+          <Task #P2-T2 { name = "诊断持久化" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M1RNN6QH4VWHDYWVJ9HVE40K>
+            把分类、attempt、预算、终止原因关联actor/operation写入现有session诊断，不记录密钥或请求正文。
+            </?01M1RNN6QH4VWHDYWVJ9HVE40K>
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M1RNN6QH4VWHDYWVJ9HVE40M>
+              重启可回读重试原因，禁用日志仍有效，取消不发新请求。
+              </?01M1RNN6QH4VWHDYWVJ9HVE40M>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "验收与交付" status = "DONE" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "回归构建安装" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1RNN6QH4VWHDYWVJ9HVE40N>
+            测试先行，运行故障注入、两种executor、provider/stream回归及类型检查；构建并本地安装，fresh审查后归档；不付费请求、不自动commit。
+            </?01M1RNN6QH4VWHDYWVJ9HVE40N>
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M1RNN6QH4VWHDYWVJ9HVE40P>
+              测试构建安装、严格校验、fresh方向审查通过。
+              </?01M1RNN6QH4VWHDYWVJ9HVE40P>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

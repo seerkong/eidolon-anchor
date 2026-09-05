@@ -1,6 +1,7 @@
 import path from "node:path";
 
 import type { SemanticEvent } from "@cell/ai-core-contract/stream/semantic";
+import type { LlmProviderRetryDiagnosticData } from "@cell/ai-organ-contract/llm/ProviderRuntime";
 import type { StreamEvent } from "@cell/symbiont-contract/stream/stream";
 import type { IngressStreams } from "@cell/symbiont-logic/stream/IngressStreams";
 import {
@@ -373,6 +374,7 @@ export function createSessionDiagnosticsXnlLog(params: {
   appendSemanticEvent: (event: SemanticEvent) => void;
   appendRuntimeCheckpointEvent: (event: RuntimeCheckpointDiagnosticEvent) => void;
   appendRuntimePersistenceEvent: (event: RuntimePersistenceDiagnosticEvent) => void;
+  appendProviderRetryEvent: (event: LlmProviderRetryDiagnosticData) => void;
   flush: () => Promise<void>;
 } {
   if (!params.sessionDir) {
@@ -380,6 +382,7 @@ export function createSessionDiagnosticsXnlLog(params: {
       appendSemanticEvent: () => {},
       appendRuntimeCheckpointEvent: () => {},
       appendRuntimePersistenceEvent: () => {},
+      appendProviderRetryEvent: () => {},
       flush: () => Promise.resolve(),
     };
   }
@@ -453,6 +456,13 @@ export function createSessionDiagnosticsXnlLog(params: {
     },
     appendRuntimePersistenceEvent: (event) => {
       appendRuntimeDiagnosticEvent(event);
+    },
+    appendProviderRetryEvent: (event) => {
+      queue.append(diagnosticsLogPath(params.sessionDir!), {
+        tag: "DiagnosticEvent",
+        metadata: { eventType: event.eventType, emittedAt: Date.now(), actorId: event.actorId },
+        attributes: { payload: event },
+      });
     },
     flush: async () => {
       if (reasoningDeltaCount > 0) {

@@ -229,6 +229,8 @@ export type HistoryProjectionState = {
   contentStartAt?: number;
   contentEndAt?: number;
   pendingAssistant: PendingAssistantState | null;
+  /** Provisional provider output, isolated by actor until the parser succeeds. */
+  providerAttempts: Record<string, { attemptId: string; events: SemanticEvent[] }>;
 };
 
 export const INITIAL_HISTORY_PROJECTION_STATE: HistoryProjectionState = {
@@ -250,11 +252,12 @@ export const INITIAL_HISTORY_PROJECTION_STATE: HistoryProjectionState = {
   contentStartAt: undefined,
   contentEndAt: undefined,
   pendingAssistant: null,
+  providerAttempts: {},
 };
 
 /** Fresh initial state for the pure semantic->committed merge core. */
 export function createInitialHistoryProjectionState(): HistoryProjectionState {
-  return { ...INITIAL_HISTORY_PROJECTION_STATE };
+  return { ...INITIAL_HISTORY_PROJECTION_STATE, providerAttempts: {} };
 }
 
 function parseJsonSafe(value: string): unknown {
@@ -492,6 +495,89 @@ function clonePendingAssistant(pending: PendingAssistantState): PendingAssistant
  * this function. It never mutates the input state.
  */
 export function reduceHistoryProjection(
+  state: HistoryProjectionState,
+  input: HistoryProjectionInput,
+): HistoryProjectionState {
+  if (state.completed) return state;
+  if (input.kind === "complete") {
+    // An unfinished provider attempt is never a successful completion.
+    return reduceCommittedHistoryProjection({ ...state, providerAttempts: {} }, input);
+  }
+  const event = input.event;
+  const actorKey = JSON.stringify([event.actor.actor_name || event.actor.actor_id, event.actor.actor_id]);
+  const pendingAttempt = state.providerAttempts?.[actorKey];
+  const emptyBatches = { lastBatch: [], lastCommittedBatch: [], lastAnomalyBatch: [] };
+  if (event.event_type === "semantic_provider_attempt_started") {
+    return {
+      ...state,
+      ...emptyBatches,
+      providerAttempts: {
+        ...state.providerAttempts,
+        [actorKey]: { attemptId: event.attempt_id, events: [] },
+      },
+    };
+  }
+  if (event.event_type === "semantic_provider_attempt_aborted" || event.event_type === "semantic_provider_attempt_succeeded") {
+    if (!pendingAttempt || pendingAttempt.attemptId !== event.attempt_id) return { ...state, ...emptyBatches };
+    const providerAttempts = { ...state.providerAttempts };
+    delete providerAttempts[actorKey];
+    let next: HistoryProjectionState = { ...state, ...emptyBatches, providerAttempts };
+    if (event.event_type === "semantic_provider_attempt_aborted") return next;
+    const historyBatch: MessageHistoryEvent[] = [];
+    const committedBatch: CommittedHistoryMessageEvent[] = [];
+    const anomalyBatch: AnomalyEvent[] = [];
+    // Replay directly into the committed reducer: it cannot rebuffer events or
+    // recursively process attempt boundaries. Other actors' attempts stay held.
+    for (const buffered of pendingAttempt.events) {
+      next = reduceCommittedHistoryProjection(next, { kind: "semantic", event: buffered });
+      historyBatch.push(...next.lastBatch);
+      committedBatch.push(...next.lastCommittedBatch);
+      anomalyBatch.push(...next.lastAnomalyBatch);
+    }
+    return { ...next, lastBatch: historyBatch, lastCommittedBatch: committedBatch, lastAnomalyBatch: anomalyBatch };
+  }
+  if (pendingAttempt && isProviderAttemptOutput(event)) {
+    const events = [...pendingAttempt.events];
+    const previous = events[events.length - 1];
+    const preceding = events[events.length - 2];
+    // Provider token deltas dominate stream size; retain first/last timestamps
+    // with two events per text segment instead of an object per token. Provisional
+    // data is released on success, abort, replacement, or graph completion.
+    if (preceding?.event_type === event.event_type && (
+      previous?.event_type === "semantic_content_delta" && event.event_type === "semantic_content_delta"
+      || previous?.event_type === "semantic_think_delta" && event.event_type === "semantic_think_delta"
+    )) {
+      events[events.length - 1] = { ...event, text: previous.text + event.text };
+    } else {
+      events.push(event);
+    }
+    return {
+      ...state,
+      ...emptyBatches,
+      providerAttempts: { ...state.providerAttempts, [actorKey]: { ...pendingAttempt, events } },
+    };
+  }
+  return reduceCommittedHistoryProjection(state, input);
+}
+
+function isProviderAttemptOutput(event: SemanticEvent): boolean {
+  switch (event.event_type) {
+    case "semantic_think_start":
+    case "semantic_think_delta":
+    case "semantic_think_end":
+    case "semantic_content_start":
+    case "semantic_content_delta":
+    case "semantic_content_end":
+    case "semantic_quote":
+    case "semantic_tool_call_planned":
+    case "semantic_tool_call_start":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function reduceCommittedHistoryProjection(
   state: HistoryProjectionState,
   input: HistoryProjectionInput,
 ): HistoryProjectionState {

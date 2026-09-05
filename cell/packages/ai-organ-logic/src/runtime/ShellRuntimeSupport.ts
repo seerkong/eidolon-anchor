@@ -259,6 +259,22 @@ export async function processRuntimeIngressStream(params: {
     ingressStreams,
     params.actorMeta ?? { agentKey: "unknown", agentActorId: "unknown" },
   )
+  const chatBundleId = String((params.llmAdapter as any)?.chatCompletionsEffectBundle?.id ?? "")
+  const transactionalAttempt = chatBundleId === "deepseek-chat" || chatBundleId === "openai-official-chat"
+  const attemptId = crypto.randomUUID()
+  const emitAttemptBoundary = (eventType:
+    | "semantic_provider_attempt_started"
+    | "semantic_provider_attempt_succeeded"
+    | "semantic_provider_attempt_aborted") => {
+    if (!transactionalAttempt) return
+    const event: SemanticEvent = {
+      ...buildDomainRuntimeSemanticBase(params.actorMeta ?? { agentKey: "unknown", agentActorId: "unknown" }, Date.now()),
+      event_type: eventType,
+      attempt_id: attemptId,
+    }
+    diagnosticsLog.appendSemanticEvent(event)
+    params.eventBus?.emit(event)
+  }
 
   semanticGraph.onSemanticEvent((event) => {
     if (params.signal?.aborted) return
@@ -267,8 +283,18 @@ export async function processRuntimeIngressStream(params: {
   })
 
   try {
-    const results = await Promise.all([runAdapter(), runPipeline()])
-    return results[0]
+    emitAttemptBoundary("semantic_provider_attempt_started")
+    // Drain the failed attempt's pipeline before a fresh parser can start.
+    const results = await Promise.allSettled([runAdapter(), runPipeline()])
+    for (const result of results) {
+      if (result.status === "rejected") throw result.reason
+    }
+    if (params.signal?.aborted) throw params.signal.reason ?? new DOMException("Aborted", "AbortError")
+    emitAttemptBoundary("semantic_provider_attempt_succeeded")
+    return (results[0] as PromiseFulfilledResult<any>).value
+  } catch (error) {
+    emitAttemptBoundary("semantic_provider_attempt_aborted")
+    throw error
   } finally {
     ingressLog.dispose()
     await Promise.all([

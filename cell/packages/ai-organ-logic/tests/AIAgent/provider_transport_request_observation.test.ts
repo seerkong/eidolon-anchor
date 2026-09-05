@@ -306,7 +306,7 @@ describe("provider transport request observation", () => {
     const observations: ProviderRequestObservationData[] = [];
     const outcomes: ProviderRequestOutcomeObservationData[] = [];
     const controller = new AbortController();
-    if (expectedState === "aborted") controller.abort();
+    let fetchCalls = 0;
     const driver: ProviderDriverDefinition = {
       name: `openai-chat-${expectedState}-outcome-test`,
       adapterNames: ["openai-responses"],
@@ -316,8 +316,11 @@ describe("provider transport request observation", () => {
           requestObserver: params.transportRequestObserver,
           providerOptions: {
             fetch: async (_url, init) => {
-              if ((init?.signal as AbortSignal | undefined)?.aborted) {
-                throw new DOMException("aborted", "AbortError");
+              fetchCalls += 1;
+              expect(init?.signal?.aborted).toBe(false);
+              if (expectedState === "aborted") {
+                controller.abort(new DOMException("aborted", "AbortError"));
+                init?.signal?.throwIfAborted();
               }
               if (expectedState === "failed") {
                 return new Response("denied", { status: 400 });
@@ -352,6 +355,7 @@ describe("provider transport request observation", () => {
       await drain(result.stream);
     }
 
+    expect(fetchCalls).toBe(1);
     expect(observations).toHaveLength(1);
     expect(outcomes).toHaveLength(1);
     expect(outcomes[0]).toEqual(expect.objectContaining({
@@ -752,16 +756,11 @@ describe("provider transport request observation", () => {
     );
   });
 
-  it.each([
-    ["failed", undefined, async () => new Response("denied", { status: 400 })],
-    ["aborted", "abort", async () => { throw new Error("aborted") }],
-  ] as const)("records %s HTTP terminal outcome without inventing completeness", async (
-    expectedState,
-    abortMode,
-    fetchFn,
-  ) => {
+  it.each(["failed", "aborted"] as const)("records %s HTTP terminal outcome without inventing completeness", async (expectedState) => {
     const observations: ProviderRequestObservationData[] = [];
     const outcomes: ProviderRequestOutcomeObservationData[] = [];
+    const controller = new AbortController();
+    let fetchCalls = 0;
     const driver: ProviderDriverDefinition = {
       name: `responses-${expectedState}-outcome-test`,
       adapterNames: ["openai-responses"],
@@ -769,7 +768,18 @@ describe("provider transport request observation", () => {
         const adapter = new OpenAIResponsesNodejsFetchLlmAdapter({
           apiKey: "test-key",
           requestObserver: params.transportRequestObserver,
-          providerOptions: { fetch: fetchFn, transport_mode: "http_sse" },
+          providerOptions: {
+            transport_mode: "http_sse",
+            fetch: async (_url, init) => {
+              fetchCalls += 1;
+              expect(init?.signal?.aborted).toBe(false);
+              if (expectedState === "aborted") {
+                controller.abort(new DOMException("aborted", "AbortError"));
+                init?.signal?.throwIfAborted();
+              }
+              return new Response("denied", { status: 400 });
+            },
+          },
         });
         return adapter.createStream({
           model: params.model,
@@ -780,8 +790,6 @@ describe("provider transport request observation", () => {
       },
     };
     const adapter = createRuntimeAdapter({ driver, observations, outcomes });
-    const controller = new AbortController();
-    if (abortMode) controller.abort();
 
     const result = await adapter.createStream({
       model: "wire-model",
@@ -791,6 +799,7 @@ describe("provider transport request observation", () => {
     });
     await expect(drain(result.stream)).rejects.toThrow();
 
+    expect(fetchCalls).toBe(1);
     expect(observations).toHaveLength(1);
     expect(outcomes).toEqual([
       expect.objectContaining({
@@ -801,6 +810,46 @@ describe("provider transport request observation", () => {
         completenessReason: expectedState === "aborted" ? "aborted" : "http_400",
       }),
     ]);
+  });
+
+  it.each(["chat", "responses"] as const)("does not send or observe an already cancelled %s request", async (kind) => {
+    const observations: ProviderRequestObservationData[] = [];
+    const outcomes: ProviderRequestOutcomeObservationData[] = [];
+    let driverCalls = 0;
+    let fetchCalls = 0;
+    const controller = new AbortController();
+    const cancelled = new DOMException("cancelled before request", "AbortError");
+    controller.abort(cancelled);
+    const driver: ProviderDriverDefinition = {
+      name: `pre-aborted-${kind}`,
+      adapterNames: ["openai-responses"],
+      async createStream(params) {
+        driverCalls += 1;
+        const transportOptions = {
+          apiKey: "test-key",
+          requestObserver: params.transportRequestObserver,
+          providerOptions: {
+            transport_mode: "http_sse",
+            fetch: async () => { fetchCalls += 1; return sse(); },
+          },
+        };
+        const transport = kind === "chat"
+          ? new OpenAICompletionsNodejsFetchLlmAdapter(transportOptions)
+          : new OpenAIResponsesNodejsFetchLlmAdapter(transportOptions);
+        return transport.createStream({
+          model: params.model, messages: [], tools: [], signal: params.signal,
+        });
+      },
+    };
+    const adapter = createRuntimeAdapter({ driver, observations, outcomes });
+    const result = await adapter.createStream({
+      model: "wire-model", messages: [], tools: [], signal: controller.signal,
+    });
+    await expect(drain(result.stream)).rejects.toBe(cancelled);
+    expect(driverCalls).toBe(0);
+    expect(fetchCalls).toBe(0);
+    expect(observations).toEqual([]);
+    expect(outcomes).toEqual([]);
   });
 
   it("records an incomplete terminal outcome when SSE ends without response.completed", async () => {

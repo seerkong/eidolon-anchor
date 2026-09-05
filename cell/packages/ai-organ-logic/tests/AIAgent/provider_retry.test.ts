@@ -145,6 +145,211 @@ describe("provider retry classification", () => {
 });
 
 describe("provider retry executor", () => {
+  for (const mode of ["operation", "stream"] as const) {
+    const run = async (operation: () => Promise<string>, options: any) => {
+      if (mode === "operation") return executeWithProviderRetry(operation, options);
+      const result = createProviderStreamWithRetry(async () => ({
+        stream: (async function* () {
+          yield await operation();
+        })(),
+      }), options);
+      void result.providerOutput.catch(() => undefined);
+      for await (const _chunk of result.stream) { /* Consume the attempt. */ }
+      return "ok";
+    };
+    const identity = { stage: "stream", providerId: "compatible", selectedModel: "model" };
+
+    it(`${mode}: preserves three exponential retries after a 121-second first request`, async () => {
+      let now = 0;
+      let attempts = 0;
+      const waits: number[] = [];
+      const diagnostics: any[] = [];
+      const failure = new Error("The socket connection was closed unexpectedly");
+      await expect(run(async () => {
+        attempts += 1;
+        now += 121;
+        throw failure;
+      }, {
+        ...identity, now: () => now, random: () => 0.5,
+        sleep: async (seconds: number) => { waits.push(seconds); now += seconds; },
+        onDiagnostic: (event: any) => diagnostics.push(event),
+      })).rejects.toThrow(failure.message);
+      expect(attempts).toBe(4);
+      expect(waits).toEqual([1, 2, 4]);
+      expect(diagnostics.map((event) => event.cumulativeBackoffSeconds)).toEqual([0, 1, 3, 7]);
+      expect(diagnostics[0].elapsedSeconds).toBe(121);
+      expect(diagnostics.at(-1).terminationReason).toBe("retry_exhausted");
+    });
+
+    it(`${mode}: enforces cumulative backoff independently of request time`, async () => {
+      let attempts = 0;
+      const waits: number[] = [];
+      const diagnostics: any[] = [];
+      await expect(run(async () => {
+        attempts += 1;
+        throw new Error("network error");
+      }, {
+        ...identity, policy: { maxTotalBackoffSeconds: 2 }, now: () => 0, random: () => 0.5,
+        sleep: async (seconds: number) => { waits.push(seconds); },
+        onDiagnostic: (event: any) => diagnostics.push(event),
+      })).rejects.toThrow("network error");
+      expect(attempts).toBe(2);
+      expect(waits).toEqual([1]);
+      expect(diagnostics.at(-1).terminationReason).toBe("retry_backoff_budget_exhausted");
+    });
+
+    for (const point of ["initial", "failure", "before_wait", "during_wait", "after_wait"] as const) {
+      it(`${mode}: does not start another attempt when cancelled ${point}`, async () => {
+        const controller = new AbortController();
+        const cancelled = new Error("user cancelled");
+        let attempts = 0;
+        let waits = 0;
+        const diagnostics: any[] = [];
+        if (point === "initial") controller.abort(cancelled);
+        await expect(run(async () => {
+          attempts += 1;
+          if (point === "failure") controller.abort(cancelled);
+          throw new Error("network error");
+        }, {
+          ...identity, signal: controller.signal,
+          onDiagnostic: (event: any) => {
+            diagnostics.push(event);
+            if (point === "before_wait") controller.abort(cancelled);
+          },
+          sleep: async () => {
+            waits += 1;
+            if (point === "during_wait") {
+              queueMicrotask(() => controller.abort(cancelled));
+              await new Promise(() => {});
+            }
+            if (point === "after_wait") controller.abort(cancelled);
+          },
+        })).rejects.toThrow("user cancelled");
+        expect(attempts).toBe(point === "initial" ? 0 : 1);
+        expect(waits).toBe(point === "during_wait" || point === "after_wait" ? 1 : 0);
+        expect(diagnostics.at(-1).terminationReason).toBe("aborted");
+      });
+    }
+
+    it(`${mode}: refuses a wait that reaches the explicit operation deadline`, async () => {
+      let now = 0;
+      let attempts = 0;
+      let waits = 0;
+      const diagnostics: any[] = [];
+      await expect(run(async () => {
+        attempts += 1;
+        now = 9;
+        throw new Error("network error");
+      }, {
+        ...identity, policy: { maxTotalElapsedSeconds: 10 }, now: () => now, random: () => 0.5,
+        sleep: async () => { waits += 1; },
+        onDiagnostic: (event: any) => diagnostics.push(event),
+      })).rejects.toThrow("network error");
+      expect(attempts).toBe(1);
+      expect(waits).toBe(0);
+      expect(diagnostics.at(-1).terminationReason).toBe("retry_time_budget_exhausted");
+    });
+
+    it(`${mode}: rechecks the deadline after waiting`, async () => {
+      let now = 0;
+      let attempts = 0;
+      const diagnostics: any[] = [];
+      await expect(run(async () => {
+        attempts += 1;
+        throw new Error("network error");
+      }, {
+        ...identity, policy: { maxTotalElapsedSeconds: 10 }, now: () => now,
+        sleep: async () => { now = 10; },
+        onDiagnostic: (event: any) => diagnostics.push(event),
+      })).rejects.toThrow("network error");
+      expect(attempts).toBe(1);
+      expect(diagnostics.at(-1).terminationReason).toBe("retry_time_budget_exhausted");
+    });
+
+    it(`${mode}: stops if actual waiting overshoots the backoff budget`, async () => {
+      let now = 0;
+      let attempts = 0;
+      const diagnostics: any[] = [];
+      await expect(run(async () => {
+        attempts += 1;
+        throw new Error("network error");
+      }, {
+        ...identity, policy: { maxTotalBackoffSeconds: 2 }, now: () => now, random: () => 0.5,
+        sleep: async () => { now = 3; },
+        onDiagnostic: (event: any) => diagnostics.push(event),
+      })).rejects.toThrow("network error");
+      expect(attempts).toBe(1);
+      expect(diagnostics.at(-1)).toMatchObject({
+        cumulativeBackoffSeconds: 3, terminationReason: "retry_backoff_budget_exhausted",
+      });
+    });
+
+    it(`${mode}: an expired explicit deadline prevents even the first attempt`, async () => {
+      let attempts = 0;
+      await expect(run(async () => { attempts += 1; return "ok"; }, {
+        ...identity, policy: { maxTotalElapsedSeconds: 0 }, now: () => 0,
+      })).rejects.toThrow("deadline exceeded");
+      expect(attempts).toBe(0);
+    });
+
+    it(`${mode}: interrupts a stalled sleeper when the deadline expires`, async () => {
+      let attempts = 0;
+      const diagnostics: any[] = [];
+      await expect(run(async () => {
+        attempts += 1;
+        throw new Error("network error");
+      }, {
+        ...identity,
+        policy: { maxTotalElapsedSeconds: 0.02, baseDelaySeconds: 0, maxDelaySeconds: 0 },
+        sleep: async () => { await new Promise(() => {}); },
+        onDiagnostic: (event: any) => diagnostics.push(event),
+      })).rejects.toThrow("network error");
+      expect(attempts).toBe(1);
+      expect(diagnostics.at(-1).terminationReason).toBe("retry_time_budget_exhausted");
+    });
+
+    it(`${mode}: cancels the default timer without waiting for the backoff`, async () => {
+      let attempts = 0;
+      const controller = new AbortController();
+      const diagnostics: any[] = [];
+      await expect(run(async () => {
+        attempts += 1;
+        throw new Error("network error");
+      }, {
+        ...identity, signal: controller.signal,
+        policy: { baseDelaySeconds: 30, maxDelaySeconds: 30 },
+        onDiagnostic: (event: any) => {
+          diagnostics.push(event);
+          if (event.terminationReason === "retry_scheduled") {
+            setTimeout(() => controller.abort(new Error("user cancelled")), 0);
+          }
+        },
+      })).rejects.toThrow("user cancelled");
+      expect(attempts).toBe(1);
+      expect(diagnostics.at(-1).terminationReason).toBe("aborted");
+    });
+  }
+
+  it("lets the completion owner exclude semantic repair without changing classification", async () => {
+    const error = new ChatCompletionsProtocolError([{
+      code: "invalid_tool_call_payload", message: "invalid JSON arguments",
+    }]);
+    let attempts = 0;
+    const diagnostics: any[] = [];
+    await expect(executeWithProviderRetry(async () => {
+      attempts += 1;
+      throw error;
+    }, {
+      stage: "stream", providerId: "compatible", selectedModel: "model",
+      shouldRetry: (_error, classification) => classification.retryScope !== "assistant_turn_repair",
+      sleep: async () => {},
+      onDiagnostic: (event, context) => diagnostics.push({ event, context }),
+    })).rejects.toBe(error);
+    expect(attempts).toBe(1);
+    expect(diagnostics[0].context).toEqual({ error, attemptNumber: 1 });
+    expect(diagnostics[0].event.terminationReason).toBe("retry_filtered");
+  });
+
   it("retries transient failures and emits retry diagnostics", async () => {
     const diagnostics: any[] = [];
     let attempts = 0;

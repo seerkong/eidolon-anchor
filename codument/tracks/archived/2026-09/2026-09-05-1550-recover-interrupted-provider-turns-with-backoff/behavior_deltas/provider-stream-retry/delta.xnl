@@ -1,0 +1,12 @@
+<BehaviorPatch #track.recover-interrupted-provider-turns-with-backoff.behavior_patch.provider-stream-retry apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-stream-retry" } (
+  <Mutations [ <Upsert { selector = "behavior://provider-stream-retry/requirements/stream-failure-recovery" } ( <Requirement #stream-failure-recovery (
+<Statement ?>系统SHALL区分transport流重试和已知预工具派发的完整Chat turn恢复；使用独立退避预算、操作截止与取消，单一owner执行有界指数重试，不重复工具副作用。</?>
+<Suites [ <Suite #recovery { name = "Provider turn recovery" } ( <Cases [
+<Case #long-initial-request ( <Given ?>首请求执行超过120秒但没有取消或操作截止</?> <When ?>发生瞬时网络失败</?> <Then ?>系统SHALL以独立累计退避预算调度指数重试，记录请求耗时与等待耗时，保持次数和deadline上限。</?> )>
+<Case #partial-output-turn-recovery ( <Given ?>已知Chat预工具派发completion收到部分思考、文本或工具JSON后断连</?> <When ?>上层turn owner恢复</?> <Then ?>系统SHALL重新创建完整completion及解析器，失败片段不进入成功message/canonical history；相同请求上下文、工具仅执行成功结果一次，底层不得叠加自动重试。</?> )>
+<Case #unsafe-lower-stream ( <Given ?>低层流已输出且没有具备预派发证明的turn owner</?> <When ?>流中断</?> <Then ?>系统SHALL保留indeterminate-after-accept，不在同一解析器拼接重放；Responses服务端状态恢复不在此范围。</?> )>
+<Case #cancel-and-terminal ( <Given ?>取消、操作deadline、退避预算或次数已耗尽，或401/400不可重试</?> <When ?>重试调度</?> <Then ?>系统SHALL停止且不启动新请求；等待支持取消，保存明确终止诊断。</?> )>
+<Case #durable-neutral-diagnostics ( <Given ?>任意DeepSeek协议官方或兼容端点发生重试决策</?> <When ?>session日志启用</?> <Then ?>系统SHALL持久化actor/operation、attempt、分类、延迟和停止原因，不以provider名区分恢复能力，不记录密钥或请求正文。</?> )>
+]> )> ]>
+)> )> ]>
+)>

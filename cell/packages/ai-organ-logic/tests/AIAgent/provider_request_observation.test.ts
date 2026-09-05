@@ -462,7 +462,7 @@ describe("provider request observation", () => {
 
     const abortEvents: ProviderRequestObservationData[] = [];
     const controller = new AbortController();
-    controller.abort();
+    let abortDriverCalls = 0;
     const abortAdapter = new ProviderRuntimeLlmAdapter({
       providerId: "provider-1",
       selectedModel: "model-1",
@@ -471,10 +471,13 @@ describe("provider request observation", () => {
         name: "abort-driver",
         adapterNames: ["openai-chat"],
         createStream: async (params) => {
+          abortDriverCalls += 1;
           const { signal } = params;
-          expect(signal?.aborted).toBe(true);
+          expect(signal?.aborted).toBe(false);
           observeFakeHttp(params);
-          throw new DOMException("aborted", "AbortError");
+          controller.abort(new DOMException("aborted", "AbortError"));
+          signal?.throwIfAborted();
+          throw new Error("abort must interrupt the issued request");
         },
       },
       runtime: {
@@ -488,6 +491,43 @@ describe("provider request observation", () => {
       signal: controller.signal,
     });
     await expect(drain(abortResult.stream)).rejects.toThrow("aborted");
+    expect(abortDriverCalls).toBe(1);
     expect(abortEvents).toHaveLength(1);
+  });
+
+  it("does not call the driver or record a request or outcome when already cancelled", async () => {
+    const events: ProviderRequestObservationData[] = [];
+    const outcomes: unknown[] = [];
+    let driverCalls = 0;
+    const controller = new AbortController();
+    const cancelled = new DOMException("cancelled before request", "AbortError");
+    controller.abort(cancelled);
+    const adapter = new ProviderRuntimeLlmAdapter({
+      providerId: "provider-1",
+      selectedModel: "model-1",
+      adapterName: "openai-chat",
+      driver: {
+        name: "pre-aborted-driver",
+        adapterNames: ["openai-chat"],
+        createStream: async (params) => {
+          driverCalls += 1;
+          observeFakeHttp(params);
+          return successfulStream();
+        },
+      },
+      runtime: {
+        requestObservationPort: {
+          append: (event) => events.push(event),
+          appendOutcome: (event) => outcomes.push(event),
+        },
+      },
+    });
+    const result = await adapter.createStream({
+      model: "model-1", messages: [], tools: [], signal: controller.signal,
+    });
+    await expect(drain(result.stream)).rejects.toBe(cancelled);
+    expect(driverCalls).toBe(0);
+    expect(events).toEqual([]);
+    expect(outcomes).toEqual([]);
   });
 });

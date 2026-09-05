@@ -56,6 +56,10 @@ export type LlmGenerateOptions = {
   tools: ToolSchema[];
   extraBody?: any;
   signal?: AbortSignal;
+  /** Local-only: the pre-dispatch Chat turn owner handles retries with a fresh parser. */
+  providerRetryOwner?: "assistant_turn";
+  /** Local correlation only; one opaque token groups fresh-parser attempts of a completion. */
+  providerRetryContext?: { callToken: object; attemptNumber: number };
   /**
    * Stable session/actor identity for provider-specific request correlation.
    * It must not be used as an implicit continuation-state key; Responses

@@ -99,6 +99,7 @@ export class ProviderRuntimeLlmAdapter implements LlmAdapter {
   readonly options: Record<string, unknown>;
   readonly chatCompletionsEffectBundle?: ChatCompletionsEffectBundle;
   private providerCallOrdinal = 0;
+  private readonly retryCallIdentities = new WeakMap<object, { providerCallId: string; providerCallOrdinal: number }>();
 
   constructor(settings: ProviderRuntimeLlmAdapterSettings) {
     this.driver = settings.driver ?? getProviderDriver(settings.adapterName);
@@ -168,15 +169,18 @@ export class ProviderRuntimeLlmAdapter implements LlmAdapter {
 
   async createStream(options: LlmGenerateOptions): Promise<LlmStreamResult> {
     const prepared = this.prepareRequest(options);
-    const providerCallOrdinal = ++this.providerCallOrdinal;
-    const providerCallId = resolveProviderCallId(
-      prepared.runtime,
-      providerCallOrdinal,
-    );
+    const retryContext = options.providerRetryOwner === "assistant_turn" ? options.providerRetryContext : undefined;
+    let callIdentity = retryContext ? this.retryCallIdentities.get(retryContext.callToken) : undefined;
+    if (!callIdentity) {
+      const providerCallOrdinal = ++this.providerCallOrdinal;
+      callIdentity = { providerCallOrdinal, providerCallId: resolveProviderCallId(prepared.runtime, providerCallOrdinal) };
+      if (retryContext) this.retryCallIdentities.set(retryContext.callToken, callIdentity);
+    }
+    const { providerCallOrdinal, providerCallId } = callIdentity;
     let providerAttemptOrdinal = 0;
     const result = createProviderStreamWithRetry(
       async (attemptNumber) => {
-        providerAttemptOrdinal = attemptNumber;
+        providerAttemptOrdinal = retryContext?.attemptNumber ?? attemptNumber;
         const identity: ProviderAttemptIdentity = {
           providerCallId,
           providerCallOrdinal,
@@ -221,7 +225,9 @@ export class ProviderRuntimeLlmAdapter implements LlmAdapter {
         providerId: this.runtime.providerId,
         selectedModel: this.runtime.selectedModel,
         signal: options.signal,
+        policy: options.providerRetryOwner === "assistant_turn" ? { maxRetries: 0 } : undefined,
         onDiagnostic: (event) => {
+          if (options.providerRetryOwner === "assistant_turn") return;
           emitProviderDiagnostic(prepared.runtime.diagnostics, "retry", {
             ...event,
             agentName:

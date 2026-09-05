@@ -18,6 +18,9 @@ export const SEMANTIC_EVENT_TYPES = [
   "semantic_user_input",
   "semantic_turn_start",
   "semantic_turn_end",
+  "semantic_provider_attempt_started",
+  "semantic_provider_attempt_succeeded",
+  "semantic_provider_attempt_aborted",
   "semantic_think_start",
   "semantic_think_delta",
   "semantic_think_end",
@@ -89,6 +92,19 @@ export type SemanticTurnStartEvent = SemanticEventBase<"semantic_turn_start"> & 
 
 export type SemanticTurnEndEvent = SemanticEventBase<"semantic_turn_end"> & {
   reason: string;
+};
+
+/** Local history transaction boundaries; attempt_id identifies one parser run. */
+export type SemanticProviderAttemptStartedEvent = SemanticEventBase<"semantic_provider_attempt_started"> & {
+  attempt_id: string;
+};
+
+export type SemanticProviderAttemptSucceededEvent = SemanticEventBase<"semantic_provider_attempt_succeeded"> & {
+  attempt_id: string;
+};
+
+export type SemanticProviderAttemptAbortedEvent = SemanticEventBase<"semantic_provider_attempt_aborted"> & {
+  attempt_id: string;
 };
 
 export type SemanticThinkStartEvent = SemanticEventBase<"semantic_think_start">;
@@ -232,6 +248,9 @@ export type SemanticEvent =
   | SemanticUserInputEvent
   | SemanticTurnStartEvent
   | SemanticTurnEndEvent
+  | SemanticProviderAttemptStartedEvent
+  | SemanticProviderAttemptSucceededEvent
+  | SemanticProviderAttemptAbortedEvent
   | SemanticThinkStartEvent
   | SemanticThinkDeltaEvent
   | SemanticThinkEndEvent

@@ -1,441 +1,474 @@
 <Behavior #provider-deepseek apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #v4-flash-capabilities (
-      <Statement ?01M1H5WDMWFDTSPT3MYPFR23WZ>
+      <Statement ?01M1RSWVM14EP7F0KZ4CW8GF2Z>
       DeepSeek adapter SHALL 支持模型 id `deepseek-v4-flash` 及其官方 Chat Completions 文本、thinking、reasoning effort、stream 与 tool-call contract；截至 2026-08-02，该模型 SHALL 声明为 text-only，系统 MUST NOT 把官方不支持的 image/file content 发送后当作识图成功。
-      </?01M1H5WDMWFDTSPT3MYPFR23WZ>
+      </?01M1RSWVM14EP7F0KZ4CW8GF2Z>
       <Suites [
         <Suite #v4-flash-routing { name = "DeepSeek V4 Flash 接入" } (
           <Cases [
             <Case #uses-current-model-id-and-endpoint [
-              <Then ?01M1H5WDMWFDTSPT3MYPFR23X0>
+              <Then ?01M1RSWVM14EP7F0KZ4CW8GF30>
               请求 SHALL 使用配置的 DeepSeek base URL、`/chat/completions` endpoint 与原始模型 id
-              </?01M1H5WDMWFDTSPT3MYPFR23X0>
-              <Then ?01M1H5WDMWFDTSPT3MYPFR23X1>
+              </?01M1RSWVM14EP7F0KZ4CW8GF30>
+              <Then ?01M1RSWVM14EP7F0KZ4CW8GF31>
               stream、tools、thinking 与受支持 reasoning effort SHALL 继续工作
-              </?01M1H5WDMWFDTSPT3MYPFR23X1>
+              </?01M1RSWVM14EP7F0KZ4CW8GF31>
             ] (
-              <Given ?01M1H5WDMWFDTSPT3MYPFR23X2>
+              <Given ?01M1RSWVM14EP7F0KZ4CW8GF32>
               provider adapter 为 deepseek 且模型配置为 deepseek-v4-flash
-              </?01M1H5WDMWFDTSPT3MYPFR23X2>
-              <When ?01M1H5WDMWFDTSPT3MYPFR23X3>
+              </?01M1RSWVM14EP7F0KZ4CW8GF32>
+              <When ?01M1RSWVM14EP7F0KZ4CW8GF33>
               系统构造 Chat Completions 请求
-              </?01M1H5WDMWFDTSPT3MYPFR23X3>
+              </?01M1RSWVM14EP7F0KZ4CW8GF33>
             )>
             <Case #official-limits-are-configurable (
-              <Given ?01M1H5WDMWFDTSPT3MYPFR23X4>
+              <Given ?01M1RSWVM14EP7F0KZ4CW8GF34>
               示例或用户配置选择 DeepSeek V4 Flash
-              </?01M1H5WDMWFDTSPT3MYPFR23X4>
-              <When ?01M1H5WDMWFDTSPT3MYPFR23X5>
+              </?01M1RSWVM14EP7F0KZ4CW8GF34>
+              <When ?01M1RSWVM14EP7F0KZ4CW8GF35>
               provider catalog 解析模型
-              </?01M1H5WDMWFDTSPT3MYPFR23X5>
-              <Then ?01M1H5WDMWFDTSPT3MYPFR23X6>
+              </?01M1RSWVM14EP7F0KZ4CW8GF35>
+              <Then ?01M1RSWVM14EP7F0KZ4CW8GF36>
               context/output limits SHALL 可按官方 1M/384K 值配置并传播到 runtime capability
-              </?01M1H5WDMWFDTSPT3MYPFR23X6>
+              </?01M1RSWVM14EP7F0KZ4CW8GF36>
             )>
             <Case #image-is-rejected-not-placeholdered [
-              <Then ?01M1H5WDMWFDTSPT3MYPFR23X7>
+              <Then ?01M1RSWVM14EP7F0KZ4CW8GF37>
               系统 SHALL 在 I/O 前以 unsupported image modality 拒绝请求
-              </?01M1H5WDMWFDTSPT3MYPFR23X7>
-              <Then ?01M1H5WDMWFDTSPT3MYPFR23X8>
+              </?01M1RSWVM14EP7F0KZ4CW8GF37>
+              <Then ?01M1RSWVM14EP7F0KZ4CW8GF38>
               系统 MUST NOT 发送 input_image 让服务端替换为 placeholder，也 MUST NOT 声称已识别图片
-              </?01M1H5WDMWFDTSPT3MYPFR23X8>
+              </?01M1RSWVM14EP7F0KZ4CW8GF38>
             ] (
-              <Given ?01M1H5WDMWFDTSPT3MYPFR23X9>
+              <Given ?01M1RSWVM14EP7F0KZ4CW8GF39>
               当前模型为 deepseek-v4-flash 且 prompt 含 image part
-              </?01M1H5WDMWFDTSPT3MYPFR23X9>
-              <When ?01M1H5WDMWFDTSPT3MYPFR23XA>
+              </?01M1RSWVM14EP7F0KZ4CW8GF39>
+              <When ?01M1RSWVM14EP7F0KZ4CW8GF3A>
               系统准备 provider 请求
-              </?01M1H5WDMWFDTSPT3MYPFR23XA>
+              </?01M1RSWVM14EP7F0KZ4CW8GF3A>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #official-live-proposition-cache-evidence (
-      <Statement ?01M1H5WDMWFDTSPT3MYPFR23XB>
+      <Statement ?01M1RSWVM14EP7F0KZ4CW8GF3B>
       Official DeepSeek proposition runs SHALL report final-success cache usage, exact retained-prefix integrity and absolute provider-token cost by comparable context epoch without letting compatible providers, short-context warm-up or aggregate ratios satisfy the long-running gate.
-      </?01M1H5WDMWFDTSPT3MYPFR23XB>
+      </?01M1RSWVM14EP7F0KZ4CW8GF3B>
       <Suites [
         <Suite #live-proposition-evidence { name = "Official live proposition evidence" } (
           <Cases [
             <Case #official-provider-only (
-              <Given ?01M1H5WDMWFDTSPT3MYPFR23XC>
+              <Given ?01M1RSWVM14EP7F0KZ4CW8GF3C>
               a live matrix cell is required for Mission acceptance
-              </?01M1H5WDMWFDTSPT3MYPFR23XC>
-              <When ?01M1H5WDMWFDTSPT3MYPFR23XD>
+              </?01M1RSWVM14EP7F0KZ4CW8GF3C>
+              <When ?01M1RSWVM14EP7F0KZ4CW8GF3D>
               provider configuration is resolved
-              </?01M1H5WDMWFDTSPT3MYPFR23XD>
-              <Then ?01M1H5WDMWFDTSPT3MYPFR23XE>
+              </?01M1RSWVM14EP7F0KZ4CW8GF3D>
+              <Then ?01M1RSWVM14EP7F0KZ4CW8GF3E>
               the receipt SHALL prove the official DeepSeek provider and exact model; a compatible gateway SHALL remain separate and cannot satisfy the cell
-              </?01M1H5WDMWFDTSPT3MYPFR23XE>
+              </?01M1RSWVM14EP7F0KZ4CW8GF3E>
             )>
             <Case #long-context-scope (
-              <Given ?01M1H5WDMWFDTSPT3MYPFR23XF>
+              <Given ?01M1RSWVM14EP7F0KZ4CW8GF3F>
               forward-only final-success turns share provider, model and context epoch with at least three eligible subsequent turns and 32768 input tokens
-              </?01M1H5WDMWFDTSPT3MYPFR23XF>
-              <When ?01M1H5WDMWFDTSPT3MYPFR23XG>
+              </?01M1RSWVM14EP7F0KZ4CW8GF3F>
+              <When ?01M1RSWVM14EP7F0KZ4CW8GF3G>
               cache coverage is evaluated
-              </?01M1H5WDMWFDTSPT3MYPFR23XG>
-              <Then ?01M1H5WDMWFDTSPT3MYPFR23XH>
+              </?01M1RSWVM14EP7F0KZ4CW8GF3G>
+              <Then ?01M1RSWVM14EP7F0KZ4CW8GF3H>
               the scope SHALL report hit and miss tokens, require retained-prefix integrity `1.0`, target hit ratio at least `0.995`, and localize any lower result without merging cold or explicit-epoch turns
-              </?01M1H5WDMWFDTSPT3MYPFR23XH>
+              </?01M1RSWVM14EP7F0KZ4CW8GF3H>
             )>
             <Case #absolute-cost-is-visible (
-              <Given ?01M1H5WDMWFDTSPT3MYPFR23XJ>
+              <Given ?01M1RSWVM14EP7F0KZ4CW8GF3J>
               ordinary, Ctrl and Data cells are verifier-equivalent
-              </?01M1H5WDMWFDTSPT3MYPFR23XJ>
-              <When ?01M1H5WDMWFDTSPT3MYPFR23XK>
+              </?01M1RSWVM14EP7F0KZ4CW8GF3J>
+              <When ?01M1RSWVM14EP7F0KZ4CW8GF3K>
               their provider cost is compared
-              </?01M1H5WDMWFDTSPT3MYPFR23XK>
-              <Then ?01M1H5WDMWFDTSPT3MYPFR23XM>
+              </?01M1RSWVM14EP7F0KZ4CW8GF3K>
+              <Then ?01M1RSWVM14EP7F0KZ4CW8GF3M>
               the report SHALL expose total input, hit, miss and output tokens plus normalized charged input and elapsed/retry facts so stable Workflow overhead cannot be hidden by a high ratio
-              </?01M1H5WDMWFDTSPT3MYPFR23XM>
+              </?01M1RSWVM14EP7F0KZ4CW8GF3M>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #transient-transport-recovery (
-      <Statement ?01M1H5WDMWFDTSPT3MYPFR23XN>
-      Official DeepSeek live execution SHALL integrate the provider-call transport recovery contract: a transient close may use bounded same-contract replay only before provider output is observed, and SHALL fail without replay once any visible output makes acceptance indeterminate.
-      </?01M1H5WDMWFDTSPT3MYPFR23XN>
+      <Statement ?01M1RSWVM14EP7F0KZ4CW8GF3N>
+      系统SHALL区分transport流重试和已知预工具派发的完整Chat turn恢复；使用独立退避预算、操作截止与取消，单一owner执行有界指数重试，不重复工具副作用。
+      </?01M1RSWVM14EP7F0KZ4CW8GF3N>
       <Suites [
-        <Suite #socket-close-recovery { name = "Premature socket-close recovery" } (
+        <Suite #recovery { name = "Provider turn recovery" } (
           <Cases [
-            <Case #bun-close-before-output-retries (
-              <Given ?01M1H5WDMWFDTSPT3MYPFR23XP>
-              Bun fetch closes an official DeepSeek stream with `The socket connection was closed unexpectedly` before visible text, reasoning or tool-call output
-              </?01M1H5WDMWFDTSPT3MYPFR23XP>
-              <When ?01M1H5WDMWFDTSPT3MYPFR23XQ>
-              the provider retry boundary classifies and handles the failure
-              </?01M1H5WDMWFDTSPT3MYPFR23XQ>
-              <Then ?01M1H5WDMWFDTSPT3MYPFR23XR>
-              it SHALL classify a transport pre-accept failure, replay the exact admitted request within the existing bounded policy, and emit structured retry diagnostics
-              </?01M1H5WDMWFDTSPT3MYPFR23XR>
+            <Case #long-initial-request (
+              <Given ?01M1RSWVM14EP7F0KZ4CW8GF3P>
+              首请求执行超过120秒但没有取消或操作截止
+              </?01M1RSWVM14EP7F0KZ4CW8GF3P>
+              <When ?01M1RSWVM14EP7F0KZ4CW8GF3Q>
+              发生瞬时网络失败
+              </?01M1RSWVM14EP7F0KZ4CW8GF3Q>
+              <Then ?01M1RSWVM14EP7F0KZ4CW8GF3R>
+              系统SHALL以独立累计退避预算调度指数重试，记录请求耗时与等待耗时，保持次数和deadline上限。
+              </?01M1RSWVM14EP7F0KZ4CW8GF3R>
             )>
-            <Case #close-after-output-does-not-replay (
-              <Given ?01M1H5WDMWFDTSPT3MYPFR23XS>
-              any visible provider output has been observed before a transport close
-              </?01M1H5WDMWFDTSPT3MYPFR23XS>
-              <When ?01M1H5WDMWFDTSPT3MYPFR23XT>
-              the stream terminates
-              </?01M1H5WDMWFDTSPT3MYPFR23XT>
-              <Then ?01M1H5WDMWFDTSPT3MYPFR23XV>
-              it SHALL report indeterminate-after-accept and MUST NOT create another provider attempt
-              </?01M1H5WDMWFDTSPT3MYPFR23XV>
+            <Case #partial-output-turn-recovery (
+              <Given ?01M1RSWVM14EP7F0KZ4CW8GF3S>
+              已知Chat预工具派发completion收到部分思考、文本或工具JSON后断连
+              </?01M1RSWVM14EP7F0KZ4CW8GF3S>
+              <When ?01M1RSWVM14EP7F0KZ4CW8GF3T>
+              上层turn owner恢复
+              </?01M1RSWVM14EP7F0KZ4CW8GF3T>
+              <Then ?01M1RSWVM14EP7F0KZ4CW8GF3V>
+              系统SHALL重新创建完整completion及解析器，失败片段不进入成功message/canonical history；相同请求上下文、工具仅执行成功结果一次，底层不得叠加自动重试。
+              </?01M1RSWVM14EP7F0KZ4CW8GF3V>
+            )>
+            <Case #unsafe-lower-stream (
+              <Given ?01M1RSWVM14EP7F0KZ4CW8GF3W>
+              低层流已输出且没有具备预派发证明的turn owner
+              </?01M1RSWVM14EP7F0KZ4CW8GF3W>
+              <When ?01M1RSWVM14EP7F0KZ4CW8GF3X>
+              流中断
+              </?01M1RSWVM14EP7F0KZ4CW8GF3X>
+              <Then ?01M1RSWVM14EP7F0KZ4CW8GF3Y>
+              系统SHALL保留indeterminate-after-accept，不在同一解析器拼接重放；Responses服务端状态恢复不在此范围。
+              </?01M1RSWVM14EP7F0KZ4CW8GF3Y>
+            )>
+            <Case #cancel-and-terminal (
+              <Given ?01M1RSWVM14EP7F0KZ4CW8GF3Z>
+              取消、操作deadline、退避预算或次数已耗尽，或401/400不可重试
+              </?01M1RSWVM14EP7F0KZ4CW8GF3Z>
+              <When ?01M1RSWVM14EP7F0KZ4CW8GF40>
+              重试调度
+              </?01M1RSWVM14EP7F0KZ4CW8GF40>
+              <Then ?01M1RSWVM14EP7F0KZ4CW8GF41>
+              系统SHALL停止且不启动新请求；等待支持取消，保存明确终止诊断。
+              </?01M1RSWVM14EP7F0KZ4CW8GF41>
+            )>
+            <Case #durable-neutral-diagnostics (
+              <Given ?01M1RSWVM14EP7F0KZ4CW8GF42>
+              任意DeepSeek协议官方或兼容端点发生重试决策
+              </?01M1RSWVM14EP7F0KZ4CW8GF42>
+              <When ?01M1RSWVM14EP7F0KZ4CW8GF43>
+              session日志启用
+              </?01M1RSWVM14EP7F0KZ4CW8GF43>
+              <Then ?01M1RSWVM14EP7F0KZ4CW8GF44>
+              系统SHALL持久化actor/operation、attempt、分类、延迟和停止原因，不以provider名区分恢复能力，不记录密钥或请求正文。
+              </?01M1RSWVM14EP7F0KZ4CW8GF44>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #product-cache-cost-e2e (
-      <Statement ?01M1H5WDMWFDTSPT3MYPFR23XW>
+      <Statement ?01M1RSWVM14EP7F0KZ4CW8GF45>
       The product SHALL gate DeepSeek cache coverage and normalized input cost from one adapter-owned `deepseek-chat@1` protocol surface across official and compatible gateways; provider identity MUST NOT exclude a gateway from the common evidence model.
-      </?01M1H5WDMWFDTSPT3MYPFR23XW>
+      </?01M1RSWVM14EP7F0KZ4CW8GF45>
       <Suites [
         <Suite #deterministic-and-live { name = "Deterministic and live cache-cost evidence" } (
           <Cases [
             <Case #canonical-deepseek-profile (
-              <Given ?01M1H5WDMWFDTSPT3MYPFR23XX>
+              <Given ?01M1RSWVM14EP7F0KZ4CW8GF46>
               official DeepSeek, SiliconFlow, iqingwa or another endpoint is configured with the DeepSeek adapter.
-              </?01M1H5WDMWFDTSPT3MYPFR23XX>
-              <When ?01M1H5WDMWFDTSPT3MYPFR23XY>
+              </?01M1RSWVM14EP7F0KZ4CW8GF46>
+              <When ?01M1RSWVM14EP7F0KZ4CW8GF47>
               the runtime projects, observes or reports a request.
-              </?01M1H5WDMWFDTSPT3MYPFR23XY>
-              <Then ?01M1H5WDMWFDTSPT3MYPFR23XZ>
+              </?01M1RSWVM14EP7F0KZ4CW8GF47>
+              <Then ?01M1RSWVM14EP7F0KZ4CW8GF48>
               it SHALL emit `deepseek-chat@1`; legacy official/compatible ids MAY be read for migration but MUST NOT be emitted or used to split SLO eligibility.
-              </?01M1H5WDMWFDTSPT3MYPFR23XZ>
+              </?01M1RSWVM14EP7F0KZ4CW8GF48>
             )>
             <Case #common-live-thresholds (
-              <Given ?01M1H5WDMWFDTSPT3MYPFR23Y0>
+              <Given ?01M1RSWVM14EP7F0KZ4CW8GF49>
               three or more warmed groups run through any DeepSeek-adapter gateway with final-success usage.
-              </?01M1H5WDMWFDTSPT3MYPFR23Y0>
-              <When ?01M1H5WDMWFDTSPT3MYPFR23Y1>
+              </?01M1RSWVM14EP7F0KZ4CW8GF49>
+              <When ?01M1RSWVM14EP7F0KZ4CW8GF4A>
               the live report is evaluated.
-              </?01M1H5WDMWFDTSPT3MYPFR23Y1>
-              <Then ?01M1H5WDMWFDTSPT3MYPFR23Y2>
+              </?01M1RSWVM14EP7F0KZ4CW8GF4A>
+              <Then ?01M1RSWVM14EP7F0KZ4CW8GF4B>
               the same configured cache-hit and normalized-cost thresholds SHALL apply independent of provider id.
-              </?01M1H5WDMWFDTSPT3MYPFR23Y2>
+              </?01M1RSWVM14EP7F0KZ4CW8GF4B>
             )>
             <Case #unknown-is-not-pass (
-              <Given ?01M1H5WDMWFDTSPT3MYPFR23Y3>
+              <Given ?01M1RSWVM14EP7F0KZ4CW8GF4C>
               credentials are absent or an executed request has missing, malformed, failed-attempt or non-final usage.
-              </?01M1H5WDMWFDTSPT3MYPFR23Y3>
-              <When ?01M1H5WDMWFDTSPT3MYPFR23Y4>
+              </?01M1RSWVM14EP7F0KZ4CW8GF4C>
+              <When ?01M1RSWVM14EP7F0KZ4CW8GF4D>
               live evidence is reported.
-              </?01M1H5WDMWFDTSPT3MYPFR23Y4>
-              <Then ?01M1H5WDMWFDTSPT3MYPFR23Y5>
+              </?01M1RSWVM14EP7F0KZ4CW8GF4D>
+              <Then ?01M1RSWVM14EP7F0KZ4CW8GF4E>
               the status SHALL be `SKIPPED/UNKNOWN` or `EXECUTED/UNKNOWN` as appropriate, and neither SHALL satisfy the live gate.
-              </?01M1H5WDMWFDTSPT3MYPFR23Y5>
+              </?01M1RSWVM14EP7F0KZ4CW8GF4E>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #cache-cost-observation (
-      <Statement ?01M1H5WDMWFDTSPT3MYPFR23Y6>
+      <Statement ?01M1RSWVM14EP7F0KZ4CW8GF4F>
       DeepSeek provider integration SHALL expose value-safe final-wire structural-prefix, final-success cache-usage and normalized input-cost observations without changing the request or creating a second conversation authority.
-      </?01M1H5WDMWFDTSPT3MYPFR23Y6>
+      </?01M1RSWVM14EP7F0KZ4CW8GF4F>
       <Suites [
         <Suite #final-wire-observation { name = "Final-wire cache and cost observation" } (
           <Cases [
             <Case #same-epoch-prefix (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB46>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPAE>
               two consecutive admitted DeepSeek requests belong to the same provider/model/profile/context epoch
-              </?01M1H5WDMXW4QWG8X2GGN4QB46>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB47>
+              </?01M1RSWVM2XWMZA12MT7VWBPAE>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPAF>
               the cache-cost observer compares their canonical messages and tool surfaces
-              </?01M1H5WDMXW4QWG8X2GGN4QB47>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB48>
+              </?01M1RSWVM2XWMZA12MT7VWBPAF>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPAG>
               it SHALL report retainedPrefixIntegrity using prior cache-relevant units as denominator, reuseOpportunityCoverage using current cache-relevant units as denominator, and first divergence from one explicit provider-profile final-wire unit definition without exposing prompt or tool values
-              </?01M1H5WDMXW4QWG8X2GGN4QB48>
+              </?01M1RSWVM2XWMZA12MT7VWBPAG>
             )>
             <Case #actor-class-baseline (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB49>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPAH>
               equivalent ordinary, Workflow lifecycle and AI Workflow node Agent journeys are observed
-              </?01M1H5WDMXW4QWG8X2GGN4QB49>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB4A>
+              </?01M1RSWVM2XWMZA12MT7VWBPAH>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPAJ>
               their request and usage observations are summarized
-              </?01M1H5WDMXW4QWG8X2GGN4QB4A>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB4B>
+              </?01M1RSWVM2XWMZA12MT7VWBPAJ>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPAK>
               Workflow-only prompt/tool tokens, cache hit/miss tokens and normalized input cost SHALL remain separately attributable to the exact Actor class
-              </?01M1H5WDMXW4QWG8X2GGN4QB4B>
+              </?01M1RSWVM2XWMZA12MT7VWBPAK>
             )>
             <Case #official-versus-compatible (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB4C>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPAM>
               one provider uses the official DeepSeek cache usage contract and another is a DeepSeek-compatible provider
-              </?01M1H5WDMXW4QWG8X2GGN4QB4C>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB4D>
+              </?01M1RSWVM2XWMZA12MT7VWBPAM>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPAN>
               cache evidence is accepted
-              </?01M1H5WDMXW4QWG8X2GGN4QB4D>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB4E>
+              </?01M1RSWVM2XWMZA12MT7VWBPAN>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPAP>
               the system SHALL require an explicit compatibility profile and MUST NOT combine or infer the two contracts from provider names
-              </?01M1H5WDMXW4QWG8X2GGN4QB4E>
+              </?01M1RSWVM2XWMZA12MT7VWBPAP>
             )>
             <Case #final-success-only (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB4F>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPAQ>
               a provider call retries, fails, omits usage or eventually succeeds
-              </?01M1H5WDMXW4QWG8X2GGN4QB4F>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB4G>
+              </?01M1RSWVM2XWMZA12MT7VWBPAQ>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPAR>
               cache-cost facts are recorded
-              </?01M1H5WDMXW4QWG8X2GGN4QB4G>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB4H>
+              </?01M1RSWVM2XWMZA12MT7VWBPAR>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPAS>
               only closed finite non-negative final-success usage SHALL count as provider hit/miss evidence and no attempt SHALL be double counted
-              </?01M1H5WDMXW4QWG8X2GGN4QB4H>
+              </?01M1RSWVM2XWMZA12MT7VWBPAS>
             )>
             <Case #live-official-baseline (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB4J>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPAT>
               an official DeepSeek cache-capable provider profile and secret capability are available
-              </?01M1H5WDMXW4QWG8X2GGN4QB4J>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB4K>
+              </?01M1RSWVM2XWMZA12MT7VWBPAT>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPAV>
               the baseline gate executes after warm-up
-              </?01M1H5WDMXW4QWG8X2GGN4QB4K>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB4M>
+              </?01M1RSWVM2XWMZA12MT7VWBPAV>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPAW>
               it SHALL record 3–5 grouped official hit/miss observations separately from compatible providers; unavailable official capability SHALL block the live gate rather than accepting simulated or compatible evidence
-              </?01M1H5WDMXW4QWG8X2GGN4QB4M>
+              </?01M1RSWVM2XWMZA12MT7VWBPAW>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #workflow-surface-cost-selection (
-      <Statement ?01M1H5WDMXW4QWG8X2GGN4QB4N>
+      <Statement ?01M1RSWVM2XWMZA12MT7VWBPAX>
       The system SHALL compare stable-superset, stage-epoch and hybrid Workflow lifecycle provider surfaces on one exact product journey and SHALL adopt only the lowest normalized-total-cost candidate that preserves authorization, recovery and same-epoch prefix correctness.
-      </?01M1H5WDMXW4QWG8X2GGN4QB4N>
+      </?01M1RSWVM2XWMZA12MT7VWBPAX>
       <Suites [
         <Suite #surface-strategy-comparison { name = "Workflow provider surface strategy comparison" } (
           <Cases [
             <Case #same-journey-exact-observation (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB4P>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPAY>
               one frozen Workflow lifecycle capability, authored stage sequence, provider/model/profile and explicit cost weights
-              </?01M1H5WDMXW4QWG8X2GGN4QB4P>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB4Q>
+              </?01M1RSWVM2XWMZA12MT7VWBPAY>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPAZ>
               the three versioned surface strategies are evaluated
-              </?01M1H5WDMXW4QWG8X2GGN4QB4Q>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB4R>
+              </?01M1RSWVM2XWMZA12MT7VWBPAZ>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPB0>
               each candidate SHALL start from an independent clone of the same frozen snapshot, traverse the exact planning-to-releasing production journey and final serializer, and report immutable raw observations without a trusted winner label
-              </?01M1H5WDMXW4QWG8X2GGN4QB4R>
+              </?01M1RSWVM2XWMZA12MT7VWBPB0>
             )>
             <Case #correctness-before-cost (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB4S>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPB1>
               a candidate has lower estimated cost but leaks execution authority, omits a required tool, diverges within one epoch, fails fresh recovery or exceeds a ratified ceiling
-              </?01M1H5WDMXW4QWG8X2GGN4QB4S>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB4T>
+              </?01M1RSWVM2XWMZA12MT7VWBPB1>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPB2>
               the deterministic selector ranks candidates
-              </?01M1H5WDMXW4QWG8X2GGN4QB4T>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB4V>
+              </?01M1RSWVM2XWMZA12MT7VWBPB2>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPB3>
               the candidate SHALL be rejected before normalized cost comparison
-              </?01M1H5WDMXW4QWG8X2GGN4QB4V>
+              </?01M1RSWVM2XWMZA12MT7VWBPB3>
             )>
             <Case #surface-change-is-an-epoch (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB4W>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPB4>
               the accepted strategy changes provider-visible lifecycle schemas at a stage boundary
-              </?01M1H5WDMXW4QWG8X2GGN4QB4W>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB4X>
+              </?01M1RSWVM2XWMZA12MT7VWBPB4>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPB5>
               the next provider request is prepared
-              </?01M1H5WDMXW4QWG8X2GGN4QB4X>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB4Y>
+              </?01M1RSWVM2XWMZA12MT7VWBPB5>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPB6>
               one durable `provider_surface_revision_accepted` context epoch SHALL commit before transport, while same-stage forward turns SHALL retain exact prefix integrity `1.0`
-              </?01M1H5WDMXW4QWG8X2GGN4QB4Y>
+              </?01M1RSWVM2XWMZA12MT7VWBPB6>
             )>
             <Case #independent-winner-ratification (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB4Z>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPB7>
               immutable raw observations for all three pre-frozen strategies and the G1 weights and ceilings
-              </?01M1H5WDMXW4QWG8X2GGN4QB4Z>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB50>
+              </?01M1RSWVM2XWMZA12MT7VWBPB7>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPB8>
               a separate pure selector recomputes eligibility and journey-wide cost
-              </?01M1H5WDMXW4QWG8X2GGN4QB50>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB51>
+              </?01M1RSWVM2XWMZA12MT7VWBPB8>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPB9>
               it SHALL reject incorrect candidates, compute hits only from exact same-epoch prefix units, count initial and epoch-successor units as misses, avoid double-counting tool/control breakdowns, and ignore or reject any embedded winner claim
-              </?01M1H5WDMXW4QWG8X2GGN4QB51>
+              </?01M1RSWVM2XWMZA12MT7VWBPB9>
             )>
             <Case #provider-contracts-remain-separate (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB52>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPBA>
               deterministic fixtures, an official DeepSeek endpoint and a DeepSeek-compatible endpoint expose different evidence
-              </?01M1H5WDMXW4QWG8X2GGN4QB52>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB53>
+              </?01M1RSWVM2XWMZA12MT7VWBPBA>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPBB>
               cost and cache results are reported
-              </?01M1H5WDMXW4QWG8X2GGN4QB53>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB54>
+              </?01M1RSWVM2XWMZA12MT7VWBPBB>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPBC>
               fixture estimates, official cache hit/miss usage and compatible-provider observations SHALL remain separate and unavailable live evidence SHALL NOT be claimed as a pass
-              </?01M1H5WDMXW4QWG8X2GGN4QB54>
+              </?01M1RSWVM2XWMZA12MT7VWBPBC>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #prefix-cache-stability (
-      <Statement ?01M1H5WDMXW4QWG8X2GGN4QB55>
+      <Statement ?01M1RSWVM2XWMZA12MT7VWBPBD>
       DeepSeek same-provider, same-model, forward-only requests SHALL preserve the complete prior provider request prefix across ordinary Workflow stage transitions, and SHALL expose provider-reported cache read/miss token facts without treating local structural similarity as a provider cache-hit receipt.
-      </?01M1H5WDMXW4QWG8X2GGN4QB55>
+      </?01M1RSWVM2XWMZA12MT7VWBPBD>
       <Suites [
         <Suite #workflow-prefix-cache { name = "Workflow DeepSeek prefix cache" } (
           <Cases [
             <Case #stage-transition-appends (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB56>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPBE>
               A stable-prefix DeepSeek Workflow actor has completed a coding-stage request.
-              </?01M1H5WDMXW4QWG8X2GGN4QB56>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB57>
+              </?01M1RSWVM2XWMZA12MT7VWBPBE>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPBF>
               It loads testing stage context and sends the next request without provider/model switch, rewind or compaction.
-              </?01M1H5WDMXW4QWG8X2GGN4QB57>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB58>
+              </?01M1RSWVM2XWMZA12MT7VWBPBF>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPBG>
               The previous messages are an exact prefix of the next messages and the provider-visible tool schema bytes remain identical.
-              </?01M1H5WDMXW4QWG8X2GGN4QB58>
+              </?01M1RSWVM2XWMZA12MT7VWBPBG>
             )>
             <Case #cache-usage-observed (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB59>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPBH>
               A DeepSeek stream ends with provider usage containing prompt cache hit and miss tokens.
-              </?01M1H5WDMXW4QWG8X2GGN4QB59>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB5A>
+              </?01M1RSWVM2XWMZA12MT7VWBPBH>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPBJ>
               The completion is reduced by the runtime.
-              </?01M1H5WDMXW4QWG8X2GGN4QB5A>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB5B>
+              </?01M1RSWVM2XWMZA12MT7VWBPBJ>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPBK>
               Existing VM usage cache-read/cache-creation counters SHALL include those exact facts, while conversation history SHALL NOT contain provider usage metadata.
-              </?01M1H5WDMXW4QWG8X2GGN4QB5B>
+              </?01M1RSWVM2XWMZA12MT7VWBPBK>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #tool-schema-object-root (
-      <Statement ?01M1H5WDMXW4QWG8X2GGN4QB5C>
+      <Statement ?01M1RSWVM2XWMZA12MT7VWBPBM>
       The DeepSeek Chat tool-schema projector SHALL emit an object-root function parameters schema, preserve every canonical alternative and constraint unless an evidenced DeepSeek-specific typed transformation accounts for it, and SHALL NOT reuse the OpenAI Responses schema compatibility implementation.
-      </?01M1H5WDMXW4QWG8X2GGN4QB5C>
+      </?01M1RSWVM2XWMZA12MT7VWBPBM>
       <Suites [
         <Suite #deepseek-tool-schema { name = "DeepSeek tool-schema compatibility" } (
           <Cases [
             <Case #workflow-open-object-root (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB5D>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPBN>
               the canonical WorkflowOpenAuthoringSession parameters with two object alternatives
-              </?01M1H5WDMXW4QWG8X2GGN4QB5D>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB5E>
+              </?01M1RSWVM2XWMZA12MT7VWBPBN>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPBP>
               the DeepSeek Chat bundle projects the function declaration
-              </?01M1H5WDMXW4QWG8X2GGN4QB5E>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB5F>
+              </?01M1RSWVM2XWMZA12MT7VWBPBP>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPBQ>
               the emitted parameters SHALL declare root type object and preserve both oneOf branches with their required fields and constraints
-              </?01M1H5WDMXW4QWG8X2GGN4QB5F>
+              </?01M1RSWVM2XWMZA12MT7VWBPBQ>
             )>
             <Case #unsupported-deepseek-transformation (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB5G>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPBR>
               a canonical schema feature for which the DeepSeek projector has no exact preservation or typed compatibility rule
-              </?01M1H5WDMXW4QWG8X2GGN4QB5G>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB5H>
+              </?01M1RSWVM2XWMZA12MT7VWBPBR>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPBS>
               projection coverage is evaluated
-              </?01M1H5WDMXW4QWG8X2GGN4QB5H>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB5J>
+              </?01M1RSWVM2XWMZA12MT7VWBPBS>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPBT>
               projection SHALL fail closed before a DeepSeek request is observed or sent
-              </?01M1H5WDMXW4QWG8X2GGN4QB5J>
+              </?01M1RSWVM2XWMZA12MT7VWBPBT>
             )>
             <Case #provider-policy-isolation (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB5K>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPBV>
               the same canonical tool offered to DeepSeek Chat, ordinary OpenAI Chat, and OpenAI Responses
-              </?01M1H5WDMXW4QWG8X2GGN4QB5K>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB5M>
+              </?01M1RSWVM2XWMZA12MT7VWBPBV>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPBW>
               each configured driver projects its request
-              </?01M1H5WDMXW4QWG8X2GGN4QB5M>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB5N>
+              </?01M1RSWVM2XWMZA12MT7VWBPBW>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPBX>
               DeepSeek-specific compatibility behavior SHALL affect only the DeepSeek bundle and Responses behavior SHALL remain independently owned
-              </?01M1H5WDMXW4QWG8X2GGN4QB5N>
+              </?01M1RSWVM2XWMZA12MT7VWBPBX>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #thinking-tool-roundtrip (
-      <Statement ?01M1H5WDMXW4QWG8X2GGN4QB5P>
+      <Statement ?01M1RSWVM2XWMZA12MT7VWBPBY>
       DeepSeek adapter SHALL preserve each assistant tool-call message's `reasoning_content` as provider continuation state and SHALL pass it back with `content` and `tool_calls` in all subsequent tool and user interaction requests; field preservation MUST NOT depend on whether the reasoning text is empty, mirrors content, or is hidden by the TUI presentation policy.
-      </?01M1H5WDMXW4QWG8X2GGN4QB5P>
+      </?01M1RSWVM2XWMZA12MT7VWBPBY>
       <Suites [
         <Suite #thinking-tools { name = "DeepSeek interleaved thinking and tools" } (
           <Cases [
             <Case #non-empty-reasoning-roundtrip (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB5Q>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPBZ>
               DeepSeek thinking mode returns non-empty reasoning_content with an assistant tool call
-              </?01M1H5WDMXW4QWG8X2GGN4QB5Q>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB5R>
+              </?01M1RSWVM2XWMZA12MT7VWBPBZ>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPC0>
               the tool result is appended and the next provider request is built
-              </?01M1H5WDMXW4QWG8X2GGN4QB5R>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB5S>
+              </?01M1RSWVM2XWMZA12MT7VWBPC0>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPC1>
               the assistant content, reasoning_content, and tool_calls SHALL be passed back unchanged before the corresponding tool result
-              </?01M1H5WDMXW4QWG8X2GGN4QB5S>
+              </?01M1RSWVM2XWMZA12MT7VWBPC1>
             )>
             <Case #empty-or-mirrored-reasoning-roundtrip [
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB5T>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPC2>
               the reasoning_content field SHALL remain present in the provider message
-              </?01M1H5WDMXW4QWG8X2GGN4QB5T>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB5V>
+              </?01M1RSWVM2XWMZA12MT7VWBPC2>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPC3>
               TUI display deduplication MUST NOT delete the wire-level continuation value
-              </?01M1H5WDMXW4QWG8X2GGN4QB5V>
+              </?01M1RSWVM2XWMZA12MT7VWBPC3>
             ] (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB5W>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPC4>
               a DeepSeek-compatible stream returns an empty reasoning_content field or reasoning text that mirrors content
-              </?01M1H5WDMXW4QWG8X2GGN4QB5W>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB5X>
+              </?01M1RSWVM2XWMZA12MT7VWBPC4>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPC5>
               the stream is aggregated and the next tool continuation request is built
-              </?01M1H5WDMXW4QWG8X2GGN4QB5X>
+              </?01M1RSWVM2XWMZA12MT7VWBPC5>
             )>
             <Case #legacy-missing-reasoning-recovery (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB5Y>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPC6>
               a historical DeepSeek session contains an assistant tool-call message persisted before this fix without reasoning_content
-              </?01M1H5WDMXW4QWG8X2GGN4QB5Y>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB5Z>
+              </?01M1RSWVM2XWMZA12MT7VWBPC6>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPC7>
               the session is loaded and a subsequent DeepSeek request is prepared
-              </?01M1H5WDMXW4QWG8X2GGN4QB5Z>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB60>
+              </?01M1RSWVM2XWMZA12MT7VWBPC7>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPC8>
               the adapter SHALL provide a DeepSeek-only empty reasoning_content compatibility value without rewriting the session file
-              </?01M1H5WDMXW4QWG8X2GGN4QB60>
+              </?01M1RSWVM2XWMZA12MT7VWBPC8>
             )>
             <Case #openai-isolation (
-              <Given ?01M1H5WDMXW4QWG8X2GGN4QB61>
+              <Given ?01M1RSWVM2XWMZA12MT7VWBPC9>
               an ordinary OpenAI adapter processes an assistant tool-call message without reasoning_content
-              </?01M1H5WDMXW4QWG8X2GGN4QB61>
-              <When ?01M1H5WDMXW4QWG8X2GGN4QB62>
+              </?01M1RSWVM2XWMZA12MT7VWBPC9>
+              <When ?01M1RSWVM2XWMZA12MT7VWBPCA>
               the provider request is prepared
-              </?01M1H5WDMXW4QWG8X2GGN4QB62>
-              <Then ?01M1H5WDMXW4QWG8X2GGN4QB63>
+              </?01M1RSWVM2XWMZA12MT7VWBPCA>
+              <Then ?01M1RSWVM2XWMZA12MT7VWBPCB>
               the system MUST NOT inject the DeepSeek compatibility field
-              </?01M1H5WDMXW4QWG8X2GGN4QB63>
+              </?01M1RSWVM2XWMZA12MT7VWBPCB>
             )>
           ]>
         )>

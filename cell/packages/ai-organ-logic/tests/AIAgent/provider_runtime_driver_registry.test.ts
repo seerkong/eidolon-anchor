@@ -212,6 +212,56 @@ describe("provider runtime driver registry", () => {
     }
   });
 
+  it("delegates retry ownership without replaying HTTP 503 or leaking the owner into the request", async () => {
+    const requestBodies: string[] = [];
+    const diagnostics: unknown[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (_url, init) => {
+      requestBodies.push(String(init?.body ?? ""));
+      return new Response('{"error":{"message":"temporary","code":"server_error"}}', {
+        status: 503,
+        headers: { "Content-Type": "application/json", "Retry-After": "0" },
+      });
+    }) as typeof fetch;
+    try {
+      const adapter = new ProviderRuntimeLlmAdapter({
+        providerId: "compatible-endpoint",
+        selectedModel: "custom-chat-model",
+        adapterName: "deepseek",
+        options: { apiKey: "offline-test-key", baseURL: "https://compatible.example/v1" },
+        runtime: {
+          actorId: "actor-1",
+          turnId: "turn-1",
+          diagnostics: { retryEvents: { onNext: (event) => diagnostics.push(event) } },
+        },
+      });
+      const messages = [{ role: "user", content: "Use the original request" }];
+      const result = await adapter.createStream({
+        model: "custom-chat-model",
+        messages,
+        tools: [],
+        providerRetryOwner: "assistant_turn",
+      });
+      const providerOutputError = result.providerOutput.catch((error) => error);
+      await expect((async () => {
+        for await (const _chunk of result.stream) {
+          // The outer completion owner receives the first failed provider attempt.
+        }
+      })()).rejects.toThrow("503");
+      expect(await providerOutputError).toBeInstanceOf(ProviderExecutionError);
+      expect(requestBodies).toHaveLength(1);
+      const body = JSON.parse(requestBodies[0]);
+      expect(body.model).toBe("custom-chat-model");
+      expect(body.messages).toEqual(messages);
+      expect(body).not.toHaveProperty("providerRetryOwner");
+      expect(requestBodies[0]).not.toContain("assistant_turn");
+      // Suppress the disabled inner runner's retry_exhausted diagnosis; only the outer owner decides exhaustion.
+      expect(diagnostics).toEqual([]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("reuses the same prepared DeepSeek request after a pre-output Bun socket close", async () => {
     const requestBodies: string[] = [];
     let fetchCalls = 0;

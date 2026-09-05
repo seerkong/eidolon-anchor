@@ -190,7 +190,7 @@ import {
   normalizeProviderModelOptions,
   splitResponsesModelOptions,
 } from "../llm/ProviderOptions";
-import { classifyProviderRetry } from "../llm/ProviderErrors";
+import { classifyProviderRetry, executeWithProviderRetry } from "../llm/ProviderErrors";
 import { emitProviderDiagnostic } from "../llm/ProviderDiagnostics";
 import {
   buildOpenAIResponsesInstructionPlan,
@@ -2278,6 +2278,13 @@ async function streamProviderCompletion(params: {
     ?? "";
   const providerCachePriceWeights = resolveProviderCachePriceWeights(String(providerCacheProfileId));
   const chatEffectBundleId = String((llmAdapter as any)?.chatCompletionsEffectBundle?.id ?? "");
+  // Only these declared Chat contracts execute tools locally after the complete
+  // parser result. Provider names or model aliases cannot establish replay safety.
+  const ownsTransportRetry = chatEffectBundleId === "deepseek-chat"
+    || chatEffectBundleId === "openai-official-chat";
+  const retryDiagnosticsLog = createSessionDiagnosticsXnlLog({
+    sessionDir: isRuntimeStorageLogsEnabled(vm) ? getRuntimeControlSessionDir(vm) : undefined,
+  });
   const usesDeepSeekSemanticCompletion = providerCacheProfileId === "deepseek-chat@1"
     || providerCacheProfileId === "deepseek-official-chat@1"
     || providerCacheProfileId === "deepseek-compatible-chat@1"
@@ -2296,6 +2303,7 @@ async function streamProviderCompletion(params: {
   }> | null = null;
   let lastFailedAttemptContinuationMessage: Readonly<Record<string, unknown>> | null = null;
   let providerRequestOrdinal = 0;
+  let transportRetryContext: { callToken: object; attemptNumber: number } | undefined;
   const settleProviderAttemptEvidence = async (
     providerOutput: Promise<unknown | undefined> | undefined,
   ): Promise<unknown | undefined> => {
@@ -2362,6 +2370,8 @@ async function streamProviderCompletion(params: {
         work_context: getActorWorkContext(actor),
       },
       providerRequestContext: preparedResponses?.requestContext,
+      ...(ownsTransportRetry ? { providerRetryOwner: "assistant_turn" as const } : {}),
+      providerRetryContext: transportRetryContext,
       signal: abortController.signal,
       sessionKey: turnSessionKey,
       executionIdentity: {
@@ -2421,6 +2431,42 @@ async function streamProviderCompletion(params: {
   };
 
   let completion: Awaited<ReturnType<typeof runOneCompletion>>;
+  const runCompletionWithTransportRecovery = async (messages: any[], plan: any) => {
+    if (!ownsTransportRetry) return runOneCompletion(messages, plan);
+    const callToken = {};
+    let attemptNumber = 0;
+    try {
+      return await executeWithProviderRetry(() => {
+        transportRetryContext = { callToken, attemptNumber: ++attemptNumber };
+        return runOneCompletion(messages, plan);
+      }, {
+        stage: `${retryStage}:transport`,
+        providerId: String((llmAdapter as any)?.runtime?.providerId ?? ""),
+        selectedModel: model,
+        signal: abortController.signal,
+        shouldRetry: (_error, classification) => classification.retryScope !== "assistant_turn_repair"
+          && classification.retryScope !== "assistant_turn_semantic_completion",
+        onDiagnostic: (event) => {
+          if (event.retryScope === "assistant_turn_repair" || event.retryScope === "assistant_turn_semantic_completion") return;
+          // Never persist provider error bodies, prompts, reasoning, or credentials.
+          const { error: _error, ...safeEvent } = event;
+          const diagnostic = {
+            ...safeEvent,
+            agentName: actor.key,
+            actorId: actor.id,
+            turnId: String(params.turnId),
+            operationId: params.operationId,
+            replaySafety: "safe_pre_tool_dispatch",
+            eventType: "provider_retry_diagnostic" as const,
+          };
+          emitProviderDiagnostic((llmAdapter as any)?.runtime?.diagnostics, "retry", diagnostic);
+          retryDiagnosticsLog.appendProviderRetryEvent(diagnostic);
+        },
+      });
+    } finally {
+      await retryDiagnosticsLog.flush();
+    }
+  };
   let activeProviderMessages = providerMessages;
   let activePromptPlan = promptPlan;
   let activePendingProviderContextSourceIds = params.pendingProviderContextSourceIds;
@@ -2442,7 +2488,7 @@ async function streamProviderCompletion(params: {
     let continuationOrdinal = 0;
     while (true) {
       try {
-        return await runOneCompletion(activeProviderMessages, activePromptPlan);
+        return await runCompletionWithTransportRecovery(activeProviderMessages, activePromptPlan);
       } catch (error) {
         const classification = classifyProviderRetry(error);
         const isIncompleteSemanticCompletion =

@@ -35,7 +35,10 @@ export type ProviderRetryClassification = {
 
 export type ProviderRetryPolicy = {
   maxRetries: number;
-  maxTotalElapsedSeconds: number;
+  /** Optional operation deadline, including provider request time. */
+  maxTotalElapsedSeconds?: number;
+  /** Cumulative retry waiting budget, independent of provider request time. */
+  maxTotalBackoffSeconds?: number;
   maxDelaySeconds: number;
   baseDelaySeconds: number;
   backoffMultiplier?: number;
@@ -45,7 +48,7 @@ export type ProviderRetryPolicy = {
 
 export const DEFAULT_PROVIDER_RETRY_POLICY: ProviderRetryPolicy = {
   maxRetries: 3,
-  maxTotalElapsedSeconds: 120,
+  maxTotalBackoffSeconds: 120,
   maxDelaySeconds: 30,
   baseDelaySeconds: 1,
   backoffMultiplier: 2,
@@ -262,12 +265,14 @@ export function resolveProviderRetryDelay(params: {
   retryNumber: number;
   policy: ProviderRetryPolicy;
   elapsedSeconds: number;
+  cumulativeBackoffSeconds?: number;
   overrideSeconds?: number;
   random?: () => number;
 }): { delaySeconds: number; terminationReason: string } {
   const policy = { ...DEFAULT_PROVIDER_RETRY_POLICY, ...params.policy };
   if (params.retryNumber > policy.maxRetries) return { delaySeconds: 0, terminationReason: "retry_exhausted" };
-  if (params.elapsedSeconds >= policy.maxTotalElapsedSeconds) {
+  const deadline = Number.isFinite(policy.maxTotalElapsedSeconds) ? policy.maxTotalElapsedSeconds! : Infinity;
+  if (params.elapsedSeconds >= deadline) {
     return { delaySeconds: 0, terminationReason: "retry_time_budget_exhausted" };
   }
   let delay = params.overrideSeconds;
@@ -278,8 +283,11 @@ export function resolveProviderRetryDelay(params: {
     delay *= jitterMin + ((params.random ?? Math.random)() * (jitterMax - jitterMin));
   }
   delay = Math.min(policy.maxDelaySeconds, Math.max(0, delay));
-  if (params.elapsedSeconds + delay > policy.maxTotalElapsedSeconds) {
+  if (params.elapsedSeconds + delay >= deadline) {
     return { delaySeconds: 0, terminationReason: "retry_time_budget_exhausted" };
+  }
+  if ((params.cumulativeBackoffSeconds ?? 0) + delay > (policy.maxTotalBackoffSeconds ?? 120)) {
+    return { delaySeconds: 0, terminationReason: "retry_backoff_budget_exhausted" };
   }
   return { delaySeconds: delay, terminationReason: "retry_scheduled" };
 }
@@ -293,6 +301,7 @@ export type ProviderRetryDiagnostic = {
   maxRetries: number;
   delaySeconds: number;
   elapsedSeconds: number;
+  cumulativeBackoffSeconds: number;
   error: string;
   classificationReason: string;
   classificationLayer?: string;
@@ -302,75 +311,165 @@ export type ProviderRetryDiagnostic = {
   terminationReason: string;
 };
 
+type ProviderRetryOptions = {
+  stage: string;
+  providerId: string;
+  selectedModel: string;
+  signal?: AbortSignal;
+  policy?: Partial<ProviderRetryPolicy>;
+  sleep?: (delaySeconds: number) => Promise<void>;
+  now?: () => number;
+  random?: () => number;
+  shouldRetry?: (error: unknown, classification: ProviderRetryClassification) => boolean;
+  onDiagnostic?: (event: ProviderRetryDiagnostic, context: { error: unknown; attemptNumber: number }) => void;
+};
+
+class ProviderRetryDeadlineError extends Error {}
+
+function waitForProviderRetry(delaySeconds: number, options: ProviderRetryOptions, deadlineSeconds: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let sleepTimer: ReturnType<typeof setTimeout> | undefined;
+    let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+    const cleanup = () => {
+      clearTimeout(sleepTimer);
+      clearTimeout(deadlineTimer);
+      options.signal?.removeEventListener("abort", onAbort);
+    };
+    const finish = (error?: unknown) => {
+      cleanup();
+      if (error !== undefined) reject(error);
+      else resolve();
+    };
+    const onAbort = () => finish(options.signal?.reason ?? new DOMException("Provider operation aborted", "AbortError"));
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+    if (options.signal?.aborted) { onAbort(); return; }
+    if (Number.isFinite(deadlineSeconds)) {
+      deadlineTimer = setTimeout(() => finish(new ProviderRetryDeadlineError()), Math.max(0, deadlineSeconds) * 1000);
+    }
+    if (options.sleep) {
+      // Observe injected sleepers even when cancellation wins the race.
+      Promise.resolve().then(() => {
+        options.signal?.throwIfAborted();
+        return options.sleep!(delaySeconds);
+      }).then(() => finish(), finish);
+    } else {
+      sleepTimer = setTimeout(() => finish(), delaySeconds * 1000);
+    }
+  });
+}
+
+function createProviderRetryRunner(options: ProviderRetryOptions, defaultReplaySafety?: string) {
+  const now = options.now ?? (() => Date.now() / 1000);
+  const startedAt = now();
+  let attemptNumber = 0;
+  let cumulativeBackoffSeconds = 0;
+  let policy = { ...DEFAULT_PROVIDER_RETRY_POLICY, ...options.policy };
+  let lastError: unknown;
+  let classification: ProviderRetryClassification = nonRetryable("operation_not_started");
+  let outputObserved = false;
+  const elapsed = () => Math.max(0, now() - startedAt);
+  const remainingSeconds = () => Number.isFinite(policy.maxTotalElapsedSeconds)
+    ? policy.maxTotalElapsedSeconds! - elapsed()
+    : Infinity;
+  const emit = (terminationReason: string, delaySeconds = 0) => options.onDiagnostic?.({
+    providerId: options.providerId,
+    selectedModel: options.selectedModel,
+    stage: options.stage,
+    attemptNumber,
+    retryCount: attemptNumber,
+    maxRetries: policy.maxRetries,
+    delaySeconds,
+    elapsedSeconds: elapsed(),
+    cumulativeBackoffSeconds,
+    error: lastError instanceof Error ? lastError.message : String(lastError ?? ""),
+    classificationReason: classification.classificationReason,
+    classificationLayer: classification.layer,
+    classificationPhase: outputObserved ? "provider_accepted" : classification.phase,
+    retryScope: classification.retryScope,
+    replaySafety: outputObserved ? "indeterminate_after_accept" : classification.replaySafety ?? defaultReplaySafety,
+    terminationReason,
+  }, { error: lastError, attemptNumber });
+  const checkInterrupted = () => {
+    if (options.signal?.aborted) {
+      emit("aborted");
+      throw options.signal.reason ?? new DOMException("Provider operation aborted", "AbortError");
+    }
+    if (remainingSeconds() <= 0) {
+      emit("retry_time_budget_exhausted");
+      throw lastError ?? new DOMException("Provider operation deadline exceeded", "TimeoutError");
+    }
+    if (cumulativeBackoffSeconds > (policy.maxTotalBackoffSeconds ?? 120)) {
+      emit("retry_backoff_budget_exhausted");
+      throw lastError;
+    }
+  };
+  return {
+    beginAttempt() {
+      checkInterrupted();
+      return ++attemptNumber;
+    },
+    async retry(error: unknown, observed = false) {
+      lastError = error;
+      outputObserved = observed;
+      classification = classifyProviderRetry(error);
+      policy = { ...resolveProviderRetryPolicy(classification.classificationReason), ...options.policy };
+      checkInterrupted();
+      const allowed = classification.retryable && (options.shouldRetry?.(error, classification) ?? true);
+      let delay: { delaySeconds: number; terminationReason: string };
+      if (outputObserved) {
+        delay = { delaySeconds: 0, terminationReason: "indeterminate_after_accept" };
+      } else if (allowed) {
+        delay = resolveProviderRetryDelay({
+          retryNumber: attemptNumber,
+          policy,
+          elapsedSeconds: elapsed(),
+          cumulativeBackoffSeconds,
+          overrideSeconds: extractProviderRetryDelayOverrideSeconds(error),
+          random: options.random,
+        });
+      } else {
+        delay = { delaySeconds: 0, terminationReason: classification.retryable ? "retry_filtered" : "non_retryable" };
+      }
+      emit(delay.terminationReason, delay.delaySeconds);
+      if (delay.terminationReason !== "retry_scheduled") throw error;
+      checkInterrupted();
+      const waitStartedAt = now();
+      try {
+        await waitForProviderRetry(delay.delaySeconds, options, remainingSeconds());
+      } catch (waitError) {
+        cumulativeBackoffSeconds += Math.max(0, now() - waitStartedAt);
+        if (options.signal?.aborted) checkInterrupted();
+        if (waitError instanceof ProviderRetryDeadlineError) {
+          emit("retry_time_budget_exhausted");
+          throw error;
+        }
+        throw waitError;
+      }
+      // Charge the scheduled wait even when a deterministic test sleeper does not advance its clock.
+      cumulativeBackoffSeconds += Math.max(delay.delaySeconds, now() - waitStartedAt);
+      checkInterrupted();
+    },
+  };
+}
+
 export async function executeWithProviderRetry<T>(
   operation: () => Promise<T>,
-  options: {
-    stage: string;
-    providerId: string;
-    selectedModel: string;
-    policy?: Partial<ProviderRetryPolicy>;
-    sleep?: (delaySeconds: number) => Promise<void>;
-    now?: () => number;
-    random?: () => number;
-    onDiagnostic?: (event: ProviderRetryDiagnostic) => void;
-  },
+  options: ProviderRetryOptions,
 ): Promise<T> {
-  const startedAt = (options.now ?? (() => Date.now() / 1000))();
-  let attemptNumber = 0;
+  const runner = createProviderRetryRunner(options);
   while (true) {
-    attemptNumber += 1;
+    runner.beginAttempt();
     try {
       return await operation();
     } catch (error) {
-      const classification = classifyProviderRetry(error);
-      const policy = { ...resolveProviderRetryPolicy(classification.classificationReason), ...(options.policy ?? {}) };
-      const elapsedSeconds = Math.max(0, (options.now ?? (() => Date.now() / 1000))() - startedAt);
-      const retryCount = Math.max(0, attemptNumber);
-      const delay = classification.retryable
-        ? resolveProviderRetryDelay({
-            retryNumber: retryCount,
-            policy,
-            elapsedSeconds,
-            overrideSeconds: extractProviderRetryDelayOverrideSeconds(error),
-            random: options.random,
-          })
-        : { delaySeconds: 0, terminationReason: "non_retryable" };
-      options.onDiagnostic?.({
-        providerId: options.providerId,
-        selectedModel: options.selectedModel,
-        stage: options.stage,
-        attemptNumber,
-        retryCount,
-        maxRetries: policy.maxRetries,
-        delaySeconds: delay.delaySeconds,
-        elapsedSeconds,
-        error: error instanceof Error ? error.message : String(error),
-        classificationReason: classification.classificationReason,
-        classificationLayer: classification.layer,
-        classificationPhase: classification.phase,
-        retryScope: classification.retryScope,
-        replaySafety: classification.replaySafety,
-        terminationReason: delay.terminationReason,
-      });
-      if (!classification.retryable || delay.terminationReason !== "retry_scheduled") throw error;
-      await (options.sleep ?? ((seconds) => new Promise<void>((resolve) => setTimeout(resolve, seconds * 1000))))(delay.delaySeconds);
+      await runner.retry(error);
     }
   }
 }
 
 export function createProviderStreamWithRetry(
   createAttempt: (attemptNumber: number) => Promise<LlmStreamResult>,
-  options: {
-    stage: string;
-    providerId: string;
-    selectedModel: string;
-    signal?: AbortSignal;
-    policy?: Partial<ProviderRetryPolicy>;
-    sleep?: (delaySeconds: number) => Promise<void>;
-    now?: () => number;
-    random?: () => number;
-    onDiagnostic?: (event: ProviderRetryDiagnostic) => void;
-  },
+  options: ProviderRetryOptions,
 ): LlmStreamResult {
   let resolveProviderOutput: (value: unknown | undefined) => void = () => {};
   let rejectProviderOutput: (error: unknown) => void = () => {};
@@ -378,14 +477,13 @@ export function createProviderStreamWithRetry(
     resolveProviderOutput = resolve;
     rejectProviderOutput = reject;
   });
-  const startedAt = (options.now ?? (() => Date.now() / 1000))();
+  const runner = createProviderRetryRunner(options, "safe_same_contract");
   let currentAttempt: LlmStreamResult | undefined;
 
   const stream = (async function* () {
-    let attemptNumber = 0;
     try {
       while (true) {
-        attemptNumber += 1;
+        const attemptNumber = runner.beginAttempt();
         let outputObserved = false;
         try {
           currentAttempt = await createAttempt(attemptNumber);
@@ -414,61 +512,7 @@ export function createProviderStreamWithRetry(
           }
           void failedAttempt?.providerOutput?.catch(() => undefined);
           currentAttempt = undefined;
-          if (options.signal?.aborted) throw error;
-
-          const classification = classifyProviderRetry(error);
-          const policy = {
-            ...resolveProviderRetryPolicy(classification.classificationReason),
-            ...(options.policy ?? {}),
-          };
-          const elapsedSeconds = Math.max(
-            0,
-            (options.now ?? (() => Date.now() / 1000))() - startedAt,
-          );
-          const retryCount = Math.max(0, attemptNumber);
-          const retrySafety = outputObserved
-            ? "indeterminate_after_accept"
-            : classification.replaySafety ?? "safe_same_contract";
-          const delay = outputObserved
-            ? { delaySeconds: 0, terminationReason: "indeterminate_after_accept" }
-            : classification.retryable
-              ? resolveProviderRetryDelay({
-                  retryNumber: retryCount,
-                  policy,
-                  elapsedSeconds,
-                  overrideSeconds: extractProviderRetryDelayOverrideSeconds(error),
-                  random: options.random,
-                })
-              : { delaySeconds: 0, terminationReason: "non_retryable" };
-          options.onDiagnostic?.({
-            providerId: options.providerId,
-            selectedModel: options.selectedModel,
-            stage: options.stage,
-            attemptNumber,
-            retryCount,
-            maxRetries: policy.maxRetries,
-            delaySeconds: delay.delaySeconds,
-            elapsedSeconds,
-            error: error instanceof Error ? error.message : String(error),
-            classificationReason: classification.classificationReason,
-            classificationLayer: classification.layer,
-            classificationPhase: outputObserved
-              ? "provider_accepted"
-              : classification.phase,
-            retryScope: classification.retryScope,
-            replaySafety: retrySafety,
-            terminationReason: delay.terminationReason,
-          });
-          if (
-            outputObserved
-            || !classification.retryable
-            || delay.terminationReason !== "retry_scheduled"
-          ) {
-            throw error;
-          }
-          await (options.sleep ?? ((seconds) => new Promise<void>((resolve) => setTimeout(resolve, seconds * 1000))))(
-            delay.delaySeconds,
-          );
+          await runner.retry(error, outputObserved);
         }
       }
     } catch (error) {

@@ -1,0 +1,45 @@
+<BehaviorPatch #track.introduce-standalone-holon-task-runtime-contract-and-service.behavior_patch.aiagent-member-holon-primary-model apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-member-holon-primary-model" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-member-holon-primary-model/requirements/standalone-holon-task-runtime-service" } (
+      <Requirement #standalone-holon-task-runtime-service (
+        <Statement ?>Eidolon SHALL expose one Workflow-neutral HolonTaskRuntimeService contract and Processor boundary that can execute frozen Holon or canonical Member tasks through the canonical TaskSpace, coordinator, MemberRuntime and generic actor runtime.</?>
+        <Suites [
+          <Suite #standalone-runtime { name = "Standalone Holon task runtime" } (
+            <Cases [
+              <Case #no-workflow-required (
+                <Given ?>a frozen Holon runtime admission and explicit runtime ports exist, but no AI Ctrl/Data Workflow instance exists</?>
+                <When ?>a Holon task is assigned with final reply mode</?>
+                <Then ?>the service SHALL create/observe one canonical TaskSpace task and return its settlement without requiring Workflow identity</?>
+              )>
+              <Case #exact-member-target (
+                <Given ?>a frozen execution binding targets Member M</?>
+                <When ?>the service receives a canonical member selector for M</?>
+                <Then ?>only that exact admission SHALL be eligible and Agent-instance selection SHALL remain internal to MemberRuntime after claim</?>
+              )>
+              <Case #target-cardinality (
+                <Given ?>a selector resolves zero or more than one admissible frozen runtime definition</?>
+                <When ?>assignment is requested</?>
+                <Then ?>the service SHALL fail closed as required or ambiguous and SHALL NOT choose by iteration order or fuzzy name</?>
+              )>
+              <Case #authority-preserved (
+                <Given ?>the service coordinates a task execution</?>
+                <When ?>claim, dispatch and settlement progress</?>
+                <Then ?>TaskSpace SHALL remain task truth, journal SHALL remain accepted-effect record, and generic actor/session SHALL remain conversation truth</?>
+              )>
+              <Case #coordinator-mailbox-ownership (
+                <Given ?>a standalone assignment needs to wake the canonical pump</?>
+                <When ?>the service submits the task command</?>
+                <Then ?>it SHALL send one typed message to the unique coordinator actor for the deployment and Holon, and SHALL NOT call coordinator or Member internals directly</?>
+              )>
+              <Case #reusable-admission-per-task-receipt (
+                <Given ?>one frozen Holon runtime admission is valid for multiple independent assignments</?>
+                <When ?>two requests create distinct canonical TaskSpaces</?>
+                <Then ?>the admission SHALL retain reusable Holon/binding eligibility while each TaskSpace submission SHALL produce and bind its own snapshot receipt</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -12,12 +12,14 @@ import {
   type TaskProcessorConfig,
 } from "task-manager-logic"
 import { normalizeHolonTaskSnapshotReceipt, normalizeHolonTaskTarget } from "ai-workflow-contract"
+import { EIDOLON_HOLON_TASK_PROFILE_KIND } from "@cell/ai-organ-contract"
 
 import {
-  executeHolonWorkflowTask,
-  type HolonWorkflowTaskExecutionResult,
-  type HolonWorkflowTaskProcessorRuntime,
-} from "./HolonWorkflowTaskRuntime"
+  executeHolonTask,
+  type HolonTaskExecutionResult,
+  type HolonTaskProcessorRuntime,
+} from "./HolonTaskRuntimeProcessor"
+import { normalizeHolonTaskExecutionProfile } from "./HolonTaskExecutionProfile"
 import type { HolonTaskPumpSubscription } from "./HolonTaskPumpJournal"
 
 export interface PumpHolonTaskSpaceInput {
@@ -63,8 +65,18 @@ function timestamp(value: string, offsetMs = 0): string {
 }
 
 function canonicalTask(task: TaskRecord, subscription: HolonTaskPumpSubscription): boolean {
-  if (task.definition.kind !== "task" || task.profile.profileKind !== "depa.ai.organization-task") return false
+  if (task.definition.kind !== "task") return false
   try {
+    if (task.profile.profileKind === EIDOLON_HOLON_TASK_PROFILE_KIND) {
+      const profile = normalizeHolonTaskExecutionProfile(task.profile)
+      return profile.facts.admission.admissionId === subscription.admissionId
+        && profile.facts.admission.definition.executionBinding.ref === subscription.bindingRef
+        && profile.facts.admission.definition.rootHolonRef === subscription.holonRef
+        && profile.facts.snapshotReceipt.issuerReceiptId === subscription.snapshotReceiptId
+        && profile.facts.snapshotReceipt.taskSpaceId === subscription.taskSpaceId
+        && profile.facts.snapshotReceipt.holonRef === subscription.holonRef
+    }
+    if (task.profile.profileKind !== "depa.ai.organization-task") return false
     const target = normalizeHolonTaskTarget(task.profile.facts.target)
     const receipt = normalizeHolonTaskSnapshotReceipt(task.profile.facts.snapshotReceipt)
     return target.executionBinding.ref === subscription.bindingRef
@@ -132,7 +144,7 @@ function executionIds(taskSpaceId: string, task: TaskRecord, claimedAt: string) 
 }
 
 async function recoveringTask(
-  runtime: HolonWorkflowTaskProcessorRuntime,
+  runtime: HolonTaskProcessorRuntime,
   taskSpaceId: string,
   tasks: readonly TaskRecord[],
 ): Promise<TaskRecord | undefined> {
@@ -162,7 +174,7 @@ function recoverableRace(error: unknown): boolean {
 }
 
 export async function pumpHolonTaskSpace(
-  runtime: HolonWorkflowTaskProcessorRuntime,
+  runtime: HolonTaskProcessorRuntime,
   input: PumpHolonTaskSpaceInput,
   config: TaskProcessorConfig,
 ): Promise<HolonTaskSpacePumpResult> {
@@ -256,14 +268,13 @@ export async function pumpHolonTaskSpace(
     const claimedAt = claim?.claimedAt ?? observedAt
     const ids = executionIds(snapshot.taskSpaceId, selected, claimedAt)
     try {
-      const result: HolonWorkflowTaskExecutionResult = await executeHolonWorkflowTask(runtime, {
+      const result: HolonTaskExecutionResult = await executeHolonTask(runtime, {
         deploymentId: input.subscription.deploymentId,
         bindingRef: input.subscription.bindingRef,
         holonRef: input.subscription.holonRef,
         taskSpaceId: input.subscription.taskSpaceId,
         taskId: selected.taskId,
-        workflowInstanceId: input.subscription.workflowInstanceId,
-        runId: input.subscription.runId,
+        origin: input.subscription.origin,
         ...ids,
         claimedAt,
         startedAt: timestamp(claimedAt, 1),

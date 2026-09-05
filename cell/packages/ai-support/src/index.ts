@@ -9,3 +9,6 @@ export * from "./skill/LocalFileSkillCatalog";
 export * from "./persistence/LocalFileRuntimeDerivedIndexesStore";
 export * from "./permissions/LocalFilePermissionConfigStore";
 export * from "./system-skill/SystemSkillInstaller";
+export * from "./organization/LocalHolonTaskRuntimeBootstrap";
+export * from "./organization/LocalHolonTaskRuntimeSupport";
+export * from "./organization/LocalWorkflowHolonTaskRuntimeSupport";

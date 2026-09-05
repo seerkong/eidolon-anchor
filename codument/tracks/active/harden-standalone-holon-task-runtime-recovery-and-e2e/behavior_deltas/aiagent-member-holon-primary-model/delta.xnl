@@ -1,0 +1,19 @@
+<BehaviorPatch #track.harden-standalone-holon-task-runtime-recovery-and-e2e.behavior_patch.aiagent-member-holon-primary-model apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-member-holon-primary-model" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-member-holon-primary-model/requirements/standalone-holon-task-execution-recovery" } (
+      <Requirement #standalone-holon-task-execution-recovery (
+        <Statement ?>An autonomous Holon or canonical Member SHALL accept and durably complete tasks from a frozen Halfcode runtime definition without requiring any AI Workflow instance, and SHALL recover pending work from TaskSpace/deployment/journal authority after process restart.</?>
+        <Suites [
+          <Suite #standalone-runtime { name = "Standalone Holon task execution" } (
+            <Cases [
+              <Case #resource-admission (<Given ?>one authentic runtime definition and binding exist</?> <When ?>normal Eidolon VM opens</?> <Then ?>one stable admission and service route SHALL be registered without Workflow</?> )>
+              <Case #product-modes (<Given ?>one executable admission exists</?> <When ?>Holon or exact Member receives final, none or stream assignment</?> <Then ?>all modes SHALL use the same TaskSpace/coordinator/MemberRuntime chain and neutral receipts</?> )>
+              <Case #fresh-recovery (<Given ?>a member effect or claim is interrupted before terminal projection</?> <When ?>a fresh process opens the same support root</?> <Then ?>journal replay and TaskSpace receipts SHALL converge without duplicate accepted effect</?> )>
+              <Case #runtime-continuity (<Given ?>a binding chooses shared or isolated-task-runtime</?> <When ?>multiple tasks are assigned</?> <Then ?>MemberRuntime identity SHALL follow the frozen policy while generic actor/session history remains its own authority</?> )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

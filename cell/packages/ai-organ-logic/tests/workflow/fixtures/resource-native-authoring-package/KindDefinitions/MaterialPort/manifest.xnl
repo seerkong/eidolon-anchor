@@ -1,4 +1,21 @@
-<KindDefinition #eidolon.fixture.kind.MaterialPort apiVersion="halfcode.resources/v1" version="1.0.0" {
-  lifecycle = "Stable" resourceKind = "MaterialPort" sourceShapes = ["single-file"]
-  currentApiVersion = "depa.flows/v1" supportedApiVersions = ["depa.flows/v1"]
-}>
+<KindDefinition #Depa.Flows.KindDefinition.MaterialPort envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
+  lifecycle = "Stable"
+  resourceKind = "MaterialPort"
+  subjectFqn = "Depa.Flows.KindDefinition.MaterialPort"
+  sourceShapes = ["single-file"]
+  documentCardinality = "one"
+  description = "Canonical depa-flows MaterialPort resource contract."
+} (
+  <SpecRevisions [
+    <SpecRevision #v1 {
+      specVersion = 1
+      schemaRef = "vfs://./spec-v1.schema.json"
+      schemaFingerprint = "sha256:195b023f0a94cfce7e389c810e5bd96eb6ae2af727c402a772d8b1b16cc574fb"
+      contractFingerprint = "sha256:64049ac7b9538f1fa00943f5b386d0dde545e1b22db0b3a9d365d3a6d669faad"
+      semanticValidatorFingerprint = "sha256:8cd480be7a8f80783a01749e897c1de0431ec698dc28986fbea1140e3bb6671e"
+      referenceProjectionFingerprint = "sha256:1f9d6351c7c33660c42ad408dd5d39dd0b2ae1e7321dae866120ffb8f1ea5973"
+      compilerInputFingerprint = "sha256:dc087899c5e45898ec45dc559be8ca94cb62d2d616ec59a0a800a0bc9ae53f09"
+      stability = "stable"
+    }>
+  ]>
+)>

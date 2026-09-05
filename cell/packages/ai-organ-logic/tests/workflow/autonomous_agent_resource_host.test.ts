@@ -5,6 +5,9 @@ import path from "node:path"
 
 import {
   AI_AGENT_DEFINITION_SELECTION_SCHEMA_VERSION,
+  DEPA_AI_RESOURCE_ENVELOPE_VERSION,
+  DEPA_AI_RESOURCE_SPEC_VERSION,
+  depaAIResourceKindContract,
   type AIAgentTaskRequirement,
 } from "ai-workflow-contract"
 import { RESOURCE_AUTHORING_SCHEMA_VERSION } from "halfcode-compiler.xnl/authoring-runtime"
@@ -147,16 +150,12 @@ async function dataFixture(): Promise<Awaited<ReturnType<typeof fixture>>> {
   await mkdir(path.join(roots.workspaceRoot, "KindDefinitions", "AIDataWorkflow"), { recursive: true })
   await writeFile(
     path.join(roots.workspaceRoot, "KindDefinitions", "AIDataWorkflow", "manifest.xnl"),
-    `<KindDefinition #eidolon.fixture.kind.AIDataWorkflow apiVersion="halfcode.resources/v1" version="1.0.0" {
-  lifecycle = "Stable" resourceKind = "AIDataWorkflow" sourceShapes = ["single-file"]
-  currentApiVersion = "depa.flows/v1" supportedApiVersions = ["depa.flows/v1"]
-}>
-`,
+    depaAIResourceKindContract("AIDataWorkflow").kindDefinitionSource,
   )
   await mkdir(path.join(roots.workspaceRoot, "DataWorkflows"), { recursive: true })
   await writeFile(
     path.join(roots.workspaceRoot, "DataWorkflows", "Autonomous.xnl"),
-    `<AIDataWorkflow #eidolon.fixture.AutonomousData apiVersion="depa.flows/v1" version="1.0.0" (
+    `<AIDataWorkflow #eidolon.fixture.AutonomousData envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 (
   <FlowContract #eidolon.fixture.AutonomousData>
 ) []>
 `,
@@ -179,11 +178,11 @@ function requirement(
 }
 
 function generatedAuthority(): string {
-  return `<AIAgentDefinition #eidolon.fixture.GeneratedExactWorker apiVersion="depa.flows/v1" version="1.0.0" {
+  return `<AIAgentDefinition #eidolon.fixture.GeneratedExactWorker envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Active"
   description = "Runtime-authored exact Worker"
 } (
-  <Messages [
+  <MessagePrefix [
     <Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.SummaryPrompt" }>
   ]>
   <ToolRefs []>
@@ -216,7 +215,8 @@ describe("Eidolon autonomous AIAgentDefinition resource host", () => {
           catalogId: "agents",
           resourceId: "eidolon.fixture.GeneratedExactWorker",
           kind: "AIAgentDefinition",
-          apiVersion: "depa.flows/v1",
+          envelopeVersion: DEPA_AI_RESOURCE_ENVELOPE_VERSION,
+          writerSpecVersion: DEPA_AI_RESOURCE_SPEC_VERSION,
           sourceShape: "single-file",
           documentUri: "vfs://@/Agents/GeneratedExactWorker.xnl",
           authorityText: generatedAuthority(),
@@ -320,7 +320,8 @@ describe("Eidolon autonomous AIAgentDefinition resource host", () => {
           catalogId: "agents",
           resourceId: "eidolon.fixture.GeneratedExactWorker",
           kind: "AIAgentDefinition",
-          apiVersion: "depa.flows/v1",
+          envelopeVersion: DEPA_AI_RESOURCE_ENVELOPE_VERSION,
+          writerSpecVersion: DEPA_AI_RESOURCE_SPEC_VERSION,
           sourceShape: "single-file",
           documentUri: "vfs://@/Agents/GeneratedExactWorker.xnl",
           authorityText,
@@ -382,7 +383,8 @@ describe("Eidolon autonomous AIAgentDefinition resource host", () => {
           catalogId: "agents",
           resourceId: "eidolon.fixture.GeneratedExactWorker",
           kind: "AIAgentDefinition",
-          apiVersion: "depa.flows/v1",
+          envelopeVersion: DEPA_AI_RESOURCE_ENVELOPE_VERSION,
+          writerSpecVersion: DEPA_AI_RESOURCE_SPEC_VERSION,
           sourceShape: "single-file",
           documentUri: "vfs://@/Agents/GeneratedExactWorker.xnl",
           authorityText: generatedAuthority(),
@@ -482,7 +484,7 @@ describe("Eidolon autonomous AIAgentDefinition resource host", () => {
 
     await writeFile(
       path.join(roots.workspaceRoot, "Prompts", "Unrelated.xnl"),
-      `<Prompt #eidolon.fixture.UnrelatedPrompt apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } ( <Content ?>unrelated</?> )>\n`,
+      `<Prompt #eidolon.fixture.UnrelatedPrompt envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" template = "unrelated" }>\n`,
     )
     const fresh = new AIDataAgentResourcePreparationService(
       new EidolonAutonomousAgentResourceHost(roots.registry, roots.layers, supportRoot),

@@ -1,0 +1,40 @@
+<BehaviorPatch #track.route-holon-member-and-workflow-assignment-through-task-runtime.behavior_patch.aiagent-member-holon-primary-model apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-member-holon-primary-model" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-member-holon-primary-model/requirements/shared-holon-task-runtime-routing" } (
+      <Requirement #shared-holon-task-runtime-routing (
+        <Statement ?>For one explicit supportRoot/registryRef scope, autonomous Holon and canonical Member assignment from product tools or AI Ctrl/Data Workflow SHALL route through the VM's one serviceRuntimeRef, HolonTaskRuntimeService and catalog, then the same canonical TaskSpace/coordinator/MemberRuntime execution chain.</?>
+        <Suites [
+          <Suite #shared-routing { name = "Shared Holon task runtime routing" } (
+            <Cases [
+              <Case #standalone-product-holon (
+                <Given ?>normal VM bootstrap runs with frozen runtime resources and no Workflow instance</?>
+                <When ?>HolonAssign requests final work</?>
+                <Then ?>the unique service owner SHALL be mounted and the canonical task SHALL execute and settle through it</?>
+              )>
+              <Case #canonical-member-selector (
+                <Given ?>an autonomous Holon admission targets exact Member M</?>
+                <When ?>ActorAssign or MemberAssign targets M</?>
+                <Then ?>the member selector SHALL use the same service and SHALL NOT bypass TaskSpace through direct VM messaging</?>
+              )>
+              <Case #workflow-shared-service (
+                <Given ?>Ctrl or Data Workflow opens a frozen Holon task</?>
+                <When ?>the node submits and wakes it</?>
+                <Then ?>the Workflow and product route SHALL expose the same serviceRuntimeRef/catalog and observe canonical receipts</?>
+              )>
+              <Case #ambiguous-member-holon-address (
+                <Given ?>one Member belongs to multiple autonomous Holons and no holonRef is supplied</?>
+                <When ?>a product tool attempts canonical assignment</?>
+                <Then ?>address projection SHALL fail as ambiguous instead of selecting the first Holon</?>
+              )>
+              <Case #ordinary-member-compatibility (
+                <Given ?>a Member does not belong to a canonical autonomous Holon admission</?>
+                <When ?>MemberAssign targets it</?>
+                <Then ?>the existing direct member messaging behavior SHALL remain available</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

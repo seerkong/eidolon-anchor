@@ -36,38 +36,38 @@ describe("Eidolon workflow architecture boundaries", () => {
       dependencies: Record<string, string>
     }
     const organClosure = {
-      "ai-ctrl-workflow-logic": "0.1.10",
-      "ai-data-workflow-contract": "0.1.7",
-      "ai-data-workflow-logic": "0.1.14",
-      "ai-workflow-contract": "0.1.9",
-      "ai-workflow-logic": "0.1.11",
+      "ai-ctrl-workflow-logic": "0.2.0",
+      "ai-data-workflow-contract": "0.2.0",
+      "ai-data-workflow-logic": "0.2.0",
+      "ai-workflow-contract": "0.2.0",
+      "ai-workflow-logic": "0.2.0",
       "depa-actor": "0.2.2",
       "depa-processor": "0.1.1",
-      "eager-data-flow-logic": "0.1.6",
+      "eager-data-flow-logic": "0.1.7",
       "flow-step-space-contract": "0.1.1",
       "flow-step-space-logic": "0.1.1",
-      "holarchy-core-contract": "0.1.1",
-      "holarchy-core-logic": "0.1.2",
-      "holarchy-eidolon-adapter": "0.1.1",
-      "holarchy-file-xnl-capsule": "0.2.0",
-      "instant-ctrl-flow-logic": "0.1.5",
+      "holarchy-core-contract": "0.2.0",
+      "holarchy-core-logic": "0.2.0",
+      "holarchy-eidolon-adapter": "0.2.0",
+      "holarchy-file-xnl-capsule": "0.3.0",
+      "instant-ctrl-flow-logic": "0.1.6",
       "task-manager-contract": "0.1.3",
       "task-manager-logic": "0.1.6",
       "work-ctrl-flow-contract": "0.1.3",
-      "work-ctrl-flow-logic": "0.1.4",
+      "work-ctrl-flow-logic": "0.1.5",
     }
     const contractClosure = {
-      "ai-ctrl-workflow-contract": "0.1.6",
-      "ai-data-workflow-contract": "0.1.7",
-      "ai-workflow-contract": "0.1.9",
-      "ai-workflow-logic": "0.1.11",
+      "ai-ctrl-workflow-contract": "0.2.0",
+      "ai-data-workflow-contract": "0.2.0",
+      "ai-workflow-contract": "0.2.0",
+      "ai-workflow-logic": "0.2.0",
       "flow-step-space-contract": "0.1.1",
     }
     expect(organ.dependencies).toMatchObject(organClosure)
     expect(contract.dependencies).toMatchObject(contractClosure)
-    expect(support.dependencies["ai-workflow-flow-dsl-reference"]).toBe("0.1.6")
-    expect(organ.dependencies["halfcode-compiler.xnl"]).toBe("0.2.9")
-    expect(support.dependencies["halfcode-compiler.xnl"]).toBe("0.2.3")
+    expect(support.dependencies["ai-workflow-flow-dsl-reference"]).toBe("0.2.0")
+    expect(organ.dependencies["halfcode-compiler.xnl"]).toBe("0.3.0")
+    expect(support.dependencies["halfcode-compiler.xnl"]).toBe("0.3.0")
     for (const version of [
       ...Object.values(organClosure),
       ...Object.values(contractClosure),

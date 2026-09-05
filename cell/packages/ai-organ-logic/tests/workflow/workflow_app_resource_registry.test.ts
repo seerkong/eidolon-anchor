@@ -40,7 +40,13 @@ import {
   createAIDataControlRuntime,
   freezeAIDataControlCapabilityCatalog,
 } from "ai-data-workflow-logic"
-import { AI_AGENT_DEFINITION_SELECTION_SCHEMA_VERSION } from "ai-workflow-contract"
+import {
+  AI_AGENT_DEFINITION_SELECTION_SCHEMA_VERSION,
+  DEPA_AI_RESOURCE_ENVELOPE_VERSION,
+  DEPA_AI_RESOURCE_SPEC_VERSION,
+  depaAIResourceKindContract,
+  type DepaAIResourceKind,
+} from "ai-workflow-contract"
 import { RESOURCE_AUTHORING_SCHEMA_VERSION } from "halfcode-compiler.xnl/authoring-runtime"
 import { createAIDataAutonomousControlState } from "../../src/workflow/runtime/AIDataAutonomousControlLoop"
 import { readAIDataAgentPreparationReceipts } from "../../src/workflow/runtime/AIDataAgentResourcePreparation"
@@ -61,9 +67,10 @@ async function writePackage(root: string, variant: "global" | "workspace"): Prom
   const packageId = `eidolon.fixture.${variant}.package`
   const description = variant === "workspace" ? "Workspace support app" : "Global support app"
   const files: Record<string, string> = {
-    "manifest.xnl": `<ResourcePackage #${packageId} apiVersion="halfcode.resources/v1" version="1.0.0" {
+    "manifest.xnl": `<ResourcePackage #${packageId} envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Active"
   description = "${description}"
+  packageVersion = "1.0.0"
 } (
   <Catalogs [
     <Catalog #kind_definitions { kind = "KindDefinition" shape = "directory" root = "vfs://./KindDefinitions/" entry = "manifest.xnl" }>
@@ -92,7 +99,7 @@ async function writePackage(root: string, variant: "global" | "workspace"): Prom
     "KindDefinitions/MaterialPort/manifest.xnl": kindDefinition("MaterialPort"),
     "KindDefinitions/MaterialBinding/manifest.xnl": kindDefinition("MaterialBinding"),
     "KindDefinitions/RequestMaterial/manifest.xnl": kindDefinition("RequestMaterial"),
-    "Apps/Support.xnl": `<AIWorkflowAppBundle #eidolon.fixture.SupportApp apiVersion="depa.flows/v1" version="1.0.0" {
+    "Apps/Support.xnl": `<AIWorkflowAppBundle #eidolon.fixture.SupportApp envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Active"
   description = "${description}"
 } (
@@ -102,24 +109,24 @@ async function writePackage(root: string, variant: "global" | "workspace"): Prom
   ]>
 )>
 `,
-    "CtrlWorkflows/Support.xnl": `<AICtrlWorkflow #eidolon.fixture.SupportCtrl apiVersion="depa.flows/v1" version="1.0.0" (
+    "CtrlWorkflows/Support.xnl": `<AICtrlWorkflow #eidolon.fixture.SupportCtrl envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 (
   <FlowContract #eidolon.fixture.SupportCtrl>
 ) [
   <Return #done>
 ]>
 `,
-    "DataWorkflows/Support.xnl": `<AIDataWorkflow #eidolon.fixture.SupportData apiVersion="depa.flows/v1" version="1.0.0" (
+    "DataWorkflows/Support.xnl": `<AIDataWorkflow #eidolon.fixture.SupportData envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 (
   <FlowContract #eidolon.fixture.SupportData { inputPorts = ["input"] outputPorts = ["result"] }>
 ) [
   <EntryNode #entry>
   <ReturnNode #return { inputs = { result = "flow-port://#entry/input" } }>
 ]>
 `,
-    "Agents/Support.xnl": `<AIAgentDefinition #eidolon.fixture.SupportAgent apiVersion="depa.flows/v1" version="1.0.0" {
+    "Agents/Support.xnl": `<AIAgentDefinition #eidolon.fixture.SupportAgent envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Active"
   description = "${variant} reusable support agent"
 } (
-  <Messages [
+  <MessagePrefix [
     <Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.SupportPrompt" }>
   ]>
   <ToolRefs [
@@ -128,14 +135,13 @@ async function writePackage(root: string, variant: "global" | "workspace"): Prom
   <MaterialPortRefs []>
 )>
 `,
-    "Prompts/Support.xnl": `<Prompt #eidolon.fixture.SupportPrompt apiVersion="depa.flows/v1" version="1.0.0" {
+    "Prompts/Support.xnl": `<Prompt #eidolon.fixture.SupportPrompt envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Active"
   description = "Ordinary multilingual prompt: 请整理输入，不要猜测关系。"
-} (
-  <Content ?>Use exact resources only. 请整理输入，不要猜测关系。</?>
-)>
+  template = "Use exact resources only. 请整理输入，不要猜测关系。"
+}>
 `,
-    "Tools/Lookup.xnl": `<Tool #eidolon.fixture.LookupTool apiVersion="depa.flows/v1" version="1.0.0" {
+    "Tools/Lookup.xnl": `<Tool #eidolon.fixture.LookupTool envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Active"
   description = "Exact fixture tool identity"
 }>
@@ -155,16 +161,8 @@ async function writePackage(root: string, variant: "global" | "workspace"): Prom
   }
 }
 
-function kindDefinition(resourceKind: string): string {
-  return `<KindDefinition #eidolon.fixture.kind.${resourceKind} apiVersion="halfcode.resources/v1" version="1.0.0" {
-  lifecycle = "Stable"
-  resourceKind = "${resourceKind}"
-  sourceShapes = ["single-file"]
-  currentApiVersion = "depa.flows/v1"
-  supportedApiVersions = ["depa.flows/v1"]
-  description = "Fixture ${resourceKind} resource"
-}>
-`
+function kindDefinition(resourceKind: DepaAIResourceKind): string {
+  return depaAIResourceKindContract(resourceKind).kindDefinitionSource
 }
 
 async function fixtureLayers(): Promise<readonly ResourcePackageLayerBinding[]> {
@@ -191,7 +189,7 @@ async function composableAgentFixture(): Promise<{
   await mkdir(workspaceRoot, { recursive: true })
   await writeFile(path.join(workspaceRoot, "AGENTS.md"), "Keep the workspace invariant.\n", "utf8")
   const files: Record<string, string> = {
-    "manifest.xnl": `<ResourcePackage #eidolon.fixture.composable.package apiVersion="halfcode.resources/v1" version="1.0.0" { lifecycle = "Active" } (
+    "manifest.xnl": `<ResourcePackage #eidolon.fixture.composable.package envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" packageVersion = "1.0.0" } (
   <Catalogs [
     <Catalog #kind_definitions { kind = "KindDefinition" shape = "directory" root = "vfs://./KindDefinitions/" entry = "manifest.xnl" }>
     <Catalog #agents { kind = "AIAgentDefinition" shape = "single-file" root = "vfs://./Agents/" }>
@@ -205,7 +203,7 @@ async function composableAgentFixture(): Promise<{
     "KindDefinitions/Prompt/manifest.xnl": kindDefinition("Prompt"),
     "KindDefinitions/AgentMessageSource/manifest.xnl": kindDefinition("AgentMessageSource"),
     "KindDefinitions/AgentContextPipeline/manifest.xnl": kindDefinition("AgentContextPipeline"),
-    "Agents/Code.xnl": `<AIAgentDefinition #eidolon.fixture.ComposableCode apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" description = "Composable coding Agent" } (
+    "Agents/Code.xnl": `<AIAgentDefinition #eidolon.fixture.ComposableCode envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" description = "Composable coding Agent" } (
   <MessagePrefix [
     <Message #kernel { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.KernelPrompt" }>
     <MessageSource #workspace { kind = "AgentMessageSource" ref = "resource://eidolon.fixture.WorkspaceAgents" }>
@@ -216,10 +214,10 @@ async function composableAgentFixture(): Promise<{
   <MaterialPortRefs []>
 )>
 `,
-    "Prompts/Kernel.xnl": `<Prompt #eidolon.fixture.KernelPrompt apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (<Content ?>kernel-prefix</?>)>`,
-    "Prompts/Coding.xnl": `<Prompt #eidolon.fixture.CodingPrompt apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (<Content ?>coding-prefix</?>)>`,
-    "MessageSources/Workspace.xnl": `<AgentMessageSource #eidolon.fixture.WorkspaceAgents apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (<Content ?>{\"implementation\":\"eidolon.workspace-agents/v1\"}</?>)>`,
-    "ContextPipelines/Standard.xnl": `<AgentContextPipeline #eidolon.fixture.StandardContext apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (<Content ?>{\"implementation\":\"eidolon.standard-context-pipeline/v1\",\"stages\":[\"prompt-plan\",\"conversation-prelude\",\"provider-context-facts-at-history-anchors\",\"stable-message-prefix\",\"conversation-boundary-overlays\",\"provider-conversion\"]}</?>)>`,
+    "Prompts/Kernel.xnl": `<Prompt #eidolon.fixture.KernelPrompt envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" template = "kernel-prefix" }>`,
+    "Prompts/Coding.xnl": `<Prompt #eidolon.fixture.CodingPrompt envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" template = "coding-prefix" }>`,
+    "MessageSources/Workspace.xnl": `<AgentMessageSource #eidolon.fixture.WorkspaceAgents envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" } (<Content ?>{\"implementation\":\"eidolon.workspace-agents/v1\"}</?>)>`,
+    "ContextPipelines/Standard.xnl": `<AgentContextPipeline #eidolon.fixture.StandardContext envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" } (<Content ?>{\"implementation\":\"eidolon.standard-context-pipeline/v1\",\"stages\":[\"prompt-plan\",\"conversation-prelude\",\"provider-context-facts-at-history-anchors\",\"stable-message-prefix\",\"conversation-boundary-overlays\",\"provider-conversion\"]}</?>)>`,
   }
   for (const [relativePath, content] of Object.entries(files)) {
     const target = path.join(resources, relativePath)
@@ -275,7 +273,7 @@ describe("Eidolon Halfcode App resource registry", () => {
   it("fails closed before Actor creation for an unknown ContextPipeline implementation", async () => {
     const fixture = await composableAgentFixture()
     const pipeline = path.join(fixture.layers[0]!.rootDir, "ContextPipelines", "Standard.xnl")
-    await writeFile(pipeline, `<AgentContextPipeline #eidolon.fixture.StandardContext apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (<Content ?>{\"implementation\":\"unknown/v9\",\"stages\":[]}</?>)>`, "utf8")
+    await writeFile(pipeline, `<AgentContextPipeline #eidolon.fixture.StandardContext envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" } (<Content ?>{\"implementation\":\"unknown/v9\",\"stages\":[]}</?>)>`, "utf8")
     const adapter = new EidolonAppResourceRegistryAdapter({
       layers: fixture.layers,
       workspaceRoot: fixture.workspaceRoot,
@@ -456,7 +454,10 @@ describe("Eidolon Halfcode App resource registry", () => {
     const promptPath = path.join(workspaceRoot, "Prompts", "Support.xnl")
     await writeFile(
       promptPath,
-      (await Bun.file(promptPath).text()).replace("<Content ?>", "<Body ?>"),
+      (await Bun.file(promptPath).text()).replace(
+        'template = "Use exact resources only. 请整理输入，不要猜测关系。"',
+        'body = "Use exact resources only. 请整理输入，不要猜测关系。"',
+      ),
       "utf8",
     )
     const adapter = new EidolonAppResourceRegistryAdapter({ layers })
@@ -464,7 +465,7 @@ describe("Eidolon Halfcode App resource registry", () => {
     await expect(adapter.materializeAgentExecutionPlan(
       "resource://eidolon.fixture.SupportAgent",
       { scope: "standalone" },
-    )).rejects.toThrow("EIDOLON_RESOURCE_AGENT_PROMPT_CONTENT_UNSUPPORTED")
+    )).rejects.toThrow("WRITER_SCHEMA_INVALID")
   })
 
   it("enforces the closed none tool policy without textual or alias routing", async () => {
@@ -472,7 +473,7 @@ describe("Eidolon Halfcode App resource registry", () => {
     const workspaceRoot = layers.find((layer) => layer.id === "workspace")!.rootDir
     await writeFile(
       path.join(workspaceRoot, "Policies", "None.xnl"),
-      `<EffectPolicy #eidolon.fixture.NonePolicy apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" toolMode = "none" }>`,
+      `<EffectPolicy #eidolon.fixture.NonePolicy envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" toolMode = "none" }>`,
     )
     const agentPath = path.join(workspaceRoot, "Agents", "Support.xnl")
     const original = await Bun.file(agentPath).text()
@@ -995,11 +996,11 @@ describe("Eidolon Halfcode App resource registry", () => {
     )
     await writeFile(
       path.join(workspacePackage, "Agents", "Support.xnl"),
-      `<AIAgentDefinition #eidolon.fixture.SupportAgent apiVersion="depa.flows/v1" version="1.0.0" {
+      `<AIAgentDefinition #eidolon.fixture.SupportAgent envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Active"
   description = "workspace reusable support agent"
 } (
-  <Messages [
+  <MessagePrefix [
     <Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.SupportPrompt" } (
       <SchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.ResponseSchema" }>
     )>
@@ -1019,27 +1020,27 @@ describe("Eidolon Halfcode App resource registry", () => {
     await mkdir(path.join(workspacePackage, "Ports"), { recursive: true })
     await mkdir(path.join(workspacePackage, "Bindings"), { recursive: true })
     await mkdir(path.join(workspacePackage, "RequestMaterials"), { recursive: true })
-    await writeFile(path.join(workspacePackage, "Schemas", "Input.xnl"), `<MessageSchema #eidolon.fixture.InputSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" } }>`)
-    await writeFile(path.join(workspacePackage, "Schemas", "Response.xnl"), `<MessageSchema #eidolon.fixture.ResponseSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "string" } }>`)
-    await writeFile(path.join(workspacePackage, "Schemas", "Output.xnl"), `<MessageSchema #eidolon.fixture.OutputSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" required = ["value"] additionalProperties = false properties = { value = { type = "string" } } } }>`)
-    await writeFile(path.join(workspacePackage, "Policies", "Safe.xnl"), `<EffectPolicy #eidolon.fixture.SafePolicy apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" toolMode = "declared-only" }>`)
-    await writeFile(path.join(workspacePackage, "Ports", "Request.xnl"), `<MaterialPort #eidolon.fixture.RequestPort apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" materialKind = "RequestMaterial" required = true cardinality = "one" } (
+    await writeFile(path.join(workspacePackage, "Schemas", "Input.xnl"), `<MessageSchema #eidolon.fixture.InputSchema envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" schema = { type = "object" } }>`)
+    await writeFile(path.join(workspacePackage, "Schemas", "Response.xnl"), `<MessageSchema #eidolon.fixture.ResponseSchema envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" schema = { type = "string" } }>`)
+    await writeFile(path.join(workspacePackage, "Schemas", "Output.xnl"), `<MessageSchema #eidolon.fixture.OutputSchema envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" schema = { type = "object" required = ["value"] additionalProperties = false properties = { value = { type = "string" } } } }>`)
+    await writeFile(path.join(workspacePackage, "Policies", "Safe.xnl"), `<EffectPolicy #eidolon.fixture.SafePolicy envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" toolMode = "declared-only" }>`)
+    await writeFile(path.join(workspacePackage, "Ports", "Request.xnl"), `<MaterialPort #eidolon.fixture.RequestPort envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" materialKind = "RequestMaterial" required = true cardinality = "one" } (
   <SchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.InputSchema" }>
 )>`)
-    await writeFile(path.join(workspacePackage, "RequestMaterials", "Request.xnl"), `<RequestMaterial #eidolon.fixture.RequestMaterial apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" value = { request = "material request" } }>`)
-    await writeFile(path.join(workspacePackage, "Bindings", "Ctrl.xnl"), `<MaterialBinding #eidolon.fixture.CtrlBinding apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
+    await writeFile(path.join(workspacePackage, "RequestMaterials", "Request.xnl"), `<RequestMaterial #eidolon.fixture.RequestMaterial envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" value = { request = "material request" } }>`)
+    await writeFile(path.join(workspacePackage, "Bindings", "Ctrl.xnl"), `<MaterialBinding #eidolon.fixture.CtrlBinding envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" } (
   <AgentTaskRef { workflowKind = "AICtrlWorkflow" workflowRef = "resource://eidolon.fixture.SupportCtrl" nodeId = "agent-node" agentDefinitionRef = "resource://eidolon.fixture.SupportAgent" }>
   <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.RequestPort" }>
   <MaterialRef { kind = "RequestMaterial" ref = "resource://eidolon.fixture.RequestMaterial" }>
 )>`)
-    await writeFile(path.join(workspacePackage, "Bindings", "Data.xnl"), `<MaterialBinding #eidolon.fixture.DataBinding apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
+    await writeFile(path.join(workspacePackage, "Bindings", "Data.xnl"), `<MaterialBinding #eidolon.fixture.DataBinding envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" } (
   <AgentTaskRef { workflowKind = "AIDataWorkflow" workflowRef = "resource://eidolon.fixture.SupportData" nodeId = "agent-node" agentDefinitionRef = "resource://eidolon.fixture.SupportAgent" }>
   <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.RequestPort" }>
   <MaterialRef { kind = "RequestMaterial" ref = "resource://eidolon.fixture.RequestMaterial" }>
 )>`)
     await writeFile(
       path.join(workspacePackage, "CtrlWorkflows", "Support.xnl"),
-      `<AICtrlWorkflow #eidolon.fixture.SupportCtrl apiVersion="depa.flows/v1" version="1.0.0" (
+      `<AICtrlWorkflow #eidolon.fixture.SupportCtrl envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 (
   <FlowContract #eidolon.fixture.SupportCtrl>
 ) [
   <Run #agent-node { src = "vfs://@/flow-code/agent.ts#invokeAgent" config = { effectId = "ctrl-agent-effect" nodeId = "agent-node" agentDefinitionRef = "resource://eidolon.fixture.SupportAgent" } }>
@@ -1058,7 +1059,7 @@ describe("Eidolon Halfcode App resource registry", () => {
     )
     await writeFile(
       path.join(workspacePackage, "DataWorkflows", "Support.xnl"),
-      `<AIDataWorkflow #eidolon.fixture.SupportData apiVersion="depa.flows/v1" version="1.0.0" (
+      `<AIDataWorkflow #eidolon.fixture.SupportData envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 (
   <FlowContract #eidolon.fixture.SupportData { inputPorts = ["value"] outputPorts = ["value"] }>
 ) [
   <EntryNode #entry>
@@ -1226,7 +1227,7 @@ describe("Eidolon Halfcode App resource registry", () => {
         parent, "resource-agent-session", "workflow-runtime", "agent-executions", runId,
       ))).rejects.toMatchObject({ code: "ENOENT" })
     }
-  })
+  }, 20_000)
 
   it("autonomously composes a SubFlow with selected and authored Worker resources in one recoverable parent", async () => {
     const layers = await fixtureLayers()
@@ -1287,41 +1288,41 @@ describe("Eidolon Halfcode App resource registry", () => {
     })
     const files: Record<string, string> = {
       "flow-code/autonomous.ts": `export function identity(_runtime: unknown, input: unknown) { return input }\n`,
-      "Schemas/AutonomousInput.xnl": `<MessageSchema #eidolon.fixture.AutonomousInputSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" } }>`,
-      "Schemas/AutonomousDecision.xnl": `<MessageSchema #eidolon.fixture.AutonomousDecisionSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" } }>`,
-      "Schemas/AutonomousExistingWorkerOutput.xnl": `<MessageSchema #eidolon.fixture.AutonomousExistingWorkerOutputSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" required = ["value"] additionalProperties = false properties = { value = { type = "string" } } } }>`,
-      "Schemas/AutonomousWorkerOutput.xnl": `<MessageSchema #eidolon.fixture.AutonomousWorkerOutputSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" required = ["value"] additionalProperties = false properties = { value = { type = "string" } } } }>`,
-      "Policies/AutonomousSafe.xnl": `<EffectPolicy #eidolon.fixture.AutonomousSafePolicy apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" toolMode = "none" }>`,
-      "Ports/AutonomousRequest.xnl": `<MaterialPort #eidolon.fixture.AutonomousRequestPort apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" materialKind = "RequestMaterial" required = true cardinality = "one" } (
+      "Schemas/AutonomousInput.xnl": `<MessageSchema #eidolon.fixture.AutonomousInputSchema envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" schema = { type = "object" } }>`,
+      "Schemas/AutonomousDecision.xnl": `<MessageSchema #eidolon.fixture.AutonomousDecisionSchema envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" schema = { type = "object" } }>`,
+      "Schemas/AutonomousExistingWorkerOutput.xnl": `<MessageSchema #eidolon.fixture.AutonomousExistingWorkerOutputSchema envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" schema = { type = "object" required = ["value"] additionalProperties = false properties = { value = { type = "string" } } } }>`,
+      "Schemas/AutonomousWorkerOutput.xnl": `<MessageSchema #eidolon.fixture.AutonomousWorkerOutputSchema envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" schema = { type = "object" required = ["value"] additionalProperties = false properties = { value = { type = "string" } } } }>`,
+      "Policies/AutonomousSafe.xnl": `<EffectPolicy #eidolon.fixture.AutonomousSafePolicy envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" toolMode = "none" }>`,
+      "Ports/AutonomousRequest.xnl": `<MaterialPort #eidolon.fixture.AutonomousRequestPort envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" materialKind = "RequestMaterial" required = true cardinality = "one" } (
   <SchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.AutonomousInputSchema" }>
 )>`,
-      "RequestMaterials/AutonomousRequest.xnl": `<RequestMaterial #eidolon.fixture.AutonomousRequestMaterial apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" value = { request = "autonomous control" } }>`,
-      "Agents/AutonomousController.xnl": `<AIAgentDefinition #eidolon.fixture.AutonomousControllerAgent apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" description = "Typed autonomous controller" } (
-  <Messages [<Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.SupportPrompt" }>]>
+      "RequestMaterials/AutonomousRequest.xnl": `<RequestMaterial #eidolon.fixture.AutonomousRequestMaterial envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" value = { request = "autonomous control" } }>`,
+      "Agents/AutonomousController.xnl": `<AIAgentDefinition #eidolon.fixture.AutonomousControllerAgent envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" description = "Typed autonomous controller" } (
+  <MessagePrefix [<Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.SupportPrompt" }>]>
   <InputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.AutonomousInputSchema" }>
   <OutputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.AutonomousDecisionSchema" }>
   <ToolRefs []>
   <EffectPolicyRef { kind = "EffectPolicy" ref = "resource://eidolon.fixture.AutonomousSafePolicy" }>
   <MaterialPortRefs [<MaterialPortRef #request { kind = "MaterialPort" ref = "resource://eidolon.fixture.AutonomousRequestPort" }>]>
 )>`,
-      "Agents/AutonomousExistingWorker.xnl": `<AIAgentDefinition #eidolon.fixture.AutonomousExistingWorkerAgent apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" description = "Pre-existing typed autonomous worker" } (
-  <Messages [<Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.SupportPrompt" }>]>
+      "Agents/AutonomousExistingWorker.xnl": `<AIAgentDefinition #eidolon.fixture.AutonomousExistingWorkerAgent envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" description = "Pre-existing typed autonomous worker" } (
+  <MessagePrefix [<Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.SupportPrompt" }>]>
   <InputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.AutonomousInputSchema" }>
   <OutputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.AutonomousExistingWorkerOutputSchema" }>
   <ToolRefs []>
   <EffectPolicyRef { kind = "EffectPolicy" ref = "resource://eidolon.fixture.AutonomousSafePolicy" }>
   <MaterialPortRefs []>
 )>`,
-      "Bindings/AutonomousController.xnl": `<MaterialBinding #eidolon.fixture.AutonomousControllerBinding apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
+      "Bindings/AutonomousController.xnl": `<MaterialBinding #eidolon.fixture.AutonomousControllerBinding envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" } (
   <AgentTaskRef { workflowKind = "AIDataWorkflow" workflowRef = "resource://eidolon.fixture.AutonomousData" nodeId = "control" agentDefinitionRef = "resource://eidolon.fixture.AutonomousControllerAgent" }>
   <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.AutonomousRequestPort" }>
   <MaterialRef { kind = "RequestMaterial" ref = "resource://eidolon.fixture.AutonomousRequestMaterial" }>
 )>`,
-      "DataWorkflows/Autonomous.xnl": `<AIDataWorkflow #eidolon.fixture.AutonomousData apiVersion="depa.flows/v1" version="1.0.0" (
+      "DataWorkflows/Autonomous.xnl": `<AIDataWorkflow #eidolon.fixture.AutonomousData envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 (
   <FlowContract #eidolon.fixture.AutonomousData { inputPorts = ["value"] outputPorts = ["value"] }>
   <StepSpaceRef { src = "autonomous/step-space.xnl" }>
 )>`,
-      "DataWorkflows/AutonomousChild.xnl": `<AIDataWorkflow #eidolon.fixture.AutonomousChild apiVersion="depa.flows/v1" version="1.0.0" (
+      "DataWorkflows/AutonomousChild.xnl": `<AIDataWorkflow #eidolon.fixture.AutonomousChild envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 (
   <FlowContract #eidolon.fixture.AutonomousChild { inputPorts = ["value"] outputPorts = ["value"] }>
 ) [
   <EntryNode #entry>
@@ -1522,8 +1523,8 @@ describe("Eidolon Halfcode App resource registry", () => {
         requiredMessageSourceRefs: [],
       },
     })
-    const workerAuthority = `<AIAgentDefinition #eidolon.fixture.AutonomousWorkerAgent apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" description = "Runtime-authored typed autonomous worker" } (
-  <Messages [<Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.SupportPrompt" }>]>
+    const workerAuthority = `<AIAgentDefinition #eidolon.fixture.AutonomousWorkerAgent envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" description = "Runtime-authored typed autonomous worker" } (
+  <MessagePrefix [<Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.SupportPrompt" }>]>
   <InputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.AutonomousInputSchema" }>
   <OutputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.AutonomousWorkerOutputSchema" }>
   <ToolRefs []>
@@ -1546,7 +1547,8 @@ describe("Eidolon Halfcode App resource registry", () => {
           catalogId: "agents",
           resourceId: "eidolon.fixture.AutonomousWorkerAgent",
           kind: "AIAgentDefinition",
-          apiVersion: "depa.flows/v1",
+          envelopeVersion: DEPA_AI_RESOURCE_ENVELOPE_VERSION,
+          writerSpecVersion: DEPA_AI_RESOURCE_SPEC_VERSION,
           sourceShape: "single-file",
           documentUri: "vfs://@/Agents/AutonomousWorker.xnl",
           authorityText: workerAuthority,
@@ -1725,6 +1727,6 @@ describe("Eidolon Halfcode App resource registry", () => {
       runId: "autonomous-resource-run",
     })
     expect(readAIDataAgentPreparationReceipts(reconstructedCheckpoint?.stepExtensions)).toEqual(preparationReceipts)
-  })
+  }, 20_000)
 
 })

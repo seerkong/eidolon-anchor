@@ -1,4 +1,21 @@
-<KindDefinition #eidolon.fixture.kind.MaterialBinding apiVersion="halfcode.resources/v1" version="1.0.0" {
-  lifecycle = "Stable" resourceKind = "MaterialBinding" sourceShapes = ["single-file"]
-  currentApiVersion = "depa.flows/v1" supportedApiVersions = ["depa.flows/v1"]
-}>
+<KindDefinition #Depa.Flows.KindDefinition.MaterialBinding envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
+  lifecycle = "Stable"
+  resourceKind = "MaterialBinding"
+  subjectFqn = "Depa.Flows.KindDefinition.MaterialBinding"
+  sourceShapes = ["single-file"]
+  documentCardinality = "one"
+  description = "Canonical depa-flows MaterialBinding resource contract."
+} (
+  <SpecRevisions [
+    <SpecRevision #v1 {
+      specVersion = 1
+      schemaRef = "vfs://./spec-v1.schema.json"
+      schemaFingerprint = "sha256:e27f546ca3f7496f86128d5f24c82afcd06680c6752688b05982bb0e20e4e17c"
+      contractFingerprint = "sha256:76bfa50f68ad78d748fa8c41e749e04335afbcea90cf32eff86c52cf07a90b6c"
+      semanticValidatorFingerprint = "sha256:0f52c3789905e98ad8fcd9502ea680316464252ef57a4d0c2ad69325a11466e8"
+      referenceProjectionFingerprint = "sha256:926174e0ba3e7e6ed36441fd1678fc8be67c1c97ddfb37b2cd9af8ca8db541ed"
+      compilerInputFingerprint = "sha256:09f91a725837020ee4ac127b2501edce278ab9f35f2bbeac3f585b1c82ed73e2"
+      stability = "stable"
+    }>
+  ]>
+)>

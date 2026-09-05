@@ -7,6 +7,7 @@ import {
   projectAIWorkflowAgentResources,
   projectAIWorkflowAppBundles,
 } from "ai-workflow-logic"
+import { resolveAIWorkflowResourceTree } from "ai-workflow-logic/filesystem"
 import {
   freezeAIWorkflowHolonTaskTarget,
   freezeAIWorkflowRunResources,
@@ -50,8 +51,11 @@ import {
   loadResourceTreeFromReadPort,
   resolveEffectiveResourceContentIdentities,
   sha256Digest,
+  type AuthoredResourceTree,
   type EffectiveResourceRegistry,
-  type LoadedResourceTree,
+  type PortableSpec,
+  type ResolvedResourceRecord,
+  type ResolvedResourceTree,
   type ResourceContentIdentity,
   type ResourceLayerContentIdentityInput,
   type ResourcePackageReadPort,
@@ -64,7 +68,12 @@ import {
   type EidolonHolonExecutionBindingFreezeReceipt,
   type EidolonHolonExecutionBindingProjection,
 } from "./HolonExecutionBindingProjection"
+import {
+  projectHolonTaskRuntimeDefinitions,
+  type EidolonHolonTaskRuntimeDefinitionProjection,
+} from "./HolonTaskRuntimeDefinitionProjection"
 import { EidolonResourceRegistryError } from "./EidolonResourceRegistryError"
+import { createEidolonResourceResolutionContext } from "./EidolonResourceKindContractCapsule"
 
 export { EidolonResourceRegistryError } from "./EidolonResourceRegistryError"
 
@@ -77,10 +86,15 @@ export type ResourcePackageLayerBinding = {
 
 export type EidolonResourceRegistrySnapshot = {
   readonly schemaVersion: "eidolon.resource-registry-snapshot/v1"
+  /** Authentic authored registry paired with contentIdentityLayers for digest/authoring authority. */
+  readonly contentIdentityRegistry: EffectiveResourceRegistry
   readonly registry: EffectiveResourceRegistry
   readonly contentIdentities: ReadonlyMap<string, ResourceContentIdentity>
   /** Exact loaded trees composed into registry; retained for branded Halfcode proof projection. */
   readonly contentIdentityLayers: readonly ResourceLayerContentIdentityInput[]
+  /** Exact reader-admitted resource records selected by the layered effective registry. */
+  readonly resolvedResources: ReadonlyMap<string, ResolvedResourceRecord>
+  readonly readerProfileId: string
   readonly effectiveVfs?: Readonly<{
     readonly revision: string
     readonly treeDigest: string
@@ -91,6 +105,7 @@ export type EidolonResourceRegistrySnapshot = {
   readonly appBundles: readonly AIWorkflowAppBundleProjection[]
   readonly agentResources: AIWorkflowAgentResourceProjection
   readonly holonExecutionBindings: readonly EidolonHolonExecutionBindingProjection[]
+  readonly holonTaskRuntimeDefinitions: readonly EidolonHolonTaskRuntimeDefinitionProjection[]
   readonly layers: readonly ResourcePackageLayerBinding[]
 }
 
@@ -198,7 +213,8 @@ export type EidolonEffectiveResourceSource = {
 
 type LoadedLayer = {
   readonly binding: ResourcePackageLayerBinding
-  readonly tree: LoadedResourceTree
+  readonly tree: AuthoredResourceTree
+  readonly resolvedTree: ResolvedResourceTree
 }
 
 type LoadedSnapshotGeneration = {
@@ -397,6 +413,12 @@ export class EidolonAppResourceRegistryAdapter {
 
   async listHolonExecutionBindings(): Promise<readonly EidolonHolonExecutionBindingProjection[]> {
     return (await this.snapshot()).holonExecutionBindings
+  }
+
+  async listHolonTaskRuntimeDefinitions(): Promise<
+    readonly EidolonHolonTaskRuntimeDefinitionProjection[]
+  > {
+    return (await this.snapshot()).holonTaskRuntimeDefinitions
   }
 
   async freezeHolonExecutionBinding(
@@ -996,7 +1018,7 @@ export class EidolonAppResourceRegistryAdapter {
             `Agent message source '${item.id}' does not match the selected effective resource.`,
           )
         }
-        const descriptor = parseClosedResourceDescriptor(source, "AgentMessageSource")
+        const descriptor = parseClosedResourceDescriptor(snapshot, source, "AgentMessageSource")
         if (descriptor.implementation !== "eidolon.workspace-agents/v1") {
           throw new EidolonResourceRegistryError(
             "EIDOLON_AGENT_MESSAGE_SOURCE_IMPLEMENTATION_UNSUPPORTED",
@@ -1021,11 +1043,13 @@ export class EidolonAppResourceRegistryAdapter {
           `Agent message '${message.id}' prompt does not match the selected effective resource.`,
         )
       }
-      const contentNode = prompt.node.subdomains.Content
-      if (!contentNode || typeof contentNode.text !== "string" || !contentNode.text.trim()) {
+      const promptSpec = requiredResolvedResource(snapshot, prompt).readerValue
+      const promptProperties = portableRecord(promptSpec.properties)
+      const content = promptProperties?.template
+      if (typeof content !== "string" || !content.trim()) {
         throw new EidolonResourceRegistryError(
           "EIDOLON_RESOURCE_AGENT_PROMPT_CONTENT_UNSUPPORTED",
-          `Agent message '${message.id}' requires one non-empty Content TextElement subdomain.`,
+          `Agent message '${message.id}' requires one non-empty Prompt.template value.`,
         )
       }
       const identity = requiredContentIdentity(snapshot, prompt.resourceId)
@@ -1034,7 +1058,7 @@ export class EidolonAppResourceRegistryAdapter {
         role: message.role,
         promptResourceId: prompt.resourceId,
         contentDigest: identity.contentDigest,
-        content: contentNode.text,
+        content,
         schema: message.schema
           ? normalizeAgentExecutionSchema(message.schema.schema, `message.${message.id}.schema`)
           : undefined,
@@ -1181,20 +1205,30 @@ export class EidolonAppResourceRegistryAdapter {
     configuredLayers: readonly ResourcePackageLayerBinding[],
   ): Promise<EidolonResourceRegistrySnapshot> {
     const layers: LoadedLayer[] = []
+    const resolutionContext = createEidolonResourceResolutionContext()
     for (const binding of configuredLayers) {
       if (!await directoryExists(binding.rootDir)) continue
-      layers.push(Object.freeze({ binding, tree: await loadResourceTree({ rootDir: binding.rootDir }) }))
+      const tree = await loadResourceTree({ rootDir: binding.rootDir })
+      const resolvedTree = resolveAIWorkflowResourceTree(tree, resolutionContext)
+      layers.push(Object.freeze({ binding, tree, resolvedTree }))
     }
     const contentIdentityLayers = Object.freeze(
       layers.map(({ binding, tree }) => Object.freeze({ id: binding.id, tree })),
     )
-    const registry = composeLayeredResourceRegistry({
+    const authoredRegistry = composeLayeredResourceRegistry({
       layers: contentIdentityLayers,
+    })
+    const registry = composeLayeredResourceRegistry({
+      layers: layers.map(({ binding, resolvedTree }) => Object.freeze({ id: binding.id, tree: resolvedTree })),
     })
     const contentIdentities = resolveEffectiveResourceContentIdentities({
-      registry,
+      registry: authoredRegistry,
       layers: contentIdentityLayers,
     })
+    const resolvedResources = selectEffectiveResolvedResources(
+      registry,
+      layers.map(({ binding, resolvedTree }) => ({ id: binding.id, resolvedTree })),
+    )
     const roots = [...registry.byId.values()]
       .filter((entry) => entry.resource !== undefined)
       .map((entry) => entry.resourceId)
@@ -1208,15 +1242,28 @@ export class EidolonAppResourceRegistryAdapter {
       kindDefinitionAuthorityDigests,
       registryRevision,
     })
+    const agentResources = projectAIWorkflowAgentResources(registry)
+    const holonTaskRuntimeDefinitions = await projectHolonTaskRuntimeDefinitions({
+      registry,
+      contentIdentities,
+      kindDefinitionAuthorityDigests,
+      registryRevision,
+      holonExecutionBindings,
+      agentResources,
+    })
     return Object.freeze({
       schemaVersion: "eidolon.resource-registry-snapshot/v1",
+      contentIdentityRegistry: authoredRegistry,
       registry,
       contentIdentities,
       contentIdentityLayers,
+      resolvedResources,
+      readerProfileId: resolutionContext.readerProfile.profileId,
       registryRevision,
       appBundles: projectAIWorkflowAppBundles(registry),
-      agentResources: projectAIWorkflowAgentResources(registry),
+      agentResources,
       holonExecutionBindings,
+      holonTaskRuntimeDefinitions,
       layers: Object.freeze(layers.map(({ binding }) => binding)),
     })
   }
@@ -1234,11 +1281,22 @@ export class EidolonAppResourceRegistryAdapter {
       port: createHalfcodeReadPort(readPort),
       rootPath: EFFECTIVE_VFS_PACKAGE_ROOT,
     })
+    const resolutionContext = createEidolonResourceResolutionContext()
+    const resolvedTree = resolveAIWorkflowResourceTree(tree, resolutionContext)
     const contentIdentityLayers = Object.freeze([
       Object.freeze({ id: EFFECTIVE_VFS_LAYER_ID, tree }),
     ])
-    const registry = composeLayeredResourceRegistry({ layers: contentIdentityLayers })
-    const contentIdentities = resolveEffectiveResourceContentIdentities({ registry, layers: contentIdentityLayers })
+    const authoredRegistry = composeLayeredResourceRegistry({ layers: contentIdentityLayers })
+    const registry = composeLayeredResourceRegistry({
+      layers: [Object.freeze({ id: EFFECTIVE_VFS_LAYER_ID, tree: resolvedTree })],
+    })
+    const contentIdentities = resolveEffectiveResourceContentIdentities({
+      registry: authoredRegistry,
+      layers: contentIdentityLayers,
+    })
+    const resolvedResources = selectEffectiveResolvedResources(registry, [
+      Object.freeze({ id: EFFECTIVE_VFS_LAYER_ID, resolvedTree }),
+    ])
     const roots = [...registry.byId.values()]
       .filter((entry) => entry.resource !== undefined)
       .map((entry) => entry.resourceId)
@@ -1252,11 +1310,23 @@ export class EidolonAppResourceRegistryAdapter {
       kindDefinitionAuthorityDigests,
       registryRevision,
     })
+    const agentResources = projectAIWorkflowAgentResources(registry)
+    const holonTaskRuntimeDefinitions = await projectHolonTaskRuntimeDefinitions({
+      registry,
+      contentIdentities,
+      kindDefinitionAuthorityDigests,
+      registryRevision,
+      holonExecutionBindings,
+      agentResources,
+    })
     const snapshot = Object.freeze({
       schemaVersion: "eidolon.resource-registry-snapshot/v1" as const,
+      contentIdentityRegistry: authoredRegistry,
       registry,
       contentIdentities,
       contentIdentityLayers,
+      resolvedResources,
+      readerProfileId: resolutionContext.readerProfile.profileId,
       effectiveVfs: Object.freeze({
         revision: readPort.snapshot.revision,
         treeDigest: readPort.snapshot.treeDigest,
@@ -1265,8 +1335,9 @@ export class EidolonAppResourceRegistryAdapter {
       }),
       registryRevision,
       appBundles: projectAIWorkflowAppBundles(registry),
-      agentResources: projectAIWorkflowAgentResources(registry),
+      agentResources,
       holonExecutionBindings,
+      holonTaskRuntimeDefinitions,
       layers: Object.freeze([]),
     }) satisfies EidolonResourceRegistrySnapshot
     this.effectiveVfsPorts.set(snapshot, readPort)
@@ -1711,12 +1782,52 @@ function effectiveResource(
   return resource
 }
 
+function selectEffectiveResolvedResources(
+  registry: EffectiveResourceRegistry,
+  layers: readonly Readonly<{ id: string; resolvedTree: ResolvedResourceTree }>[],
+): ReadonlyMap<string, ResolvedResourceRecord> {
+  const recordsByLayer = new Map(layers.map(({ id, resolvedTree }) => [
+    id,
+    new Map([...resolvedTree.registry.byKind.values()]
+      .flatMap((records) => records)
+      .map((record) => [record.resourceId, record] as const)),
+  ] as const))
+  const selected = new Map<string, ResolvedResourceRecord>()
+  for (const entry of registry.byId.values()) {
+    if (!entry.resource || !entry.effectiveLayerId) continue
+    const resolved = recordsByLayer.get(entry.effectiveLayerId)?.get(entry.resourceId)
+    if (!resolved || resolved.stage !== "resolved" || resolved.kind !== entry.kind) {
+      throw new EidolonResourceRegistryError(
+        "EIDOLON_RESOURCE_RESOLUTION_PROOF_MISSING",
+        `Effective resource '${entry.resourceId}' has no exact reader-admitted record in layer '${entry.effectiveLayerId}'.`,
+      )
+    }
+    selected.set(entry.resourceId, resolved)
+  }
+  return selected
+}
+
+function requiredResolvedResource(
+  snapshot: EidolonResourceRegistrySnapshot,
+  resource: ResourceRecord,
+): ResolvedResourceRecord<PortableSpec> {
+  const resolved = snapshot.resolvedResources.get(resource.resourceId)
+  if (!resolved || resolved.kind !== resource.kind || resolved.stage !== "resolved") {
+    throw new EidolonResourceRegistryError(
+      "EIDOLON_RESOURCE_RESOLUTION_PROOF_MISSING",
+      `Resource '${resource.resourceId}' has no exact reader resolution proof in profile '${snapshot.readerProfileId}'.`,
+    )
+  }
+  return resolved as ResolvedResourceRecord<PortableSpec>
+}
+
 type ClosedResourceDescriptor = Readonly<{
   implementation?: unknown
   stages?: unknown
 }>
 
 function parseClosedResourceDescriptor(
+  snapshot: EidolonResourceRegistrySnapshot,
   resource: ResourceRecord,
   expectedKind: "AgentMessageSource" | "AgentContextPipeline",
 ): ClosedResourceDescriptor {
@@ -1726,7 +1837,10 @@ function parseClosedResourceDescriptor(
       `Resource '${resource.resourceId}' must have kind '${expectedKind}', got '${resource.kind}'.`,
     )
   }
-  const content = resource.node.subdomains.Content?.text
+  const descriptorSpec = requiredResolvedResource(snapshot, resource).readerValue
+  const subdomains = portableRecord(descriptorSpec.subdomains)
+  const contentNode = portableRecord(subdomains?.Content)
+  const content = contentNode?.text
   if (typeof content !== "string" || !content.trim()) {
     throw new EidolonResourceRegistryError(
       "EIDOLON_AGENT_CODE_RESOURCE_CONTENT_MISSING",
@@ -1743,6 +1857,12 @@ function parseClosedResourceDescriptor(
       `Resource '${resource.resourceId}' code descriptor must be exact JSON: ${error instanceof Error ? error.message : String(error)}.`,
     )
   }
+}
+
+function portableRecord(value: unknown): Readonly<Record<string, unknown>> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Readonly<Record<string, unknown>>
+    : undefined
 }
 
 function loadWorkspaceAgentInstructions(workspaceRoot: string): string | null {
@@ -1777,7 +1897,7 @@ function materializeAgentContextPipeline(
       `Agent ContextPipeline does not match the selected effective resource.`,
     )
   }
-  const descriptor = parseClosedResourceDescriptor(resource, "AgentContextPipeline")
+  const descriptor = parseClosedResourceDescriptor(snapshot, resource, "AgentContextPipeline")
   if (descriptor.implementation !== "eidolon.standard-context-pipeline/v1") {
     throw new EidolonResourceRegistryError(
       "EIDOLON_AGENT_CONTEXT_PIPELINE_IMPLEMENTATION_UNSUPPORTED",

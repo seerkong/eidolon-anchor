@@ -1,4 +1,21 @@
-<KindDefinition #eidolon.fixture.kind.AIWorkflowAppBundle apiVersion="halfcode.resources/v1" version="1.0.0" {
-  lifecycle = "Stable" resourceKind = "AIWorkflowAppBundle" sourceShapes = ["single-file"]
-  currentApiVersion = "depa.flows/v1" supportedApiVersions = ["depa.flows/v1"]
-}>
+<KindDefinition #Depa.Flows.KindDefinition.AIWorkflowAppBundle envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
+  lifecycle = "Stable"
+  resourceKind = "AIWorkflowAppBundle"
+  subjectFqn = "Depa.Flows.KindDefinition.AIWorkflowAppBundle"
+  sourceShapes = ["single-file"]
+  documentCardinality = "one"
+  description = "Canonical depa-flows AIWorkflowAppBundle resource contract."
+} (
+  <SpecRevisions [
+    <SpecRevision #v1 {
+      specVersion = 1
+      schemaRef = "vfs://./spec-v1.schema.json"
+      schemaFingerprint = "sha256:e5aac77bbcf24b2b6da10de1655b2c04cf2b70c1c5db1bc491e8117134e34095"
+      contractFingerprint = "sha256:c6ecf59b7fa80a4163c0ac1d420dcaa883c1d7adeb5e3bc2831e95262c9286e6"
+      semanticValidatorFingerprint = "sha256:6ff077a0a63c5e7d991ae63b3ce998ce8f76843dc78f04cc65b07318e1f7b757"
+      referenceProjectionFingerprint = "sha256:adf5c7770eaf1a3f611d72e0259d919709a61549873e2eb00361747111980f79"
+      compilerInputFingerprint = "sha256:abaf4d576041b01d888d0f66cca749a97c193005db431d4599a469ea8501a673"
+      stability = "stable"
+    }>
+  ]>
+)>

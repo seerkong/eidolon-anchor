@@ -1,7 +1,7 @@
-<MaterialPort #eidolon.fixture.ArticlePort apiVersion="depa.flows/v1" version="1.0.0" {
+<MaterialPort #eidolon.fixture.ArticlePort envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Stable"
   description = "Required article material"
-  materialKind = "ArticleMaterial"
+  materialKind = "ContextMaterial"
   required = true
   cardinality = "one"
 }>

@@ -12,6 +12,7 @@ import {
   admitAIAgentDefinitionSelection,
   freezeSelectedAIAgentTaskBinding,
   normalizeAIAgentTaskRequirement,
+  projectAIWorkflowAgentResources,
   projectAIAgentDefinitionCandidates,
   reconcileAuthoredAIAgentDefinition,
 } from "ai-workflow-logic"
@@ -19,7 +20,10 @@ import type { ResourceAuthoringReceipt } from "halfcode-compiler.xnl/authoring-r
 import {
   deriveResourceAuthoringRegistryRevision,
 } from "halfcode-compiler.xnl/authoring-runtime"
-import type { ResourceLayerContentIdentityInput } from "halfcode-compiler.xnl/resource-core"
+import type {
+  EffectiveResourceRegistry,
+  ResourceLayerContentIdentityInput,
+} from "halfcode-compiler.xnl/resource-core"
 
 import {
   EidolonAIAgentDefinitionAuthoringAdapter,
@@ -60,6 +64,8 @@ export type EidolonAIAgentDefinitionPreparationResult =
 
 type SelectionAuthority = Readonly<{
   snapshot: EidolonResourceRegistrySnapshot
+  registry: EffectiveResourceRegistry
+  projection: EidolonResourceRegistrySnapshot["agentResources"]
   layers: readonly ResourceLayerContentIdentityInput[]
 }>
 
@@ -92,8 +98,8 @@ export class EidolonAutonomousAgentResourceHost {
     const requirement = normalizeAIAgentTaskRequirement(requirementInput)
     const authority = await this.loadAuthority(await this.registry.refresh())
     const candidateSet = projectAIAgentDefinitionCandidates({
-      registry: authority.snapshot.registry,
-      projection: authority.snapshot.agentResources,
+      registry: authority.registry,
+      projection: authority.projection,
       layers: authority.layers,
     })
     const observation = Object.freeze({
@@ -139,13 +145,13 @@ export class EidolonAutonomousAgentResourceHost {
     const authored = await this.authoring.author({ proposal: admission.proposal })
     const refreshed = await this.loadAuthority(authored.snapshot)
     const refreshedCandidates = projectAIAgentDefinitionCandidates({
-      registry: refreshed.snapshot.registry,
-      projection: refreshed.snapshot.agentResources,
+      registry: refreshed.registry,
+      projection: refreshed.projection,
       layers: refreshed.layers,
     })
     const reconciled = await reconcileAuthoredAIAgentDefinition({
-      registry: refreshed.snapshot.registry,
-      projection: refreshed.snapshot.agentResources,
+      registry: refreshed.registry,
+      projection: refreshed.projection,
       layers: refreshed.layers,
       candidateSet: refreshedCandidates,
       authoringAdmission: admission,
@@ -198,8 +204,8 @@ export class EidolonAutonomousAgentResourceHost {
     authoringReceipt?: ResourceAuthoringReceipt
   }>): EidolonPreparedAIAgentDefinition {
     const taskBinding = freezeSelectedAIAgentTaskBinding({
-      registry: input.authority.snapshot.registry,
-      projection: input.authority.snapshot.agentResources,
+      registry: input.authority.registry,
+      projection: input.authority.projection,
       contentIdentities: input.authority.snapshot.contentIdentities,
       admission: input.admission,
       workflowKind: input.target.workflowKind,
@@ -222,10 +228,12 @@ export class EidolonAutonomousAgentResourceHost {
     snapshot: EidolonResourceRegistrySnapshot,
   ): Promise<SelectionAuthority> {
     const layers = snapshot.contentIdentityLayers
-    const revision = deriveResourceAuthoringRegistryRevision({ registry: snapshot.registry, layers })
+    const registry = snapshot.contentIdentityRegistry
+    const projection = projectAIWorkflowAgentResources(registry)
+    const revision = deriveResourceAuthoringRegistryRevision({ registry, layers })
     if (revision !== snapshot.registryRevision) {
       throw new Error("EIDOLON_AGENT_SELECTION_REGISTRY_AUTHORITY_DRIFT")
     }
-    return Object.freeze({ snapshot, layers })
+    return Object.freeze({ snapshot, registry, projection, layers })
   }
 }

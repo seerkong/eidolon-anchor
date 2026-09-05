@@ -1,0 +1,30 @@
+<BehaviorPatch #track.migrate-eidolon-resource-runtime-to-halfcode-03.behavior_patch.eidolon-resource-native-app-registry apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-resource-native-app-registry" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-resource-native-app-registry/requirements/halfcode-03-exact-kind-admission" } (
+      <Requirement #halfcode-03-exact-kind-admission (
+        <Statement ?>Eidolon SHALL separate Halfcode-authored resource loading from exact resolved resource admission and SHALL project executable Holon resources only after their issuer-owned Kind contracts and reader implementations have been verified.</?>
+        <Suites [
+          <Suite #halfcode-03-admission { name = "Halfcode 0.3 exact Kind admission" } (
+            <Cases [
+              <Case #exact-contract-before-projection (
+                <Given ?>an authored ResourcePackage contains a Holon snapshot, execution binding and task runtime definition</?>
+                <When ?>Eidolon constructs its effective registry</?>
+                <Then ?>each executable record SHALL be resolved by an exact owner/spec revision/reader registration before domain projection</?>
+              )>
+              <Case #forged-or-legacy-fails-closed (
+                <Given ?>a KindDefinition has a forged fingerprint, mismatched subject/source contract, or a legacy Halfcode envelope</?>
+                <When ?>the registry is loaded or resolved</?>
+                <Then ?>the operation SHALL fail closed with contract diagnostics and MUST NOT fall back to a host parser</?>
+              )>
+              <Case #issuer-authority-not-copied (
+                <Given ?>Holarchy exports the HolonEffectiveSnapshot Kind contract</?>
+                <When ?>Eidolon assembles its contract capsule</?>
+                <Then ?>it SHALL import that registration and MUST NOT recreate the snapshot owner or fingerprints</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

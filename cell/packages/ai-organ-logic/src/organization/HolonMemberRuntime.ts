@@ -368,13 +368,23 @@ export async function ensureHolonMemberRuntime(
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const current = await runtime.store.load(input.deploymentId)
     const existing = current.members.find((candidate) => candidate.runtimeRef === runtimeRef)
-    const actor = existing ?? await exactActor(runtime.actorOwner, {
+    // A persisted MemberRuntime proves durable identity, not that this live
+    // actor-addressing runtime has registered the endpoint. Fresh or racing
+    // runtime instances must each idempotently ensure that registration before
+    // returning a reusable MemberRuntime fact.
+    const actor = await exactActor(runtime.actorOwner, {
       deploymentId: input.deploymentId,
       holonRef: input.holonRef,
       memberRef: input.memberRef,
       runtimeRef,
       bindingReceipt,
     })
+    if (existing && existing.actorRef !== actor.actorRef) {
+      return invalid(
+        "EIDOLON_HOLON_MEMBER_ACTOR_IDENTITY_CONFLICT",
+        "Live actor owner resolved a different actorRef for the persisted MemberRuntime.",
+      )
+    }
     const desiredSessionIdentity = input.session.mode === "task-attempt"
       ? taskSessionIdentity(input.taskAttempt)
       : JSON.stringify(input.session.selector)

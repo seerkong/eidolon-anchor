@@ -1,4 +1,21 @@
-<KindDefinition #eidolon.fixture.kind.AICtrlWorkflow apiVersion="halfcode.resources/v1" version="1.0.0" {
-  lifecycle = "Stable" resourceKind = "AICtrlWorkflow" sourceShapes = ["single-file"]
-  currentApiVersion = "depa.flows/v1" supportedApiVersions = ["depa.flows/v1"]
-}>
+<KindDefinition #Depa.Flows.KindDefinition.AICtrlWorkflow envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
+  lifecycle = "Stable"
+  resourceKind = "AICtrlWorkflow"
+  subjectFqn = "Depa.Flows.KindDefinition.AICtrlWorkflow"
+  sourceShapes = ["single-file"]
+  documentCardinality = "one"
+  description = "Canonical depa-flows AICtrlWorkflow resource contract."
+} (
+  <SpecRevisions [
+    <SpecRevision #v1 {
+      specVersion = 1
+      schemaRef = "vfs://./spec-v1.schema.json"
+      schemaFingerprint = "sha256:74d4d3cef4c70871a2a70a72a88809f65fb454b05112874f6fb8428eae635e22"
+      contractFingerprint = "sha256:193d4934545711995cfd012f0833f74738ff27affe8ba2c175d4512ade31e0b0"
+      semanticValidatorFingerprint = "sha256:585da28ac72485117f7b5960b3dbbfc9528e1166620f96be0549b651991b7a3d"
+      referenceProjectionFingerprint = "sha256:c007cf48c238597d86d877562dde0b603cacd8976f903c4618d0471a6bede981"
+      compilerInputFingerprint = "sha256:8bfef83130cf13d2f04616e7a37ea09cb5e776881318df81e4fcb812f744de96"
+      stability = "stable"
+    }>
+  ]>
+)>

@@ -1,0 +1,30 @@
+<BehaviorPatch #track.migrate-eidolon-resource-runtime-to-halfcode-03.behavior_patch.aiagent-member-holon-primary-model apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-member-holon-primary-model" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-member-holon-primary-model/requirements/standalone-holon-runtime-physical-registry" } (
+      <Requirement #standalone-holon-runtime-physical-registry (
+        <Statement ?>The standalone Holon task runtime SHALL obtain executable admissions from the normal Eidolon Halfcode 0.3 registry and SHALL recover them with durable TaskSpace and journal state in a fresh process without requiring an AI Workflow instance.</?>
+        <Suites [
+          <Suite #physical-registry-runtime { name = "Physical registry runtime" } (
+            <Cases [
+              <Case #normal-vm-without-workflow (
+                <Given ?>a physical valid registry and frozen Holon deployment exist but no Ctrl/Data Workflow instance exists</?>
+                <When ?>the normal VM assigns a Holon or exact Member task</?>
+                <Then ?>the unique runtime facet SHALL use the admitted standalone service and canonical TaskSpace path</?>
+              )>
+              <Case #fresh-process-recovery (
+                <Given ?>a member effect was durably accepted before settlement and the original process stopped</?>
+                <When ?>a fresh process reopens registry, deployment, TaskSpace and journal files</?>
+                <Then ?>it SHALL resume the non-terminal task without repeating the accepted effect or reading Workflow checkpoint state</?>
+              )>
+              <Case #workflow-remains-adapter (
+                <Given ?>Ctrl/Data Workflow delegates a Holon task</?>
+                <When ?>the task is executed after the 0.3 migration</?>
+                <Then ?>the Workflow path SHALL remain an adapter over the same HolonTaskRuntimeService and TaskSpace receipts</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

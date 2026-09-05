@@ -1,4 +1,21 @@
-<KindDefinition #eidolon.fixture.kind.AIAgentDefinition apiVersion="halfcode.resources/v1" version="1.0.0" {
-  lifecycle = "Stable" resourceKind = "AIAgentDefinition" sourceShapes = ["single-file"]
-  currentApiVersion = "depa.flows/v1" supportedApiVersions = ["depa.flows/v1"]
-}>
+<KindDefinition #Depa.Flows.KindDefinition.AIAgentDefinition envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
+  lifecycle = "Stable"
+  resourceKind = "AIAgentDefinition"
+  subjectFqn = "Depa.Flows.KindDefinition.AIAgentDefinition"
+  sourceShapes = ["single-file"]
+  documentCardinality = "one"
+  description = "Canonical depa-flows AIAgentDefinition resource contract."
+} (
+  <SpecRevisions [
+    <SpecRevision #v1 {
+      specVersion = 1
+      schemaRef = "vfs://./spec-v1.schema.json"
+      schemaFingerprint = "sha256:0445af1e6203af0cbb0701d2f649819e1db326be5c4de6a02b667dd27a647d3d"
+      contractFingerprint = "sha256:51be59858b6bd3f76fa96c3145547066341463ced3351f36d2f1e4d76c42b3ed"
+      semanticValidatorFingerprint = "sha256:0c4ef4e07bbdec2d48762505903ab0d273a396cad799a5eb712ef0d697ded436"
+      referenceProjectionFingerprint = "sha256:704124afa24d867c734f080e737e2d247d1f2745d2bd6e534755d21b1c25ee5c"
+      compilerInputFingerprint = "sha256:662432b0b66b55b2e5c15a9e864541864ecec4fe7c0efdbdd08abf3e3ae546ad"
+      stability = "stable"
+    }>
+  ]>
+)>

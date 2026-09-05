@@ -1,19 +1,128 @@
+import {
+  digestCanonical,
+  type JsonSchema,
+  type KindReaderRegistration,
+  type KindSemanticContract,
+  type PortableSpec,
+} from "halfcode-compiler.xnl/resource-core"
+import {
+  createKindSpecRevision,
+  createKindSubjectOwner,
+} from "halfcode-compiler.xnl/kind-definition"
+
 export const HOLON_EXECUTION_BINDING_KIND = "HolonExecutionBinding" as const
 export const HOLON_EXECUTION_BINDING_KIND_DEFINITION_FQN =
   "Eidolon.AI.KindDefinition.HolonExecutionBinding" as const
 export const HOLON_EXECUTION_BINDING_API_VERSION = "eidolon.ai/v1" as const
-export const HOLON_EXECUTION_BINDING_KIND_DEFINITION_VERSION = "1.0.0" as const
+export const HOLON_EXECUTION_BINDING_KIND_DEFINITION_SPEC_VERSION = 1 as const
+export const HOLON_EXECUTION_BINDING_KIND_OWNER_PACKAGE_ID =
+  "holarchy-eidolon-adapter" as const
+
+export const HOLON_EXECUTION_BINDING_KIND_OWNER_PACKAGE_FINGERPRINT = digestCanonical(Object.freeze({
+  authority: "holarchy-eidolon-adapter/holon-execution-binding-kind/v1",
+  ownerPackageId: HOLON_EXECUTION_BINDING_KIND_OWNER_PACKAGE_ID,
+  subjects: Object.freeze([HOLON_EXECUTION_BINDING_KIND_DEFINITION_FQN]),
+  semanticContractVersion: HOLON_EXECUTION_BINDING_API_VERSION,
+}))
+
+export const HOLON_EXECUTION_BINDING_KIND_OWNER = createKindSubjectOwner({
+  kind: HOLON_EXECUTION_BINDING_KIND,
+  subjectFqn: HOLON_EXECUTION_BINDING_KIND_DEFINITION_FQN,
+  ownerPackageId: HOLON_EXECUTION_BINDING_KIND_OWNER_PACKAGE_ID,
+  ownerPackageFingerprint: HOLON_EXECUTION_BINDING_KIND_OWNER_PACKAGE_FINGERPRINT,
+  sourceShapes: Object.freeze(["single-file"]),
+  documentCardinality: "one",
+})
+
+export const HOLON_EXECUTION_BINDING_SPEC_SCHEMA_V1: JsonSchema = Object.freeze({
+  type: "object",
+  required: Object.freeze(["properties", "body", "subdomains"]),
+  properties: Object.freeze({
+    properties: Object.freeze({
+      type: "object",
+      required: Object.freeze(["bindingBytesBase64"]),
+      properties: Object.freeze({
+        bindingBytesBase64: Object.freeze({ type: "string", minLength: 1 }),
+      }),
+      additionalProperties: false,
+    }),
+    body: Object.freeze({ type: "array", maxItems: 0 }),
+    subdomains: Object.freeze({ type: "object", maxProperties: 0 }),
+  }),
+  additionalProperties: false,
+})
+
+export const HOLON_EXECUTION_BINDING_SEMANTIC_CONTRACT_V1: KindSemanticContract = Object.freeze({
+  semanticValidatorFingerprint: digestCanonical(Object.freeze({
+    authority: "holarchy-eidolon-adapter/holon-execution-binding-kind/v1",
+    role: "canonical-binding-and-graph-validation",
+    apiVersion: HOLON_EXECUTION_BINDING_API_VERSION,
+    validators: Object.freeze([
+      "parseHolonExecutionBindingBytes",
+      "validateHolonExecutionBindingGraph",
+    ]),
+  })),
+  referenceProjectionFingerprint: digestCanonical(Object.freeze({
+    authority: "holarchy-eidolon-adapter/holon-execution-binding-kind/v1",
+    role: "closed-execution-binding-reference-projection",
+    fields: Object.freeze([
+      "snapshotRef",
+      "adapter",
+      "policy.taskProfileRef",
+      "policy.capabilityRefs",
+      "policy.toolRefs",
+      "policy.materialRefs",
+    ]),
+  })),
+  compilerInputFingerprint: digestCanonical(Object.freeze({
+    authority: "holarchy-eidolon-adapter/holon-execution-binding-kind/v1",
+    role: "authored-resource-to-canonical-binding-input",
+    fields: Object.freeze(["properties.bindingBytesBase64"]),
+    encoding: "canonical-base64",
+  })),
+})
+
+export const HOLON_EXECUTION_BINDING_KIND_SPEC_REVISION_V1 = createKindSpecRevision({
+  kind: HOLON_EXECUTION_BINDING_KIND_OWNER.kind,
+  subjectFqn: HOLON_EXECUTION_BINDING_KIND_OWNER.subjectFqn,
+  specVersion: HOLON_EXECUTION_BINDING_KIND_DEFINITION_SPEC_VERSION,
+  specSchema: HOLON_EXECUTION_BINDING_SPEC_SCHEMA_V1,
+  semanticContract: HOLON_EXECUTION_BINDING_SEMANTIC_CONTRACT_V1,
+  sourceContractFingerprint: HOLON_EXECUTION_BINDING_KIND_OWNER.sourceContract.sourceContractFingerprint,
+  stability: "stable",
+})
+
+function renderHolonExecutionBindingKindDefinition(): string {
+  const owner = HOLON_EXECUTION_BINDING_KIND_OWNER
+  const revision = HOLON_EXECUTION_BINDING_KIND_SPEC_REVISION_V1
+  return [
+    `<KindDefinition #${HOLON_EXECUTION_BINDING_KIND_DEFINITION_FQN} envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {`,
+    '  lifecycle = "Stable"',
+    `  resourceKind = "${owner.kind}"`,
+    `  subjectFqn = "${owner.subjectFqn}"`,
+    '  sourceShapes = ["single-file"]',
+    `  documentCardinality = "${owner.sourceContract.documentCardinality}"`,
+    '  description = "Maps one frozen Holon Member or Role identity to an exact Eidolon execution adapter closure."',
+    '} (',
+    '  <SpecRevisions [',
+    `    <SpecRevision #v${revision.specVersion} {`,
+    `      specVersion = ${revision.specVersion}`,
+    '      schemaRef = "vfs://./spec-v1.schema.json"',
+    `      schemaFingerprint = "${revision.schemaFingerprint}"`,
+    `      contractFingerprint = "${revision.contractFingerprint}"`,
+    `      semanticValidatorFingerprint = "${revision.semanticContract.semanticValidatorFingerprint}"`,
+    `      referenceProjectionFingerprint = "${revision.semanticContract.referenceProjectionFingerprint}"`,
+    `      compilerInputFingerprint = "${revision.semanticContract.compilerInputFingerprint}"`,
+    `      stability = "${revision.stability}"`,
+    '    }>',
+    '  ]>',
+    ')>',
+    '',
+  ].join("\n")
+}
 
 export const HOLON_EXECUTION_BINDING_KIND_DEFINITION_SOURCE =
-  `<KindDefinition #Eidolon.AI.KindDefinition.HolonExecutionBinding apiVersion="halfcode.resources/v1" version="1.0.0" {
-  lifecycle = "Stable"
-  resourceKind = "HolonExecutionBinding"
-  sourceShapes = ["single-file"]
-  currentApiVersion = "eidolon.ai/v1"
-  supportedApiVersions = ["eidolon.ai/v1"]
-  description = "Maps one frozen Holon Member or Role identity to an exact Eidolon execution adapter closure."
-}>
-` as const
+  renderHolonExecutionBindingKindDefinition()
 
 export const HOLON_EXECUTION_BINDING_KIND_DEFINITION_BYTES: Readonly<Uint8Array> =
   new TextEncoder().encode(HOLON_EXECUTION_BINDING_KIND_DEFINITION_SOURCE)
@@ -330,6 +439,41 @@ export function parseHolonExecutionBindingBytes(bytes: Uint8Array): HolonExecuti
   }
   return binding
 }
+
+function canonicalBase64SpecBytes(spec: PortableSpec, property: string): Uint8Array {
+  const properties = closedObject(spec.properties, "$.properties")
+  exactKeys(properties, [property], "$.properties")
+  const value = exactString(properties[property], `$.properties.${property}`)
+  let bytes: Uint8Array
+  try {
+    bytes = Uint8Array.from(Buffer.from(value, "base64"))
+  } catch {
+    return invalid(`$.properties.${property}`, "Expected canonical base64")
+  }
+  if (bytes.byteLength === 0 || Buffer.from(bytes).toString("base64") !== value) {
+    return invalid(`$.properties.${property}`, "Expected canonical non-empty base64")
+  }
+  return bytes
+}
+
+export const HOLON_EXECUTION_BINDING_KIND_READER_REGISTRATION_V1:
+KindReaderRegistration<HolonExecutionBinding> = Object.freeze({
+  readerId: "holarchy-eidolon-adapter.holon-execution-binding.v1",
+  subjectFqn: HOLON_EXECUTION_BINDING_KIND_DEFINITION_FQN,
+  readerSpecVersion: HOLON_EXECUTION_BINDING_KIND_DEFINITION_SPEC_VERSION,
+  contractFingerprint: HOLON_EXECUTION_BINDING_KIND_SPEC_REVISION_V1.contractFingerprint,
+  readerImplementationFingerprint: digestCanonical(Object.freeze({
+    authority: "holarchy-eidolon-adapter/holon-execution-binding-reader/v1",
+    implementation: Object.freeze([
+      "canonicalBase64SpecBytes",
+      "parseHolonExecutionBindingBytes",
+    ]),
+  })),
+  compatibilityPolicy: "exact",
+  read: (spec: PortableSpec) => parseHolonExecutionBindingBytes(
+    canonicalBase64SpecBytes(spec, "bindingBytesBase64"),
+  ),
+})
 
 export function validateHolonExecutionBindingGraph(
   values: readonly HolonExecutionBinding[],

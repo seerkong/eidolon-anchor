@@ -1,11 +1,10 @@
 import { createHash } from "node:crypto"
 
 import {
-  createAIOrganizationTaskProfile,
-  normalizeHolonTaskSnapshotReceipt,
-  normalizeHolonTaskTarget,
-  type AIOrganizationTaskProfile,
-} from "ai-workflow-contract"
+  EIDOLON_HOLON_TASK_PROFILE_KIND,
+  type HolonTaskExecutionProfile,
+  type HolonTaskExecutionTarget,
+} from "@cell/ai-organ-contract"
 import { parseActorRegistrationReceipt, type ActorRegistrationReceipt } from "depa-actor"
 import {
   canonicalOwnDataDigest,
@@ -25,6 +24,8 @@ import {
   normalizeHolonDeploymentRuntimeSnapshot,
 } from "./HolonDeploymentRuntimeStore"
 import { holonMemberRuntimeRef } from "./HolonMemberRuntime"
+import { normalizeHolonTaskExecutionProfile } from "./HolonTaskExecutionProfile"
+import { adaptLegacyWorkflowHolonTaskProfile } from "./LegacyWorkflowHolonTaskProfileAdapter"
 
 export interface CoordinateHolonTaskInput {
   readonly deploymentId: string
@@ -148,27 +149,31 @@ function coordinatorRef(deploymentId: string, holonRef: string): string {
   return `coordinator-${createHash("sha256").update(JSON.stringify([deploymentId, holonRef])).digest("hex").slice(0, 32)}`
 }
 
-function exactProfile(task: TaskRecord): AIOrganizationTaskProfile {
-  if (task.profile.profileKind !== "depa.ai.organization-task") {
-    return invalid("EIDOLON_HOLON_TASK_PROFILE_INVALID", "Ready task is not an organization-task profile.")
-  }
-  const facts = exactObject(task.profile.facts, [
-    "target", "snapshotReceipt", "assignmentReceipt", "memberRuntimeRef",
-    "settlementReceipt", "snapshotAdoptions",
-  ], "task.profile.facts")
-  if (facts.assignmentReceipt !== null || facts.memberRuntimeRef !== null || facts.settlementReceipt !== null) {
-    return invalid("EIDOLON_HOLON_TASK_ALREADY_ASSIGNED", "Ready organization task already carries assignment or settlement facts.")
-  }
-  if (!Array.isArray(facts.snapshotAdoptions)) {
-    return invalid("EIDOLON_HOLON_TASK_PROFILE_INVALID", "snapshotAdoptions must be an array.")
-  }
-  const normalized = createAIOrganizationTaskProfile(
-    normalizeHolonTaskTarget(facts.target),
-    normalizeHolonTaskSnapshotReceipt(facts.snapshotReceipt),
-    facts.snapshotAdoptions,
-  )
-  if (canonicalOwnDataDigest(normalized) !== canonicalOwnDataDigest(task.profile)) {
-    return invalid("EIDOLON_HOLON_TASK_PROFILE_INVALID", "Task profile is not the exact canonical organization profile.")
+/**
+ * Pure projection of the frozen binding policy. TaskSpace identity only
+ * participates when the binding explicitly requires an isolated runtime.
+ */
+export function holonMemberRuntimeIsolationForBindingPolicy(
+  mode: "shared-member-runtime" | "isolated-task-runtime",
+  taskSpaceId: string,
+): HolonMemberRuntimeIsolation {
+  return mode === "isolated-task-runtime"
+    ? Object.freeze({ mode: "isolated", scope: "task-space", isolationKey: taskSpaceId })
+    : Object.freeze({ mode: "shared" })
+}
+
+function exactProfile(task: TaskRecord, context: Readonly<{
+  readonly executionTarget: HolonTaskExecutionTarget
+  readonly registryRevision: string
+  readonly definitionDigest: `sha256:${string}`
+}>): HolonTaskExecutionProfile {
+  const normalized = task.profile.profileKind === EIDOLON_HOLON_TASK_PROFILE_KIND
+    ? normalizeHolonTaskExecutionProfile(task.profile)
+    : adaptLegacyWorkflowHolonTaskProfile(task.profile, context)
+  if (canonicalOwnDataDigest(normalized) !== canonicalOwnDataDigest(
+    task.profile.profileKind === EIDOLON_HOLON_TASK_PROFILE_KIND ? task.profile : normalized,
+  )) {
+    return invalid("EIDOLON_HOLON_TASK_PROFILE_INVALID", "Task profile is not one exact canonical Holon task profile.")
   }
   return normalized
 }
@@ -310,7 +315,11 @@ export async function coordinateHolonTaskAssignment(
   const snapshot = await runtime.taskManager.owner.readSnapshot(input.taskSpaceId)
   if (!snapshot) return invalid("EIDOLON_HOLON_TASK_SPACE_NOT_FOUND", "TaskSpace does not exist.")
   const task = requireTask(snapshot, input.taskId)
-  const profile = exactProfile(task)
+  const profile = exactProfile(task, {
+    executionTarget: deployment.bindingProjection.binding.target,
+    registryRevision: deployment.definition.registryRevision,
+    definitionDigest: deployment.definition.bindingSemanticFingerprint,
+  })
   const taskReceipt = profile.facts.snapshotReceipt
   if (taskReceipt.taskSpaceId !== input.taskSpaceId || taskReceipt.holonRef !== input.holonRef
     || taskReceipt.holonSnapshotDigest !== deployment.bindingProjection.snapshot.treeDigest
@@ -319,7 +328,7 @@ export async function coordinateHolonTaskAssignment(
     || taskReceipt.executionBindingDigest !== bindingContentDigest) {
     return invalid("EIDOLON_HOLON_TASK_SNAPSHOT_MISMATCH", "TaskSpace is not bound to the deployment's frozen organization and binding.")
   }
-  const requiredRoles = new Set(profile.facts.target.taskSpace.requiredRoleRefs)
+  const requiredRoles = new Set(profile.facts.admission.definition.taskSpace.requiredRoleRefs)
   const bindingTarget = deployment.bindingProjection.binding.target
   if (bindingTarget.kind === "role") requiredRoles.add(bindingTarget.roleRef)
   let members = eligibleMembers(
@@ -335,9 +344,10 @@ export async function coordinateHolonTaskAssignment(
     return invalid("EIDOLON_HOLON_NO_ELIGIBLE_MEMBER", "Frozen Role/Policy facts produce no eligible Member.")
   }
   const memberRef = members[0]!
-  const isolation: HolonMemberRuntimeIsolation = deployment.bindingProjection.binding.policy.runtime.mode === "isolated-task-runtime"
-    ? Object.freeze({ mode: "isolated", scope: "task-space", isolationKey: input.taskSpaceId })
-    : Object.freeze({ mode: "shared" })
+  const isolation = holonMemberRuntimeIsolationForBindingPolicy(
+    deployment.bindingProjection.binding.policy.runtime.mode,
+    input.taskSpaceId,
+  )
   const memberRuntimeRef = holonMemberRuntimeRef({ deploymentId: input.deploymentId, memberRef, runtime: isolation })
   const existingReceipt = await runtime.taskManager.owner.readReceiptByCommand(
     input.taskSpaceId,

@@ -23,7 +23,7 @@ import {
 import {
   loadResourceTree,
   sha256Digest,
-  type LoadedResourceTree,
+  type AuthoredResourceTree,
   type ResourceNode,
 } from "halfcode-compiler.xnl/resource-core"
 import { safePathLexicalIssue } from "halfcode-compiler.xnl/resource-mapping"
@@ -257,7 +257,7 @@ export class EidolonAIAgentDefinitionAuthoringAdapter {
           candidateId: `candidate:${state.planDigest}`,
           targetLayerId,
           tree: target.tree,
-          registry: candidateSnapshot.registry,
+          registry: candidateSnapshot.contentIdentityRegistry,
           layers,
         }) satisfies ResourceAuthoringRefreshCandidate
       },
@@ -418,9 +418,9 @@ export class EidolonAIAgentDefinitionAuthoringAdapter {
 
 function projectPlanningAuthority(
   snapshot: EidolonResourceRegistrySnapshot,
-  workspaceTree: LoadedResourceTree,
+  workspaceTree: AuthoredResourceTree,
 ): ResourceAuthoringRuntime["planningAuthority"] {
-  const kind = snapshot.registry.kindDefinitions.get("AIAgentDefinition")?.definition
+  const kind = snapshot.contentIdentityRegistry.kindDefinitions.get("AIAgentDefinition")?.definition
   if (!kind) throw new Error("EIDOLON_AGENT_AUTHORING_KIND_DEFINITION_MISSING")
   if (!kind.sourceShapes.includes("single-file")) {
     throw new Error("EIDOLON_AGENT_AUTHORING_SINGLE_FILE_KIND_REQUIRED")
@@ -444,7 +444,7 @@ function projectPlanningAuthority(
     registryRevision: snapshot.registryRevision,
     kindDefinitions: Object.freeze([Object.freeze({
       kind: kind.resourceKind,
-      supportedApiVersions: Object.freeze([...kind.supportedApiVersions]),
+      specRevisions: Object.freeze([...kind.specRevisions]),
       sourceShapes: Object.freeze(["single-file"] as const),
       documentCardinality: kind.documentCardinality,
     })]),
@@ -463,15 +463,25 @@ function inspectAIAgentDefinitionAuthority(input: Readonly<{
   }
   const root = document.nodes[0]
   const resourceId = wordToString(root.id)
-  const apiVersion = root.metadata.apiVersion
+  const envelopeVersion = root.metadata.envelopeVersion
+  const writerSpecVersion = root.metadata.specVersion
   if (root.tag !== "AIAgentDefinition"
     || typeof resourceId !== "string"
-    || typeof apiVersion !== "string") {
+    || typeof envelopeVersion !== "string"
+    || envelopeVersion !== "halfcode.resource-envelope/v1"
+    || typeof writerSpecVersion !== "number"
+    || !Number.isSafeInteger(writerSpecVersion)
+    || writerSpecVersion < 1) {
     throw new Error("EIDOLON_AGENT_AUTHORING_ROOT_INVALID")
   }
   return Object.freeze({
     documentUri: input.documentUri,
-    resources: Object.freeze([Object.freeze({ resourceId, kind: root.tag, apiVersion })]),
+    resources: Object.freeze([Object.freeze({
+      resourceId,
+      kind: root.tag,
+      envelopeVersion,
+      writerSpecVersion,
+    })]),
   })
 }
 

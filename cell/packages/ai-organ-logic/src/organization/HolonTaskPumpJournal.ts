@@ -16,11 +16,47 @@ import {
   deepFrozenCanonicalOwnDataClone,
 } from "task-manager-contract"
 import type { ClosedValue } from "holarchy-eidolon-adapter"
+import type {
+  HolonTaskRuntimeOrigin,
+  HolonTaskRuntimeProcessorConfig,
+} from "@cell/ai-organ-contract"
+import { normalizeHolonTaskRuntimeOrigin } from "./HolonTaskRuntimeContract"
 
+/** Accepted-effect intent/result bytes stay on v1; only subscriptions evolved. */
 export const HOLON_TASK_PUMP_JOURNAL_SCHEMA_VERSION = "eidolon.holon-task-pump/v1" as const
+export const LEGACY_HOLON_TASK_PUMP_SUBSCRIPTION_SCHEMA_VERSION =
+  HOLON_TASK_PUMP_JOURNAL_SCHEMA_VERSION
+export const HOLON_TASK_PUMP_SUBSCRIPTION_SCHEMA_VERSION = "eidolon.holon-task-pump/v2" as const
+
+export type HolonTaskPumpRecoveryScope =
+  | Readonly<{ readonly kind: "standalone"; readonly scopeRef: string }>
+  | Readonly<{
+      readonly kind: "workflow"
+      readonly workflowInstanceId: string
+      readonly runId: string
+      readonly nodeId: string
+    }>
 
 export interface HolonTaskPumpSubscription {
-  readonly schemaVersion: typeof HOLON_TASK_PUMP_JOURNAL_SCHEMA_VERSION
+  readonly schemaVersion: typeof HOLON_TASK_PUMP_SUBSCRIPTION_SCHEMA_VERSION
+  readonly subscriptionId: `sha256:${string}`
+  readonly admissionId: string
+  readonly deploymentId: string
+  readonly bindingRef: `resource://${string}`
+  readonly holonRef: string
+  readonly snapshotReceiptId: string
+  readonly taskSpaceId: string
+  readonly taskId: string
+  readonly origin: HolonTaskRuntimeOrigin
+  readonly recoveryScope: HolonTaskPumpRecoveryScope
+  readonly processorConfig: HolonTaskRuntimeProcessorConfig
+  readonly input: ClosedValue
+  readonly inputDigest: `sha256:${string}`
+  readonly createdAt: string
+}
+
+interface LegacyHolonTaskPumpSubscription {
+  readonly schemaVersion: typeof LEGACY_HOLON_TASK_PUMP_SUBSCRIPTION_SCHEMA_VERSION
   readonly subscriptionId: `sha256:${string}`
   readonly deploymentId: string
   readonly bindingRef: `resource://${string}`
@@ -31,6 +67,7 @@ export interface HolonTaskPumpSubscription {
   readonly workflowInstanceId: string
   readonly runId: string
   readonly nodeId: string
+  readonly origin?: HolonTaskRuntimeOrigin
   readonly input: ClosedValue
   readonly inputDigest: `sha256:${string}`
   readonly createdAt: string
@@ -63,7 +100,7 @@ export interface HolonTaskPumpResultReceipt {
 
 export interface HolonTaskPumpJournalPort {
   subscribe(input: Omit<HolonTaskPumpSubscription, "schemaVersion" | "subscriptionId" | "inputDigest">): Promise<HolonTaskPumpSubscription>
-  listSubscriptions(runId: string): Promise<readonly HolonTaskPumpSubscription[]>
+  listSubscriptions(runId?: string): Promise<readonly HolonTaskPumpSubscription[]>
   dispatch(
     intent: HolonTaskPumpDispatchIntent,
     effect: (idempotencyKey: string) => Promise<ClosedValue>,
@@ -117,30 +154,94 @@ function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
   return left.byteLength === right.byteLength && left.every((value, index) => value === right[index])
 }
 
+function processorConfig(value: HolonTaskRuntimeProcessorConfig): HolonTaskRuntimeProcessorConfig {
+  if (!Number.isSafeInteger(value?.leaseDurationMs) || value.leaseDurationMs <= 0
+    || !Number.isSafeInteger(value?.maxSteps) || value.maxSteps <= 0) {
+    return fail(
+      "EIDOLON_HOLON_PUMP_JOURNAL_INVALID",
+      "subscription.processorConfig requires positive integer limits.",
+    )
+  }
+  return Object.freeze({
+    leaseDurationMs: value.leaseDurationMs,
+    maxSteps: value.maxSteps,
+  })
+}
+
+function recoveryScope(value: HolonTaskPumpRecoveryScope): HolonTaskPumpRecoveryScope {
+  if (value?.kind === "standalone") {
+    return Object.freeze({ kind: value.kind, scopeRef: exactText(value.scopeRef, "recoveryScope.scopeRef") })
+  }
+  if (value?.kind === "workflow") {
+    return Object.freeze({
+      kind: value.kind,
+      workflowInstanceId: exactText(value.workflowInstanceId, "recoveryScope.workflowInstanceId"),
+      runId: exactText(value.runId, "recoveryScope.runId"),
+      nodeId: exactText(value.nodeId, "recoveryScope.nodeId"),
+    })
+  }
+  return fail(
+    "EIDOLON_HOLON_PUMP_JOURNAL_INVALID",
+    "subscription.recoveryScope must be standalone or workflow.",
+  )
+}
+
 function subscription(input: Omit<HolonTaskPumpSubscription, "schemaVersion" | "subscriptionId" | "inputDigest">): HolonTaskPumpSubscription {
   const bindingRef = exactText(input.bindingRef, "subscription.bindingRef")
   if (!bindingRef.startsWith("resource://") || !bindingRef.slice("resource://".length)) {
     return fail("EIDOLON_HOLON_PUMP_JOURNAL_INVALID", "subscription.bindingRef must be one resource identity.")
   }
   const closedInput = deepFrozenCanonicalOwnDataClone(input.input) as ClosedValue
+  const scope = recoveryScope(input.recoveryScope)
   const identity = {
+    admissionId: exactText(input.admissionId, "subscription.admissionId"),
     deploymentId: exactText(input.deploymentId, "subscription.deploymentId"),
     snapshotReceiptId: exactText(input.snapshotReceiptId, "subscription.snapshotReceiptId"),
     taskSpaceId: exactText(input.taskSpaceId, "subscription.taskSpaceId"),
     taskId: exactText(input.taskId, "subscription.taskId"),
-    runId: exactText(input.runId, "subscription.runId"),
-    nodeId: exactText(input.nodeId, "subscription.nodeId"),
+    recoveryScope: scope,
   }
   return Object.freeze({
-    schemaVersion: HOLON_TASK_PUMP_JOURNAL_SCHEMA_VERSION,
+    schemaVersion: HOLON_TASK_PUMP_SUBSCRIPTION_SCHEMA_VERSION,
     subscriptionId: digest(identity),
     ...identity,
     bindingRef: bindingRef as `resource://${string}`,
     holonRef: exactText(input.holonRef, "subscription.holonRef"),
-    workflowInstanceId: exactText(input.workflowInstanceId, "subscription.workflowInstanceId"),
+    origin: normalizeHolonTaskRuntimeOrigin(input.origin),
+    processorConfig: processorConfig(input.processorConfig),
     input: closedInput,
     inputDigest: digest(closedInput),
     createdAt: exactTimestamp(input.createdAt, "subscription.createdAt"),
+  })
+}
+
+function legacySubscription(
+  input: Omit<LegacyHolonTaskPumpSubscription, "schemaVersion" | "subscriptionId" | "inputDigest">,
+): LegacyHolonTaskPumpSubscription {
+  const bindingRef = exactText(input.bindingRef, "legacySubscription.bindingRef")
+  if (!bindingRef.startsWith("resource://") || !bindingRef.slice("resource://".length)) {
+    return fail("EIDOLON_HOLON_PUMP_JOURNAL_INVALID", "legacySubscription.bindingRef must be one resource identity.")
+  }
+  const closedInput = deepFrozenCanonicalOwnDataClone(input.input) as ClosedValue
+  const identity = {
+    deploymentId: exactText(input.deploymentId, "legacySubscription.deploymentId"),
+    snapshotReceiptId: exactText(input.snapshotReceiptId, "legacySubscription.snapshotReceiptId"),
+    taskSpaceId: exactText(input.taskSpaceId, "legacySubscription.taskSpaceId"),
+    taskId: exactText(input.taskId, "legacySubscription.taskId"),
+    runId: exactText(input.runId, "legacySubscription.runId"),
+    nodeId: exactText(input.nodeId, "legacySubscription.nodeId"),
+  }
+  return Object.freeze({
+    schemaVersion: LEGACY_HOLON_TASK_PUMP_SUBSCRIPTION_SCHEMA_VERSION,
+    subscriptionId: digest(identity),
+    ...identity,
+    bindingRef: bindingRef as `resource://${string}`,
+    holonRef: exactText(input.holonRef, "legacySubscription.holonRef"),
+    workflowInstanceId: exactText(input.workflowInstanceId, "legacySubscription.workflowInstanceId"),
+    ...(input.origin === undefined ? {} : { origin: normalizeHolonTaskRuntimeOrigin(input.origin) }),
+    input: closedInput,
+    inputDigest: digest(closedInput),
+    createdAt: exactTimestamp(input.createdAt, "legacySubscription.createdAt"),
   })
 }
 
@@ -183,13 +284,72 @@ function resultReceipt(intent: HolonTaskPumpDispatchIntent, outputValue: ClosedV
 }
 
 function parseSubscription(bytes: Uint8Array): HolonTaskPumpSubscription {
-  const value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as HolonTaskPumpSubscription
+  const value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as
+    | HolonTaskPumpSubscription
+    | LegacyHolonTaskPumpSubscription
+  if (value.schemaVersion === LEGACY_HOLON_TASK_PUMP_SUBSCRIPTION_SCHEMA_VERSION) {
+    const normalized = legacySubscription(value)
+    if (normalized.subscriptionId !== value.subscriptionId
+      || normalized.inputDigest !== value.inputDigest
+      || !sameBytes(bytes, canonicalBytes(normalized))) {
+      return fail("EIDOLON_HOLON_PUMP_JOURNAL_TAMPERED", "Legacy subscription bytes do not match their canonical identity.")
+    }
+    const origin = normalized.origin ?? Object.freeze({
+      kind: "service" as const,
+      serviceRef: "resource://eidolon.legacy-workflow-holon-task-pump" as const,
+      requestRef: normalized.subscriptionId,
+    })
+    return Object.freeze({
+      schemaVersion: HOLON_TASK_PUMP_SUBSCRIPTION_SCHEMA_VERSION,
+      subscriptionId: normalized.subscriptionId,
+      admissionId: `legacy-workflow:${digest({
+        deploymentId: normalized.deploymentId,
+        bindingRef: normalized.bindingRef,
+        snapshotReceiptId: normalized.snapshotReceiptId,
+        nodeId: normalized.nodeId,
+      })}`,
+      deploymentId: normalized.deploymentId,
+      bindingRef: normalized.bindingRef,
+      holonRef: normalized.holonRef,
+      snapshotReceiptId: normalized.snapshotReceiptId,
+      taskSpaceId: normalized.taskSpaceId,
+      taskId: normalized.taskId,
+      origin,
+      recoveryScope: Object.freeze({
+        kind: "workflow" as const,
+        workflowInstanceId: normalized.workflowInstanceId,
+        runId: normalized.runId,
+        nodeId: normalized.nodeId,
+      }),
+      processorConfig: Object.freeze({ leaseDurationMs: 30_000, maxSteps: 1_024 }),
+      input: normalized.input,
+      inputDigest: normalized.inputDigest,
+      createdAt: normalized.createdAt,
+    })
+  }
   const normalized = subscription(value)
   if (normalized.subscriptionId !== value.subscriptionId || normalized.inputDigest !== value.inputDigest
     || !sameBytes(bytes, canonicalBytes(normalized))) {
     return fail("EIDOLON_HOLON_PUMP_JOURNAL_TAMPERED", "Subscription bytes do not match their canonical identity.")
   }
   return normalized
+}
+
+function retainFirstSubscriptionObservation(
+  existing: HolonTaskPumpSubscription,
+  candidate: HolonTaskPumpSubscription,
+): HolonTaskPumpSubscription {
+  const replayAtFirstObservation = Object.freeze({
+    ...candidate,
+    createdAt: existing.createdAt,
+  })
+  if (!sameBytes(canonicalBytes(existing), canonicalBytes(replayAtFirstObservation))) {
+    return fail(
+      "EIDOLON_HOLON_PUMP_JOURNAL_CONFLICT",
+      `Subscription '${candidate.subscriptionId}' conflicts with its first accepted facts.`,
+    )
+  }
+  return existing
 }
 
 function parseIntent(bytes: Uint8Array): HolonTaskPumpDispatchIntent {
@@ -276,18 +436,28 @@ export class FileHolonTaskPumpJournal implements HolonTaskPumpJournalPort {
     const value = subscription(input)
     const directory = await this.directory("subscriptions")
     const target = path.join(directory, `${fileKey(value.subscriptionId)}.json`)
-    await writeImmutable(directory, target, canonicalBytes(value))
+    try {
+      await writeImmutable(directory, target, canonicalBytes(value))
+    } catch (error) {
+      if (!(error instanceof HolonTaskPumpJournalError)
+        || error.code !== "EIDOLON_HOLON_PUMP_JOURNAL_CONFLICT") throw error
+      return retainFirstSubscriptionObservation(
+        parseSubscription(await readFile(target)),
+        value,
+      )
+    }
     return parseSubscription(await readFile(target))
   }
 
-  async listSubscriptions(runIdValue: string): Promise<readonly HolonTaskPumpSubscription[]> {
-    const runId = exactText(runIdValue, "runId")
+  async listSubscriptions(runIdValue?: string): Promise<readonly HolonTaskPumpSubscription[]> {
+    const runId = runIdValue === undefined ? undefined : exactText(runIdValue, "runId")
     const directory = await this.directory("subscriptions")
     const values = await Promise.all((await readdir(directory))
       .filter((name) => name.endsWith(".json"))
       .sort(compareUtf16)
       .map((name) => readFile(path.join(directory, name)).then(parseSubscription)))
-    return Object.freeze(values.filter((value) => value.runId === runId))
+    return Object.freeze(values.filter((value) => runId === undefined
+      || (value.recoveryScope.kind === "workflow" && value.recoveryScope.runId === runId)))
   }
 
   async dispatch(

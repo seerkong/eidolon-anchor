@@ -17,10 +17,12 @@
   "dependencies": {
     "@cell/ai-composer": "workspace:*",
     "@cell/ai-core-contract": "workspace:*",
+    "@cell/ai-organ-contract": "workspace:*",
     "@cell/symbiont-contract": "workspace:*",
     "@cell/symbiont-logic": "workspace:*",
-    "halfcode-compiler.xnl": "0.2.9",
+    "ai-workflow-contract": "0.2.0",
+    "halfcode-compiler.xnl": "0.3.0",
     "xnl-core": "^0.1.10",
-    "xnl-vfs": "0.1.2"
+    "xnl-vfs": "0.1.3"
   }
 }

@@ -7,22 +7,17 @@ import {
 } from "../../src/resources/EidolonAppResourceRegistryAdapter"
 import { createWorkflowComponentForRuntimeBinding } from "../../src/workflow/component/WorkflowComponent"
 import { VirtualFileSystem } from "xnl-vfs"
+import { depaAIResourceKindContract } from "ai-workflow-contract"
 
 function kindDefinition(): string {
-  return `<KindDefinition #eidolon.fixture.kind.Prompt apiVersion="halfcode.resources/v1" version="1.0.0" {
-  lifecycle = "Stable"
-  resourceKind = "Prompt"
-  sourceShapes = ["single-file"]
-  currentApiVersion = "depa.flows/v1"
-  supportedApiVersions = ["depa.flows/v1"]
-}>`
+  return depaAIResourceKindContract("Prompt").kindDefinitionSource
 }
 
 function effectiveVfs(description = "first", duplicate = false) {
   const vfs = new VirtualFileSystem()
   vfs.mkdir("vfs:///.eidolon/resources/KindDefinitions/Prompt", { recursive: true })
   vfs.mkdir("vfs:///.eidolon/resources/Prompts", { recursive: true })
-  vfs.writeFile("vfs:///.eidolon/resources/manifest.xnl", `<ResourcePackage #eidolon.fixture.effective.package apiVersion="halfcode.resources/v1" version="1.0.0" { lifecycle = "Active" } (
+  vfs.writeFile("vfs:///.eidolon/resources/manifest.xnl", `<ResourcePackage #eidolon.fixture.effective.package envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" packageVersion = "1.0.0" } (
   <Catalogs [
     <Catalog #kind_definitions { kind = "KindDefinition" shape = "directory" root = "vfs://./KindDefinitions/" entry = "manifest.xnl" }>
     <Catalog #prompts { kind = "Prompt" shape = "single-file" root = "vfs://./Prompts/" }>
@@ -32,7 +27,7 @@ function effectiveVfs(description = "first", duplicate = false) {
     fileType: "xnl",
     metadataId: "kind-prompt",
   })
-  vfs.writeFile("vfs:///.eidolon/resources/Prompts/Support.xnl", `<Prompt #eidolon.fixture.SupportPrompt apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" description = "${description}" } (<Content ?>${description}</?>)>`, {
+  vfs.writeFile("vfs:///.eidolon/resources/Prompts/Support.xnl", `<Prompt #eidolon.fixture.SupportPrompt envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" description = "${description}" template = "${description}" }>`, {
     fileType: "xnl",
     metadataId: "prompt-support",
   })
@@ -41,7 +36,7 @@ function effectiveVfs(description = "first", duplicate = false) {
     metadataId: "prompt-helper",
   })
   if (duplicate) {
-    vfs.writeFile("vfs:///.eidolon/resources/Prompts/Duplicate.xnl", `<Prompt #eidolon.fixture.SupportPrompt apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (<Content ?>duplicate</?>)>`, {
+    vfs.writeFile("vfs:///.eidolon/resources/Prompts/Duplicate.xnl", `<Prompt #eidolon.fixture.SupportPrompt envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" template = "duplicate" }>`, {
       fileType: "xnl",
       metadataId: "prompt-duplicate",
     })

@@ -21,8 +21,14 @@
     "@cell/symbiont-logic": "workspace:*",
     "@cell/symbiont-contract": "workspace:*",
     "@cell/ai-organ-logic": "workspace:*",
-    "ai-workflow-flow-dsl-reference": "0.1.6",
-    "halfcode-compiler.xnl": "0.2.3",
+    "ai-ctrl-workflow-logic": "0.2.0",
+    "ai-workflow-contract": "0.2.0",
+    "task-manager-contract": "0.1.3",
+    "task-manager-file-support": "0.1.4",
+    "task-manager-logic": "0.1.6",
+    "ai-workflow-flow-dsl-reference": "0.2.0",
+    "halfcode-compiler.xnl": "0.3.0",
+    "holarchy-eidolon-adapter": "0.2.0",
     "xnl-core": "^0.1.10"
   }
 }

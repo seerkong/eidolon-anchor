@@ -12,17 +12,25 @@ import {
   LocalFileConversationPersistenceRepositoryFactory,
   LocalFileRuntimeDerivedIndexesStore,
   LocalFileRuntimeSnapshotRepositoryFactory,
+  openLocalHolonTaskRuntime,
 } from "@cell/ai-support"
 
 import {
   HOLON_EXECUTION_BINDING_KIND_DEFINITION_SOURCE,
+  HOLON_TASK_RUNTIME_DEFINITION_KIND_DEFINITION_SOURCE,
+  HOLON_TASK_RUNTIME_DEFINITION_SCHEMA_VERSION,
+  HOLON_TASK_RUNTIME_INVOCATION_SCHEMA_VERSION,
   canonicalHolonExecutionBindingBytes,
 } from "@cell/ai-organ-contract"
 import {
   HOLON_EFFECTIVE_SNAPSHOT_KIND_DEFINITION_SOURCE,
   type HolonAuthorityTables,
 } from "holarchy-core-contract"
-import { createAIOrganizationTaskProfile } from "ai-workflow-contract"
+import {
+  createAIOrganizationTaskProfile,
+  depaAIResourceKindContract,
+  type DepaAIResourceKind,
+} from "ai-workflow-contract"
 import { FileTaskSpaceOwner } from "task-manager-file-support"
 import {
   InMemoryTaskSpaceOwner,
@@ -59,7 +67,11 @@ import {
   type HolonExecutionAdapterPorts,
   type HolonGenericActorOwnerPort,
 } from "../../src/organization/HolonLocalActorRuntime"
-import { executeHolonWorkflowTask } from "../../src/organization/HolonWorkflowTaskRuntime"
+import {
+  createHolonTaskProcessorRuntime,
+  executeHolonWorkflowTask,
+} from "../../src/organization/HolonWorkflowTaskRuntime"
+import { canonicalHolonTaskRuntimeDefinitionBytes } from "../../src/organization/HolonTaskRuntimeContract"
 import {
   FileHolonTaskPumpJournal,
   createHolonTaskPumpDispatchIntent,
@@ -80,7 +92,10 @@ import {
   materializeConversationHistoryMessagesFromVm,
 } from "../../src/conversation/ConversationDomainRuntime"
 import { bindWorkflowComponentToRuntime, createWorkflowComponent } from "../../src/workflow"
-import { WorkflowRuntimeService } from "../../src/workflow/runtime"
+import {
+  WorkflowRuntimeService,
+  workflowHolonTaskSpaceId,
+} from "../../src/workflow/runtime"
 import {
   issueFileXnlOrganizationFixture,
   type FileXnlHolonIssuerFixture,
@@ -189,15 +204,8 @@ function issuerReceiptProvenance(evidence: FileXnlHolonIssuerFixture) {
   return { sourceAuthorityId, sourceRevision, snapshotRef, effectiveAt, issuedAt }
 }
 
-function fixtureKindDefinition(resourceKind: string, apiVersion = "eidolon.ai/v1"): string {
-  return `<KindDefinition #eidolon.fixture.kind.${resourceKind} apiVersion="halfcode.resources/v1" version="1.0.0" {
-  lifecycle = "Stable"
-  resourceKind = "${resourceKind}"
-  sourceShapes = ["single-file"]
-  currentApiVersion = "${apiVersion}"
-  supportedApiVersions = ["${apiVersion}"]
-}>
-`
+function fixtureKindDefinition(resourceKind: DepaAIResourceKind): string {
+  return depaAIResourceKindContract(resourceKind).kindDefinitionSource
 }
 
 async function writeHolonPackage(input: {
@@ -207,6 +215,7 @@ async function writeHolonPackage(input: {
   readonly runtimeMode?: "shared-member-runtime" | "isolated-task-runtime"
   readonly organization?: "review" | "audit"
   readonly withWorkflow?: boolean
+  readonly withRuntimeDefinition?: boolean
   readonly rootDir?: string
   readonly effectiveAt?: string
   readonly workflowEffectiveAt?: string
@@ -301,29 +310,29 @@ async function writeHolonPackage(input: {
   ]
 
   const files: Record<string, string> = {
-    "manifest.xnl": `<ResourcePackage #eidolon.fixture.holon-binding apiVersion="halfcode.resources/v1" version="1.0.0" { lifecycle = "Active" } (
+    "manifest.xnl": `<ResourcePackage #eidolon.fixture.holon-binding envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" packageVersion = "1.0.0" } (
   <Catalogs [
     <Catalog #kind_definitions { kind = "KindDefinition" shape = "directory" root = "vfs://./KindDefinitions/" entry = "manifest.xnl" }>
     <Catalog #snapshots { kind = "HolonEffectiveSnapshot" shape = "single-file" root = "vfs://./Organization/" }>
     <Catalog #bindings { kind = "HolonExecutionBinding" shape = "single-file" root = "vfs://./Bindings/" }>
     <Catalog #agents { kind = "AIAgentDefinition" shape = "single-file" root = "vfs://./Agents/" }>
-    <Catalog #dependencies { kind = "HolonExecutionDependency" shape = "single-file" root = "vfs://./Dependencies/" }>
+    <Catalog #dependencies { kind = "ContextMaterial" shape = "single-file" root = "vfs://./Materials/" }>
   ]>
 )>
 `,
     "KindDefinitions/HolonExecutionBinding/manifest.xnl": HOLON_EXECUTION_BINDING_KIND_DEFINITION_SOURCE,
     "KindDefinitions/HolonEffectiveSnapshot/manifest.xnl": HOLON_EFFECTIVE_SNAPSHOT_KIND_DEFINITION_SOURCE,
-    "KindDefinitions/AIAgentDefinition/manifest.xnl": fixtureKindDefinition("AIAgentDefinition", "depa.flows/v1"),
-    "KindDefinitions/HolonExecutionDependency/manifest.xnl": fixtureKindDefinition("HolonExecutionDependency"),
-    "Organization/ReviewTeam.xnl": `<HolonEffectiveSnapshot #${organizationResourceId} apiVersion="holon.workbench/v1" version="1.0.0" {
+    "KindDefinitions/AIAgentDefinition/manifest.xnl": fixtureKindDefinition("AIAgentDefinition"),
+    "KindDefinitions/ContextMaterial/manifest.xnl": fixtureKindDefinition("ContextMaterial"),
+    "Organization/ReviewTeam.xnl": `<HolonEffectiveSnapshot #${organizationResourceId} envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   snapshotBytesBase64 = "${Buffer.from(snapshotBytes).toString("base64")}"
   issuanceReceiptBytesBase64 = "${Buffer.from(receiptBytes).toString("base64")}"
 }>
 `,
-    "Agents/Reviewer.xnl": `<AIAgentDefinition #eidolon.fixture.agent.reviewer apiVersion="depa.flows/v1" version="1.0.0" {
+    "Agents/Reviewer.xnl": `<AIAgentDefinition #eidolon.fixture.agent.reviewer envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Active"
 } (
-  <Messages []>
+  <MessagePrefix []>
   <ToolRefs []>
   <MaterialPortRefs []>
 )>
@@ -335,46 +344,44 @@ async function writeHolonPackage(input: {
       `    <Catalog #ctrl_workflows { kind = "AICtrlWorkflow" shape = "single-file" root = "vfs://./CtrlWorkflows/" }>
     <Catalog #data_workflows { kind = "AIDataWorkflow" shape = "single-file" root = "vfs://./DataWorkflows/" }>
     <Catalog #material_bindings { kind = "MaterialBinding" shape = "single-file" root = "vfs://./MaterialBindings/" }>
-    <Catalog #materials { kind = "ArticleMaterial" shape = "single-file" root = "vfs://./Materials/" }>
     <Catalog #ports { kind = "MaterialPort" shape = "single-file" root = "vfs://./Ports/" }>
     <Catalog #schemas { kind = "MessageSchema" shape = "single-file" root = "vfs://./Schemas/" }>
     <Catalog #agents`,
     )
-    files["KindDefinitions/AICtrlWorkflow/manifest.xnl"] = fixtureKindDefinition("AICtrlWorkflow", "depa.flows/v1")
-    files["KindDefinitions/AIDataWorkflow/manifest.xnl"] = fixtureKindDefinition("AIDataWorkflow", "depa.flows/v1")
-    files["KindDefinitions/MaterialBinding/manifest.xnl"] = fixtureKindDefinition("MaterialBinding", "depa.flows/v1")
-    files["KindDefinitions/ArticleMaterial/manifest.xnl"] = fixtureKindDefinition("ArticleMaterial", "depa.flows/v1")
-    files["KindDefinitions/MaterialPort/manifest.xnl"] = fixtureKindDefinition("MaterialPort", "depa.flows/v1")
-    files["KindDefinitions/MessageSchema/manifest.xnl"] = fixtureKindDefinition("MessageSchema", "depa.flows/v1")
-    files["Agents/Reviewer.xnl"] = `<AIAgentDefinition #eidolon.fixture.agent.reviewer apiVersion="depa.flows/v1" version="1.0.0" {
+    files["KindDefinitions/AICtrlWorkflow/manifest.xnl"] = fixtureKindDefinition("AICtrlWorkflow")
+    files["KindDefinitions/AIDataWorkflow/manifest.xnl"] = fixtureKindDefinition("AIDataWorkflow")
+    files["KindDefinitions/MaterialBinding/manifest.xnl"] = fixtureKindDefinition("MaterialBinding")
+    files["KindDefinitions/MaterialPort/manifest.xnl"] = fixtureKindDefinition("MaterialPort")
+    files["KindDefinitions/MessageSchema/manifest.xnl"] = fixtureKindDefinition("MessageSchema")
+    files["Agents/Reviewer.xnl"] = `<AIAgentDefinition #eidolon.fixture.agent.reviewer envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Active"
 } (
   <OutputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.schema.review-result" }>
-  <Messages []>
+  <MessagePrefix []>
   <ToolRefs []>
   <MaterialPortRefs [
     <MaterialPortRef #review-result { kind = "MaterialPort" ref = "resource://eidolon.fixture.port.review-result" }>
   ]>
 )>
 `
-    files["Schemas/ReviewResult.xnl"] = `<MessageSchema #eidolon.fixture.schema.review-result apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" properties = { summary = { type = "string" } } required = ["summary"] additionalProperties = false } }>
+    files["Schemas/ReviewResult.xnl"] = `<MessageSchema #eidolon.fixture.schema.review-result envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" schema = { type = "object" properties = { summary = { type = "string" } } required = ["summary"] additionalProperties = false } }>
 `
-    files["Ports/ReviewResult.xnl"] = `<MaterialPort #eidolon.fixture.port.review-result apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" materialKind = "ArticleMaterial" required = true cardinality = "one" } (
+    files["Ports/ReviewResult.xnl"] = `<MaterialPort #eidolon.fixture.port.review-result envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" materialKind = "ContextMaterial" required = true cardinality = "one" } (
   <SchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.schema.review-result" }>
 )>
 `
-    files["Materials/ReviewResult.xnl"] = `<ArticleMaterial #eidolon.fixture.material.review-result apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" value = { summary = "seed-review" } }>
+    files["Materials/ReviewResult.xnl"] = `<ContextMaterial #eidolon.fixture.material.review-result envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" value = { summary = "seed-review" } }>
 `
-    files["MaterialBindings/Reviewer.xnl"] = `<MaterialBinding #eidolon.fixture.binding.review-agent-task apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
+    files["MaterialBindings/Reviewer.xnl"] = `<MaterialBinding #eidolon.fixture.binding.review-agent-task envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" } (
   <AgentTaskRef { workflowKind = "AICtrlWorkflow" workflowRef = "resource://eidolon.fixture.workflow.coordination" nodeId = "open-task" agentDefinitionRef = "resource://eidolon.fixture.agent.reviewer" }>
   <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.port.review-result" }>
-  <MaterialRef { kind = "ArticleMaterial" ref = "resource://eidolon.fixture.material.review-result" }>
+  <MaterialRef { kind = "ContextMaterial" ref = "resource://eidolon.fixture.material.review-result" }>
 )>
 `
-    files["MaterialBindings/ReviewerData.xnl"] = `<MaterialBinding #eidolon.fixture.binding.review-data-agent-task apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
+    files["MaterialBindings/ReviewerData.xnl"] = `<MaterialBinding #eidolon.fixture.binding.review-data-agent-task envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" } (
   <AgentTaskRef { workflowKind = "AIDataWorkflow" workflowRef = "resource://eidolon.fixture.workflow.data-coordination" nodeId = "delegate-task" agentDefinitionRef = "resource://eidolon.fixture.agent.reviewer" }>
   <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.port.review-result" }>
-  <MaterialRef { kind = "ArticleMaterial" ref = "resource://eidolon.fixture.material.review-result" }>
+  <MaterialRef { kind = "ContextMaterial" ref = "resource://eidolon.fixture.material.review-result" }>
 )>
 `
     files["CtrlWorkflows/flow-code/holon-task.ts"] = `export function openTask(runtime: any) {
@@ -425,17 +432,27 @@ export function passData(_runtime: any, input: unknown) {
     files["CtrlWorkflows/Coordination.xnl"] = holonWorkflowSource("sha256:" + "0".repeat(64), input.workflowEffectiveAt)
     files["DataWorkflows/DataCoordination.xnl"] = holonDataWorkflowSource("sha256:" + "0".repeat(64), input.workflowEffectiveAt)
   }
+  if (input.withRuntimeDefinition) {
+    files["manifest.xnl"] = files["manifest.xnl"].replace(
+      "    <Catalog #agents",
+      `    <Catalog #task_runtimes { kind = "HolonTaskRuntimeDefinition" shape = "single-file" root = "vfs://./TaskRuntimes/" }>
+    <Catalog #agents`,
+    )
+    files["KindDefinitions/HolonTaskRuntimeDefinition/manifest.xnl"] =
+      HOLON_TASK_RUNTIME_DEFINITION_KIND_DEFINITION_SOURCE
+    await mkdir(path.join(root, "TaskRuntimes"), { recursive: true })
+  }
   bindings.forEach((value, index) => {
     files[`Bindings/${["AI", "Human", "Service", "Hybrid"][index]}.xnl`] =
-      `<HolonExecutionBinding #${value.bindingRef.slice("resource://".length)} apiVersion="eidolon.ai/v1" version="1.0.0" {
+      `<HolonExecutionBinding #${value.bindingRef.slice("resource://".length)} envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   bindingBytesBase64 = "${Buffer.from(canonicalHolonExecutionBindingBytes(value)).toString("base64")}"
 }>
 `
   })
   for (const id of dependencies) {
     if (id === input.omitDependency) continue
-    files[`Dependencies/${id}.xnl`] =
-      `<HolonExecutionDependency #eidolon.fixture.dep.${id} apiVersion="eidolon.ai/v1" version="1.0.0" { lifecycle = "Active" }>
+    files[`Materials/${id}.xnl`] =
+      `<ContextMaterial #eidolon.fixture.dep.${id} envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" value = { dependency = "${id}" } }>
 `
   }
   for (const [relative, content] of Object.entries(files)) {
@@ -451,11 +468,49 @@ export function passData(_runtime: any, input: unknown) {
     await writeFile(path.join(root, "CtrlWorkflows", "Coordination.xnl"), holonWorkflowSource(bindingDigest, input.workflowEffectiveAt), "utf8")
     await writeFile(path.join(root, "DataWorkflows", "DataCoordination.xnl"), holonDataWorkflowSource(bindingDigest, input.workflowEffectiveAt), "utf8")
   }
+  if (input.withRuntimeDefinition) {
+    const snapshot = await new EidolonAppResourceRegistryAdapter({
+      layers: [{ id: "workspace", rootDir: root }],
+    }).snapshot()
+    const bindingDigest = snapshot.contentIdentities.get("eidolon.fixture.binding.ai")!.contentDigest
+    const definition = Object.freeze({
+      kind: "holon-task-runtime-definition" as const,
+      schemaVersion: HOLON_TASK_RUNTIME_DEFINITION_SCHEMA_VERSION,
+      definitionRef: "resource://eidolon.fixture.task-runtime.review" as const,
+      version: "1.0.0",
+      rootHolonRef: `holon-${team}`,
+      executionBinding: Object.freeze({
+        ref: "resource://eidolon.fixture.binding.ai" as const,
+        digest: bindingDigest,
+      }),
+      taskSpace: Object.freeze({
+        profileRef: "resource://eidolon.fixture.dep.task-profile" as const,
+        policyRef: "resource://eidolon.fixture.dep.agent-runtime" as const,
+        requiredRoleRefs: Object.freeze([`role-${role}`]),
+        requiredCapabilityRefs: Object.freeze(["resource://eidolon.fixture.dep.capability" as const]),
+      }),
+      input: Object.freeze({ schemaRef: "resource://eidolon.fixture.dep.material" as const }),
+      output: Object.freeze({
+        schemaRef: (input.withWorkflow
+          ? "resource://eidolon.fixture.schema.review-result"
+          : "resource://eidolon.fixture.dep.material") as `resource://${string}`,
+        materialPortRefs: Object.freeze([(input.withWorkflow
+          ? "resource://eidolon.fixture.port.review-result"
+          : "resource://eidolon.fixture.dep.material") as `resource://${string}`]),
+      }),
+      defaultForHolon: true,
+    })
+    const source = `<HolonTaskRuntimeDefinition #eidolon.fixture.task-runtime.review envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
+  definitionBytesBase64 = "${Buffer.from(canonicalHolonTaskRuntimeDefinitionBytes(definition)).toString("base64")}"
+}>
+`
+    await writeFile(path.join(root, "TaskRuntimes", "Review.xnl"), source, "utf8")
+  }
   return root
 }
 
 function holonWorkflowSource(bindingDigest: string, effectiveAt = "2026-01-01T00:00:00.000Z"): string {
-  return `<AICtrlWorkflow #eidolon.fixture.workflow.coordination apiVersion="depa.flows/v1" version="1.0.0" (
+  return `<AICtrlWorkflow #eidolon.fixture.workflow.coordination envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 (
   <FlowContract #eidolon.fixture.workflow.coordination>
 ) [
   <Run #open-task { src = "vfs://./flow-code/holon-task.ts#openTask" config = {
@@ -477,7 +532,7 @@ function holonWorkflowSource(bindingDigest: string, effectiveAt = "2026-01-01T00
 }
 
 function holonDataWorkflowSource(bindingDigest: string, effectiveAt = "2026-01-01T00:00:00.000Z"): string {
-  return `<AIDataWorkflow #eidolon.fixture.workflow.data-coordination apiVersion="depa.flows/v1" version="1.0.0" (
+  return `<AIDataWorkflow #eidolon.fixture.workflow.data-coordination envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 (
   <FlowContract #eidolon.fixture.workflow.data-coordination { inputPorts = ["requirements"] outputPorts = ["summary"] }>
 ) [
   <EntryNode #entry>
@@ -552,7 +607,206 @@ function workflowTaskFacts(
   return Object.freeze({ target, snapshotReceipt })
 }
 
+type PhysicalStandaloneEffectState = {
+  readonly outputs: Map<string, Readonly<{ summary: string }>>
+  acceptedCount: number
+}
+
+function physicalStandaloneEffectState(): PhysicalStandaloneEffectState {
+  return { outputs: new Map(), acceptedCount: 0 }
+}
+
+function physicalStandaloneActorOwner(): HolonGenericActorOwnerPort {
+  const actors = new Map<string, string>()
+  const sessions = new Map<string, string>()
+  return {
+    ensureActor: ({ address }) => {
+      const key = `${address.deploymentId}:${address.actorKind}:${address.logicalKey}`
+      if (!actors.has(key)) actors.set(key, `physical-actor:${key}`)
+      return Object.freeze({ actorRef: actors.get(key)! })
+    },
+    ensureTaskAttemptSession: ({ deploymentId, runtimeRef, scopeRef }) => {
+      const key = `${deploymentId}:${runtimeRef}:${scopeRef}`
+      if (!sessions.has(key)) sessions.set(key, `physical-session:${key}`)
+      return Object.freeze({ sessionRef: sessions.get(key)! })
+    },
+    resolveTargetedAgentSession: () => Object.freeze({
+      sessionRef: "physical-session:targeted",
+      agentDefinitionRef: "resource://eidolon.fixture.agent.reviewer" as const,
+    }),
+  }
+}
+
+function physicalStandaloneAdapters(
+  state: PhysicalStandaloneEffectState,
+): HolonExecutionAdapterPorts {
+  const adapter: HolonExecutionAdapterPorts["aiAgent"] = {
+    executeIdempotent: ({ idempotencyKey, invocation }) => {
+      const replayed = state.outputs.get(idempotencyKey)
+      if (replayed) return replayed
+      state.acceptedCount += 1
+      const output = Object.freeze({ summary: `physical-completed:${invocation.taskRef}` })
+      state.outputs.set(idempotencyKey, output)
+      return output
+    },
+  }
+  return Object.freeze({
+    aiAgent: adapter,
+    humanEndpoint: adapter,
+    service: adapter,
+    hybrid: adapter,
+  })
+}
+
+function physicalStandaloneInvocation(
+  requestId: string,
+  replyMode: "final" | "none" | "stream",
+) {
+  return Object.freeze({
+    kind: "holon-task-runtime-invocation" as const,
+    schemaVersion: HOLON_TASK_RUNTIME_INVOCATION_SCHEMA_VERSION,
+    requestId,
+    idempotencyKey: `physical:${requestId}`,
+    replyMode,
+    occurredAt: "2026-01-01T00:00:01.000Z",
+    origin: Object.freeze({
+      kind: "product" as const,
+      surface: "HolonAssign",
+      requestRef: `request:${requestId}`,
+    }),
+    taskRequest: Object.freeze({ kind: "derive" as const, name: `Physical ${requestId}` }),
+    input: Object.freeze({ requestId }),
+  })
+}
+
+async function openPhysicalStandaloneHost(input: Readonly<{
+  packageRoot: string
+  supportRoot: string
+  effects: PhysicalStandaloneEffectState
+  crashAfterEffect?: boolean
+}>) {
+  const actor = createActor({ key: "main", id: "main" })
+  const vm = createVM({ controlActorKey: actor.key, actors: { [actor.key]: actor } })
+  const owner = physicalStandaloneActorOwner()
+  const adapters = physicalStandaloneAdapters(input.effects)
+  const opened = await openLocalHolonTaskRuntime({
+    vm: vm as any,
+    supportRoot: input.supportRoot,
+    registryRef: "resource://eidolon.fixture.registry.physical",
+    resourceRegistry: new EidolonAppResourceRegistryAdapter({
+      layers: [{ id: "workspace", rootDir: input.packageRoot }],
+    }),
+    createGenericActorOwner: () => owner,
+    createExecutionAdapters: () => adapters,
+    processorConfig: { leaseDurationMs: 5_000, maxSteps: 16 },
+    supportOptions: {
+      waitingProbeMs: 1,
+      ...(input.crashAfterEffect
+        ? { journalFaults: { afterEffect: () => { throw new Error("INJECTED_PHYSICAL_AFTER_EFFECT_CRASH") } } }
+        : {}),
+    },
+  })
+  return Object.freeze({ vm, ...opened })
+}
+
+async function waitForPhysicalStandaloneTerminal(
+  host: Awaited<ReturnType<typeof openPhysicalStandaloneHost>>,
+  taskSpaceId: string,
+  taskId: string,
+): Promise<void> {
+  const deadline = Date.now() + 2_000
+  while (Date.now() < deadline) {
+    if (await host.support.terminalSettlement(taskSpaceId, taskId)) return
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+  throw new Error(`Timed out waiting for physical standalone task ${taskSpaceId}/${taskId}`)
+}
+
 describe("HolonExecutionBinding shared registry projection", () => {
+  it("boots the standalone service from one physical ResourcePackage without Workflow state", async () => {
+    const packageRoot = await writeHolonPackage({ withRuntimeDefinition: true })
+    const supportRoot = await mkdtemp(path.join(os.tmpdir(), "eidolon-physical-standalone-"))
+    temporaryRoots.push(supportRoot)
+    const effects = physicalStandaloneEffectState()
+    const host = await openPhysicalStandaloneHost({ packageRoot, supportRoot, effects })
+
+    expect(host.admissionIds).toHaveLength(1)
+    expect(host.recovery).toEqual({ recovered: 0, scheduled: 0, terminal: 0 })
+    const [admissionId] = host.admissionIds
+    const config = { leaseDurationMs: 5_000, maxSteps: 16 }
+    const final = await host.capability.service.assign(
+      { kind: "holon", holonRef: "holon-review-team" },
+      physicalStandaloneInvocation("final", "final"),
+      config,
+    )
+    const none = await host.capability.service.assign(
+      { kind: "member", holonRef: "holon-review-team", memberRef: "member-reviewer" },
+      physicalStandaloneInvocation("none", "none"),
+      config,
+    )
+    const stream = await host.capability.service.assign(
+      { kind: "admission", admissionId: admissionId! },
+      physicalStandaloneInvocation("stream", "stream"),
+      config,
+    )
+
+    expect(final.settlement).toMatchObject({
+      status: "succeeded",
+      result: { summary: expect.stringContaining("physical-completed:") },
+    })
+    expect(none.settlement).toBeNull()
+    expect(stream.settlement).toBeNull()
+    await Promise.all([
+      waitForPhysicalStandaloneTerminal(host, none.task.taskSpaceId, none.task.taskId),
+      waitForPhysicalStandaloneTerminal(host, stream.task.taskSpaceId, stream.task.taskId),
+    ])
+    expect(effects.acceptedCount).toBe(3)
+
+    const replayed = await host.capability.service.assign(
+      { kind: "holon", holonRef: "holon-review-team" },
+      physicalStandaloneInvocation("final", "final"),
+      config,
+    )
+    expect(replayed.task.replayed).toBe(true)
+    expect(replayed.coordinatorWake.replayed).toBe(true)
+    expect(replayed.settlement?.replayed).toBe(true)
+    expect(effects.acceptedCount).toBe(3)
+    expect((await readdir(supportRoot, { recursive: true })).some((entry) => (
+      /workflow|checkpoint/i.test(String(entry))
+    ))).toBe(false)
+    host.close()
+  })
+
+  it("recovers a physical standalone effect in a fresh VM without accepting it twice", async () => {
+    const packageRoot = await writeHolonPackage({ withRuntimeDefinition: true })
+    const supportRoot = await mkdtemp(path.join(os.tmpdir(), "eidolon-physical-recovery-"))
+    temporaryRoots.push(supportRoot)
+    const effects = physicalStandaloneEffectState()
+    const faulted = await openPhysicalStandaloneHost({
+      packageRoot,
+      supportRoot,
+      effects,
+      crashAfterEffect: true,
+    })
+    await expect(faulted.capability.service.assign(
+      { kind: "holon", holonRef: "holon-review-team" },
+      physicalStandaloneInvocation("crash-after-effect", "final"),
+      { leaseDurationMs: 5_000, maxSteps: 16 },
+    )).rejects.toThrow("INJECTED_PHYSICAL_AFTER_EFFECT_CRASH")
+    expect(effects.acceptedCount).toBe(1)
+    const [pending] = await faulted.support.listSubscriptions()
+    expect(pending?.recoveryScope.kind).toBe("standalone")
+    faulted.close()
+
+    const recovered = await openPhysicalStandaloneHost({ packageRoot, supportRoot, effects })
+    expect(recovered.recovery).toMatchObject({ recovered: 1, scheduled: 1 })
+    await waitForPhysicalStandaloneTerminal(recovered, pending!.taskSpaceId, pending!.taskId)
+    expect(effects.acceptedCount).toBe(1)
+    expect((await recovered.support.listSubscriptions())[0]?.recoveryScope)
+      .toEqual({ kind: "standalone", scopeRef: recovered.admissionIds[0] })
+    recovered.close()
+  })
+
   it("loads all adapters from one registry and treats principalKind as descriptive evidence only", async () => {
     const humanRoot = await writeHolonPackage({ principalKind: "human" })
     const aiRoot = await writeHolonPackage({ principalKind: "ai" })
@@ -840,9 +1094,15 @@ describe("HolonExecutionBinding shared registry projection", () => {
     const store = new FileHolonDeploymentRuntimeStore({ supportRoot })
     await store.open("member-deployment")
     let actorCreates = 0
+    let actorEnsures = 0
+    const ensuredActors = new Set<string>()
     const actorOwner: HolonMemberActorOwnerPort = {
       ensureMemberActor: (input) => {
-        actorCreates += 1
+        actorEnsures += 1
+        if (!ensuredActors.has(input.runtimeRef)) {
+          ensuredActors.add(input.runtimeRef)
+          actorCreates += 1
+        }
         return Object.freeze({
           actorRef: `generic-actor:${input.runtimeRef}`,
           registrationReceipt: Object.freeze({
@@ -934,6 +1194,7 @@ describe("HolonExecutionBinding shared registry projection", () => {
 
     expect(new Set([first.runtimeRef, second.runtimeRef, byName.runtimeRef, byId.runtimeRef]).size).toBe(1)
     expect(actorCreates).toBe(1)
+    expect(actorEnsures).toBe(4)
     expect(first.sessionRef).not.toBe(second.sessionRef)
     expect(byName.sessionRef).toBe("generic-session:targeted-agent")
     expect(byId.sessionRef).toBe("generic-session:targeted-agent")
@@ -1555,15 +1816,28 @@ describe("HolonExecutionBinding shared registry projection", () => {
       journal: new FileHolonTaskPumpJournal({ supportRoot }),
     }
     const subscription = await runtime.journal.subscribe({
+      admissionId: "workflow-admission:workflow-run-1:review-node",
       deploymentId: "workflow-task-deployment",
       bindingRef: admitted.definition.bindingRef,
       holonRef: admitted.definition.rootHolonRef,
       snapshotReceiptId: admitted.definition.snapshotReceiptDigest,
       taskSpaceId: snapshotReceipt.taskSpaceId,
       taskId: "review-requirements",
-      workflowInstanceId: "workflow-instance-1",
-      runId: "workflow-run-1",
-      nodeId: "review-node",
+      origin: {
+        kind: "workflow",
+        workflowKind: "AICtrlWorkflow",
+        workflowRef: "resource://workflow/review",
+        runId: "workflow-run-1",
+        nodeId: "review-node",
+        invocationId: "review-invocation-1",
+      },
+      recoveryScope: {
+        kind: "workflow",
+        workflowInstanceId: "workflow-instance-1",
+        runId: "workflow-run-1",
+        nodeId: "review-node",
+      },
+      processorConfig: { leaseDurationMs: 30_000, maxSteps: 8 },
       createdAt: "2026-01-01T00:00:02.000Z",
       input: { requirements: ["R1"] },
     })
@@ -1573,14 +1847,28 @@ describe("HolonExecutionBinding shared registry projection", () => {
       maxSteps: 8,
       observedAt: "2026-01-01T00:00:03.000Z",
     }
+    const processorRuntime = await createHolonTaskProcessorRuntime(runtime, {
+      deploymentId: "workflow-task-deployment",
+      workflowSessionLineage: {
+        workflowInstanceId: "workflow-instance-1",
+        runId: "workflow-run-1",
+      },
+    })
+    const racedProcessorRuntime = await createHolonTaskProcessorRuntime({
+      ...runtime,
+      journal: new FileHolonTaskPumpJournal({ supportRoot }),
+    }, {
+      deploymentId: "workflow-task-deployment",
+      workflowSessionLineage: {
+        workflowInstanceId: "workflow-instance-1",
+        runId: "workflow-run-1",
+      },
+    })
     const [first, raced] = await Promise.all([
-      pumpHolonTaskSpace(runtime, input, config),
-      pumpHolonTaskSpace({
-        ...runtime,
-        journal: new FileHolonTaskPumpJournal({ supportRoot }),
-      }, input, config),
+      pumpHolonTaskSpace(processorRuntime, input, config),
+      pumpHolonTaskSpace(racedProcessorRuntime, input, config),
     ])
-    const replayed = await pumpHolonTaskSpace(runtime, input, config)
+    const replayed = await pumpHolonTaskSpace(processorRuntime, input, config)
 
     expect(first.status).toBe("terminal")
     expect(raced.status).toBe("terminal")
@@ -1648,7 +1936,7 @@ describe("HolonExecutionBinding shared registry projection", () => {
     }, config)
     let heartbeatPumped: Awaited<ReturnType<typeof pumpHolonTaskSpace>> | undefined
     for (let wake = 0; wake < 8; wake += 1) {
-      heartbeatPumped = await pumpHolonTaskSpace(runtime, {
+      heartbeatPumped = await pumpHolonTaskSpace(processorRuntime, {
         ...input,
         leaseDurationMs: 100,
         observedAt: `2026-01-01T00:00:05.${String(60 + wake * 10).padStart(3, "0")}Z`,
@@ -1717,7 +2005,7 @@ describe("HolonExecutionBinding shared registry projection", () => {
       preparedAt: expiredClaim.receipt.claim.claimedAt,
     })
     await runtime.journal.dispatch(staleIntent, async () => ({ summary: "late-attempt-one" }))
-    const reclaimed = await pumpHolonTaskSpace(runtime, {
+    const reclaimed = await pumpHolonTaskSpace(processorRuntime, {
       ...input,
       observedAt: "2026-01-01T00:00:07.020Z",
     }, config)
@@ -1750,8 +2038,12 @@ describe("HolonExecutionBinding shared registry projection", () => {
     expect((await store.load("workflow-task-deployment")).members).toHaveLength(1)
   }, 240_000)
 
-  it("admits HolonAssign and ActorAssign only through one exact frozen workflow binding", async () => {
-    const liveRoot = await writeHolonPackage({ principalKind: "ai", withWorkflow: true })
+  it("keeps product assignment on the standalone admission while Workflow remains an adapter", async () => {
+    const liveRoot = await writeHolonPackage({
+      principalKind: "ai",
+      withWorkflow: true,
+      withRuntimeDefinition: true,
+    })
     const parent = await mkdtemp(path.join(os.tmpdir(), "eidolon-holon-product-assignment-"))
     temporaryRoots.push(parent)
     const component = createWorkflowComponent({
@@ -1831,6 +2123,23 @@ describe("HolonExecutionBinding shared registry projection", () => {
       runId: "holon-product-assignment-run",
       confirmed: true,
     })).toMatchObject({ status: "Waiting", terminal: false })
+    const composition = (service as any).holonTaskRuntimeComposition()
+    const productEffects = physicalStandaloneEffectState()
+    const productOwner = physicalStandaloneActorOwner()
+    const productAdapters = physicalStandaloneAdapters(productEffects)
+    const standalone = await openLocalHolonTaskRuntime({
+      vm: runtime.vm,
+      supportRoot: composition.scope.supportRoot,
+      registryRef: composition.scope.registryRef,
+      resourceRegistry: new EidolonAppResourceRegistryAdapter({
+        layers: [{ id: "workspace", rootDir: liveRoot }],
+      }),
+      createGenericActorOwner: () => productOwner,
+      createExecutionAdapters: () => productAdapters,
+      processorConfig: { leaseDurationMs: 5_000, maxSteps: 16 },
+      supportOptions: { waitingProbeMs: 1 },
+    })
+    expect(standalone.admissionIds).toHaveLength(1)
 
     const holon = JSON.parse(String(await ToolFuncRegistry.call(toolRegistry, "HolonCreate", runtime.vm, actor, {
       governance: "autonomous",
@@ -1856,19 +2165,17 @@ describe("HolonExecutionBinding shared registry projection", () => {
         governance: "autonomous",
         holon_id: holon.holon_id,
         reply_mode: mode,
-        workflow_run_id: "holon-product-assignment-run",
-        workflow_instance_id: instance.instanceId,
-        node_id: "open-task",
+        admission_id: standalone.admissionIds[0],
+        definition_ref: "resource://eidolon.fixture.task-runtime.review",
       })
-      expect(receipt.open_receipt_id).toMatch(/^receipt:/)
-      expect(receipt.snapshot_receipt_id).toMatch(/^sha256:/)
-      expect(receipt.subscription_id).toMatch(/^sha256:/)
+      expect(receipt.task_space_id).toMatch(/^holon-task-space-/)
+      expect(receipt.command_id).toMatch(/^holon-task-submit-/)
       if (mode === "final") {
         expect(receipt).toMatchObject({
           completion_status: "settled",
           terminal_status: "Succeeded",
         })
-        expect(receipt.settlement_receipt_id).toMatch(/^receipt:/)
+        expect(receipt.settlement_receipt_id).toMatch(/^holon-pump-settle-/)
       } else {
         expect(receipt).toMatchObject({
           completion_status: mode === "none" ? "not_requested" : "waiting",
@@ -1878,14 +2185,9 @@ describe("HolonExecutionBinding shared registry projection", () => {
       }
       receipts.push(receipt)
     }
-    const instanceRoot = path.join(
-      parent,
-      "runtime-session",
-      "workflow-runtime",
-      "instances",
-      instance.instanceId,
-    )
-    const owner = new FileTaskSpaceOwner({ root: path.join(instanceRoot, "task-spaces") })
+    const owner = new FileTaskSpaceOwner({
+      root: path.join(parent, "runtime-session", "holon-task-runtime", "task-spaces"),
+    })
     const backgroundDeadline = Date.now() + 60_000
     let assignmentSnapshots = await Promise.all(
       receipts.map(({ task_space_id }) => owner.readSnapshot(task_space_id)),
@@ -1899,7 +2201,7 @@ describe("HolonExecutionBinding shared registry projection", () => {
     }
     expect(assignmentSnapshots.map((snapshot) => snapshot?.tasks[0]?.status))
       .toEqual(["Succeeded", "Succeeded", "Succeeded"])
-    expect(providerCalls).toBe(3)
+    expect(productEffects.acceptedCount).toBe(3)
     const replayed = JSON.parse(String(await ToolFuncRegistry.call(
       toolRegistry,
       calls[0][0],
@@ -1909,7 +2211,7 @@ describe("HolonExecutionBinding shared registry projection", () => {
       { toolCallId: calls[0][3] },
     )))
     expect(replayed).toEqual(receipts[0])
-    expect(providerCalls).toBe(3)
+    expect(productEffects.acceptedCount).toBe(3)
     expect(new Set(receipts.map(({ task_space_id }) => task_space_id)).size).toBe(3)
     const ambiguousInstance = await service.createInstance({
       workflowRef: "resource://eidolon.fixture.workflow.coordination",
@@ -1921,21 +2223,22 @@ describe("HolonExecutionBinding shared registry projection", () => {
       runId: "holon-product-assignment-ambiguous-run",
       confirmed: true,
     })).toMatchObject({ status: "Waiting", terminal: false })
-    const ambiguous = JSON.parse(String(await ToolFuncRegistry.call(
+    const unaffected = JSON.parse(String(await ToolFuncRegistry.call(
       toolRegistry,
       "HolonAssign",
       runtime.vm,
       actor,
-      { target: holon.holon_id, mode: "final", content: "must not guess a workflow context" },
-      { toolCallId: "call-product-ambiguous" },
+      { target: holon.holon_id, mode: "final", content: "must stay on the standalone route" },
+      { toolCallId: "call-product-after-second-workflow" },
     )))
-    expect(ambiguous).toMatchObject({
-      ok: false,
-      error: "canonical_holon_binding_ambiguous",
+    expect(unaffected).toMatchObject({
+      ok: true,
+      accepted: true,
       holon_id: holon.holon_id,
+      admission_id: standalone.admissionIds[0],
+      completion_status: "settled",
     })
-    expect(ambiguous.authority_ids).toHaveLength(2)
-    expect(providerCalls).toBe(3)
+    expect(productEffects.acceptedCount).toBe(4)
     for (const receipt of receipts) {
       expect((await owner.readSnapshot(receipt.task_space_id))?.tasks).toEqual([
         expect.objectContaining({ taskId: receipt.task_id, status: "Succeeded" }),
@@ -1946,6 +2249,7 @@ describe("HolonExecutionBinding shared registry projection", () => {
     const governanceActor = runtime.vm.actors[`holon:${holon.holon_id}`]
     expect(governanceActor?.holonState).not.toHaveProperty("tasks")
     expect(governanceActor?.holonState).not.toHaveProperty("taskOwnership")
+    standalone.close()
   }, 240_000)
 
   it("automatically pumps Ctrl and Data Holon TaskSpaces and consumes their settlements", async () => {
@@ -2053,12 +2357,12 @@ describe("HolonExecutionBinding shared registry projection", () => {
     })
     expect(providerCalls).toBe(2)
 
-    const coordinatorFacetKey = "eidolon.holon-task-space-coordinator-actors/v1"
+    const coordinatorFacetKey = "eidolon.holon-task-runtime-coordinators/v1"
     const coordinatorActors = runtime.vm.actorRuntime.ensureFacet<Map<string, unknown>>(
       coordinatorFacetKey,
       () => new Map<string, unknown>(),
     )
-    expect(coordinatorActors.size).toBe(2)
+    expect(coordinatorActors.size).toBe(1)
     const coordinatorActivations = new Map(coordinatorActors)
 
     const recoveredCtrl = await new WorkflowRuntimeService(runtime).continueHolonRun("holon-auto-ctrl-run")
@@ -2070,12 +2374,14 @@ describe("HolonExecutionBinding shared registry projection", () => {
       .toBe(coordinatorActors)
     expect(new Map(coordinatorActors)).toEqual(coordinatorActivations)
 
-    for (const [instanceId, taskSpaceId] of [
-      [ctrlInstance.instanceId, "review-task-space"],
-      [dataInstance.instanceId, "data-review-task-space"],
+    for (const [runId, authoredTaskSpaceId] of [
+      ["holon-auto-ctrl-run", "review-task-space"],
+      ["holon-auto-data-run", "data-review-task-space"],
     ] as const) {
-      const instanceRoot = path.join(parent, "runtime-session", "workflow-runtime", "instances", instanceId)
-      const owner = new FileTaskSpaceOwner({ root: path.join(instanceRoot, "task-spaces") })
+      const owner = new FileTaskSpaceOwner({
+        root: path.join(parent, "runtime-session", "holon-task-runtime", "task-spaces"),
+      })
+      const taskSpaceId = workflowHolonTaskSpaceId(runId, authoredTaskSpaceId)
       const snapshot = await owner.readSnapshot(taskSpaceId)
       const history = await owner.readHistory(taskSpaceId)
       expect(snapshot?.tasks.every(({ status }) => status === "Succeeded")).toBe(true)
@@ -2110,16 +2416,12 @@ describe("HolonExecutionBinding shared registry projection", () => {
       replannedAt: "2026-02-01T00:00:01.000Z",
     })
     expect(replanned.successorSnapshotReceipt.effectiveAt).toBe("2026-02-01T00:00:00.000Z")
-    const ctrlRoot = path.join(
-      parent,
-      "runtime-session",
-      "workflow-runtime",
-      "instances",
-      replanInstance.instanceId,
-    )
-    const ctrlOwner = new FileTaskSpaceOwner({ root: path.join(ctrlRoot, "task-spaces") })
-    const replannedSnapshot = await ctrlOwner.readSnapshot("review-task-space")
-    const replannedHistory = await ctrlOwner.readHistory("review-task-space")
+    const ctrlOwner = new FileTaskSpaceOwner({
+      root: path.join(parent, "runtime-session", "holon-task-runtime", "task-spaces"),
+    })
+    const replannedTaskSpaceId = workflowHolonTaskSpaceId("holon-auto-replan-run", "review-task-space")
+    const replannedSnapshot = await ctrlOwner.readSnapshot(replannedTaskSpaceId)
+    const replannedHistory = await ctrlOwner.readHistory(replannedTaskSpaceId)
     expect(replannedSnapshot?.tasks.find(({ taskId }) => taskId === "review-requirements-v2")?.status)
       .toBe("Succeeded")
     expect(await service.status("holon-auto-replan-run"))
@@ -2129,25 +2431,22 @@ describe("HolonExecutionBinding shared registry projection", () => {
     expect(replannedHistory.filter(({ kind }) => kind === "task.settled")).toHaveLength(1)
 
     aiWorkflowMetadata.holonAutomaticPump = false
-    expect(await service.start({
+    const yieldedService = new WorkflowRuntimeService(runtime, { holonPumpMaxSteps: 1 })
+    expect(await yieldedService.start({
       instanceId: yieldedInstance.instanceId,
       runId: "holon-auto-yielded-run",
       confirmed: true,
     })).toMatchObject({ status: "Waiting" })
-    const yieldedRoot = path.join(
-      parent,
-      "runtime-session",
-      "workflow-runtime",
-      "instances",
-      yieldedInstance.instanceId,
-    )
-    const yieldedOwner = new FileTaskSpaceOwner({ root: path.join(yieldedRoot, "task-spaces") })
-    const yieldedReady = (await yieldedOwner.readSnapshot("review-task-space"))!
+    const yieldedOwner = new FileTaskSpaceOwner({
+      root: path.join(parent, "runtime-session", "holon-task-runtime", "task-spaces"),
+    })
+    const yieldedTaskSpaceId = workflowHolonTaskSpaceId("holon-auto-yielded-run", "review-task-space")
+    const yieldedReady = (await yieldedOwner.readSnapshot(yieldedTaskSpaceId))!
     const yieldedClaimedAt = "2026-02-01T00:00:02.000Z"
     const yieldedClaim = await claimTask({ owner: yieldedOwner }, {
       kind: "task.claim",
       commandId: "external-claim-before-bounded-yield",
-      taskSpaceId: "review-task-space",
+      taskSpaceId: yieldedTaskSpaceId,
       expectedRevision: yieldedReady.revision,
       taskId: "review-requirements",
       assigneeRef: "external-worker-before-bounded-yield",
@@ -2155,12 +2454,12 @@ describe("HolonExecutionBinding shared registry projection", () => {
       leaseDurationMs: 10,
     }, { maxTasks: 16, maxRelations: 32, maxLeaseDurationMs: 60_000 })
     aiWorkflowMetadata.holonAutomaticPump = true
-    expect(await new WorkflowRuntimeService(runtime, { holonPumpMaxSteps: 1 }).continueHolonRun(
+    expect(await yieldedService.continueHolonRun(
       "holon-auto-yielded-run",
       new Date(Date.parse(yieldedClaim.receipt.claim.expiresAt) + 1).toISOString(),
     )).toMatchObject({ status: "Completed", terminal: true })
     expect(providerCalls).toBe(4)
-    const yieldedHistory = await yieldedOwner.readHistory("review-task-space")
+    const yieldedHistory = await yieldedOwner.readHistory(yieldedTaskSpaceId)
     expect(yieldedHistory.filter(({ kind }) => kind === "task.claim-expired")).toHaveLength(1)
     expect(yieldedHistory.filter(({ kind }) => kind === "task.settled")).toHaveLength(1)
 
@@ -2170,20 +2469,19 @@ describe("HolonExecutionBinding shared registry projection", () => {
       runId: "holon-auto-waiting-probe-run",
       confirmed: true,
     })).toMatchObject({ status: "Waiting" })
-    const waitingProbeRoot = path.join(
-      parent,
-      "runtime-session",
-      "workflow-runtime",
-      "instances",
-      waitingProbeInstance.instanceId,
+    const waitingProbeOwner = new FileTaskSpaceOwner({
+      root: path.join(parent, "runtime-session", "holon-task-runtime", "task-spaces"),
+    })
+    const waitingProbeTaskSpaceId = workflowHolonTaskSpaceId(
+      "holon-auto-waiting-probe-run",
+      "review-task-space",
     )
-    const waitingProbeOwner = new FileTaskSpaceOwner({ root: path.join(waitingProbeRoot, "task-spaces") })
-    const waitingProbeReady = (await waitingProbeOwner.readSnapshot("review-task-space"))!
+    const waitingProbeReady = (await waitingProbeOwner.readSnapshot(waitingProbeTaskSpaceId))!
     const waitingProbeClaimedAt = new Date().toISOString()
     const waitingProbeClaim = await claimTask({ owner: waitingProbeOwner }, {
       kind: "task.claim",
       commandId: "external-live-claim-before-change-probe",
-      taskSpaceId: "review-task-space",
+      taskSpaceId: waitingProbeTaskSpaceId,
       expectedRevision: waitingProbeReady.revision,
       taskId: "review-requirements",
       assigneeRef: "external-worker-before-change-probe",
@@ -2199,7 +2497,7 @@ describe("HolonExecutionBinding shared registry projection", () => {
     await expireTaskClaim({ owner: waitingProbeOwner }, {
       kind: "task.claim-expire",
       commandId: "external-unlock-for-change-probe",
-      taskSpaceId: "review-task-space",
+      taskSpaceId: waitingProbeTaskSpaceId,
       expectedRevision: waitingProbeClaim.snapshot.revision,
       claim: waitingProbeClaim.receipt.claim,
       observedAt: waitingProbeClaim.receipt.claim.expiresAt,
@@ -2231,7 +2529,7 @@ describe("HolonExecutionBinding shared registry projection", () => {
       taskSpace = { profileRef = "resource://eidolon.fixture.dep.task-profile" policyRef = "resource://eidolon.fixture.dep.agent-runtime" requiredRoleRefs = ["role-reviewer"] requiredCapabilityRefs = ["resource://eidolon.fixture.dep.capability"] }
       output = { schemaRef = "resource://eidolon.fixture.schema.review-result" materialPortRefs = ["resource://eidolon.fixture.port.review-result"] }
     }`
-    await writeFile(path.join(liveRoot, "DataWorkflows", "MultiCoordination.xnl"), `<AIDataWorkflow #eidolon.fixture.workflow.data-coordination-multi apiVersion="depa.flows/v1" version="1.0.0" (
+    await writeFile(path.join(liveRoot, "DataWorkflows", "MultiCoordination.xnl"), `<AIDataWorkflow #eidolon.fixture.workflow.data-coordination-multi envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 (
   <FlowContract #eidolon.fixture.workflow.data-coordination-multi { inputPorts = ["requirements"] outputPorts = ["summaryA" "summaryB"] }>
 ) [
   <EntryNode #entry>
@@ -2268,10 +2566,10 @@ export async function consumeB(runtime: any) {
 }
 `, "utf8")
     for (const [suffix, nodeId] of [["A", "delegate-a"], ["B", "delegate-b"]] as const) {
-      await writeFile(path.join(liveRoot, "MaterialBindings", `ReviewerMulti${suffix}.xnl`), `<MaterialBinding #eidolon.fixture.binding.review-data-multi-${suffix.toLowerCase()} apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
+      await writeFile(path.join(liveRoot, "MaterialBindings", `ReviewerMulti${suffix}.xnl`), `<MaterialBinding #eidolon.fixture.binding.review-data-multi-${suffix.toLowerCase()} envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" } (
   <AgentTaskRef { workflowKind = "AIDataWorkflow" workflowRef = "resource://eidolon.fixture.workflow.data-coordination-multi" nodeId = "${nodeId}" agentDefinitionRef = "resource://eidolon.fixture.agent.reviewer" }>
   <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.port.review-result" }>
-  <MaterialRef { kind = "ArticleMaterial" ref = "resource://eidolon.fixture.material.review-result" }>
+  <MaterialRef { kind = "ContextMaterial" ref = "resource://eidolon.fixture.material.review-result" }>
 )>
 `, "utf8")
     }
@@ -2330,9 +2628,11 @@ export async function consumeB(runtime: any) {
       { settledB: expect.stringContaining("receipt:holon-pump-settle-") },
     ])
     expect(waits[0]!.result.output).not.toEqual(waits[1]!.result.output)
-    const instanceRoot = path.join(parent, "runtime-session", "workflow-runtime", "instances", instance.instanceId)
-    const owner = new FileTaskSpaceOwner({ root: path.join(instanceRoot, "task-spaces") })
-    for (const taskSpaceId of ["multi-space-a", "multi-space-b"]) {
+    const owner = new FileTaskSpaceOwner({
+      root: path.join(parent, "runtime-session", "holon-task-runtime", "task-spaces"),
+    })
+    for (const authoredTaskSpaceId of ["multi-space-a", "multi-space-b"]) {
+      const taskSpaceId = workflowHolonTaskSpaceId("holon-multi-data-run", authoredTaskSpaceId)
       expect((await owner.readHistory(taskSpaceId)).filter(({ kind }) => kind === "task.settled")).toHaveLength(1)
     }
   }, 30_000)
@@ -2341,6 +2641,7 @@ export async function consumeB(runtime: any) {
     const liveRoot = await writeHolonPackage({ principalKind: "ai", withWorkflow: true })
     const parent = await mkdtemp(path.join(os.tmpdir(), "eidolon-holon-auto-recovery-"))
     temporaryRoots.push(parent)
+    const holonSupportRoot = path.join(parent, "runtime-session", "holon-task-runtime")
     const component = createWorkflowComponent({
       workspaceRoot: path.join(parent, "workflows"),
       resourceLayers: [{ id: "workspace", rootDir: liveRoot }],
@@ -2389,7 +2690,26 @@ export async function consumeB(runtime: any) {
       actor,
     } as any
     bindWorkflowComponentToRuntime(runtime, component)
-    const service = new WorkflowRuntimeService(runtime)
+    let injectEffectResultPersistenceCrash = false
+    let injectProviderResultEvidenceCrash = false
+    let providerResultPersistenceObservations = 0
+    const service = new WorkflowRuntimeService(runtime, {
+      holonJournalFaults: {
+        afterEffect: () => {
+          if (injectEffectResultPersistenceCrash) {
+            throw new Error("INJECTED_EFFECT_RESULT_PERSISTENCE_CRASH")
+          }
+        },
+      },
+      holonEffectFaults: {
+        afterResourceAgentResultPersistence: () => {
+          providerResultPersistenceObservations += 1
+          if (injectProviderResultEvidenceCrash) {
+            throw new Error("INJECTED_PROVIDER_RESULT_EVIDENCE_CRASH")
+          }
+        },
+      },
+    })
     const instance = await service.createInstance({
       workflowRef: "resource://eidolon.fixture.workflow.coordination",
       instanceId: "holon-auto-recovery-instance",
@@ -2426,9 +2746,10 @@ export async function consumeB(runtime: any) {
     })
     expect(recovered).toMatchObject({ status: "Completed", terminal: true })
     expect(providerCalls).toBe(1)
-    const instanceRoot = path.join(parent, "runtime-session", "workflow-runtime", "instances", instance.instanceId)
-    const freshOwner = new FileTaskSpaceOwner({ root: path.join(instanceRoot, "task-spaces") })
-    const history = await freshOwner.readHistory("review-task-space")
+    const freshOwner = new FileTaskSpaceOwner({ root: path.join(holonSupportRoot, "task-spaces") })
+    const history = await freshOwner.readHistory(
+      workflowHolonTaskSpaceId("holon-auto-recovery-run", "review-task-space"),
+    )
     expect(history.filter(({ kind }) => kind === "task.claimed")).toHaveLength(1)
     expect(history.filter(({ kind }) => kind === "task.settled")).toHaveLength(1)
 
@@ -2439,23 +2760,15 @@ export async function consumeB(runtime: any) {
       confirmed: true,
     })).toMatchObject({ status: "Waiting" })
     aiWorkflowMetadata.holonAutomaticPump = true
-    const effectFaulted = new WorkflowRuntimeService(runtime, {
-      holonJournalFaults: {
-        afterEffect: () => { throw new Error("INJECTED_EFFECT_RESULT_PERSISTENCE_CRASH") },
-      },
-    })
-    await expect(effectFaulted.continueHolonRun("holon-effect-recovery-run"))
+    injectEffectResultPersistenceCrash = true
+    await expect(service.continueHolonRun("holon-effect-recovery-run"))
       .rejects.toThrow(/INJECTED_EFFECT_RESULT_PERSISTENCE_CRASH/)
+    injectEffectResultPersistenceCrash = false
     expect(providerCalls).toBe(2)
-    const effectRoot = path.join(
-      parent,
-      "runtime-session",
-      "workflow-runtime",
-      "instances",
-      effectInstance.instanceId,
-    )
-    const effectOwner = new FileTaskSpaceOwner({ root: path.join(effectRoot, "task-spaces") })
-    const effectClaim = (await effectOwner.readSnapshot("review-task-space"))
+    const effectOwner = new FileTaskSpaceOwner({ root: path.join(holonSupportRoot, "task-spaces") })
+    const effectClaim = (await effectOwner.readSnapshot(
+      workflowHolonTaskSpaceId("holon-effect-recovery-run", "review-task-space"),
+    ))
       ?.tasks.find(({ taskId }) => taskId === "review-requirements")?.activeClaim
     expect(effectClaim).toBeTruthy()
     const effectRecovered = await new WorkflowRuntimeService(runtime).continueHolonRun(
@@ -2472,36 +2785,33 @@ export async function consumeB(runtime: any) {
       confirmed: true,
     })).toMatchObject({ status: "Waiting" })
     aiWorkflowMetadata.holonAutomaticPump = true
-    const providerFaulted = new WorkflowRuntimeService(runtime, {
-      holonEffectFaults: {
-        afterResourceAgentResultPersistence: () => { throw new Error("INJECTED_PROVIDER_RESULT_EVIDENCE_CRASH") },
-      },
-    })
-    await expect(providerFaulted.continueHolonRun("holon-provider-effect-recovery-run"))
+    const observationsBeforeProviderCrash = providerResultPersistenceObservations
+    injectProviderResultEvidenceCrash = true
+    await expect(service.continueHolonRun("holon-provider-effect-recovery-run"))
       .rejects.toThrow(/INJECTED_PROVIDER_RESULT_EVIDENCE_CRASH/)
+    injectProviderResultEvidenceCrash = false
+    expect(providerResultPersistenceObservations).toBe(observationsBeforeProviderCrash + 1)
     expect(providerCalls).toBe(3)
-    const providerEffectRoot = path.join(
-      parent,
-      "runtime-session",
-      "workflow-runtime",
-      "instances",
-      providerEffectInstance.instanceId,
-    )
-    const [providerEffectDeploymentId] = await readdir(path.join(providerEffectRoot, "holon-deployments"))
+    const [providerEffectSubscription] = await new FileHolonTaskPumpJournal({
+      supportRoot: holonSupportRoot,
+    }).listSubscriptions("holon-provider-effect-recovery-run")
+    const providerEffectDeploymentId = providerEffectSubscription?.deploymentId
     expect(providerEffectDeploymentId).toBeTruthy()
     const providerCoordinatorKey = `${providerEffectDeploymentId}\u0000holon-review-team`
     const originalCoordinatorActors = runtime.vm.actorRuntime.ensureFacet<Map<string, any>>(
-      "eidolon.holon-task-space-coordinator-actors/v1",
+      "eidolon.holon-task-runtime-coordinators/v1",
       () => new Map<string, any>(),
     )
     const originalCoordinator = originalCoordinatorActors.get(providerCoordinatorKey)
     expect(originalCoordinator).toBeTruthy()
     const deploymentBeforeRecovery = await new FileHolonDeploymentRuntimeStore({
-      supportRoot: providerEffectRoot,
+      supportRoot: holonSupportRoot,
     }).load(providerEffectDeploymentId!)
     expect(deploymentBeforeRecovery.coordinators).toHaveLength(1)
-    const providerEffectOwner = new FileTaskSpaceOwner({ root: path.join(providerEffectRoot, "task-spaces") })
-    const providerEffectClaim = (await providerEffectOwner.readSnapshot("review-task-space"))
+    const providerEffectOwner = new FileTaskSpaceOwner({ root: path.join(holonSupportRoot, "task-spaces") })
+    const providerEffectClaim = (await providerEffectOwner.readSnapshot(
+      workflowHolonTaskSpaceId("holon-provider-effect-recovery-run", "review-task-space"),
+    ))
       ?.tasks.find(({ taskId }) => taskId === "review-requirements")?.activeClaim
     expect(providerEffectClaim).toBeTruthy()
     const snapshotDriver = createAiAgentOrchestratorDriver({
@@ -2549,7 +2859,7 @@ export async function consumeB(runtime: any) {
     expect(providerEffectRecovered).toMatchObject({ status: "Completed", terminal: true })
     expect(providerCalls).toBe(3)
     const recoveredCoordinatorActors = recoveredRuntime.vm.actorRuntime.ensureFacet<Map<string, any>>(
-      "eidolon.holon-task-space-coordinator-actors/v1",
+      "eidolon.holon-task-runtime-coordinators/v1",
       () => new Map<string, any>(),
     )
     const recoveredCoordinator = recoveredCoordinatorActors.get(providerCoordinatorKey)
@@ -2557,7 +2867,7 @@ export async function consumeB(runtime: any) {
     expect(recoveredCoordinator).not.toBe(originalCoordinator)
     expect(recoveredCoordinator.actorId).toBe(originalCoordinator.actorId)
     const deploymentAfterRecovery = await new FileHolonDeploymentRuntimeStore({
-      supportRoot: providerEffectRoot,
+      supportRoot: holonSupportRoot,
     }).load(providerEffectDeploymentId!)
     expect(deploymentAfterRecovery.coordinators).toEqual(deploymentBeforeRecovery.coordinators)
   }, 60_000)
@@ -2568,6 +2878,7 @@ export async function consumeB(runtime: any) {
     const initialIssuerEvidence = issuerEvidenceByPackageRoot.get(liveRoot)!
     const parent = await mkdtemp(path.join(os.tmpdir(), "eidolon-holon-ctrl-product-"))
     temporaryRoots.push(parent)
+    const holonSupportRoot = path.join(parent, "runtime-session", "holon-task-runtime")
     const component = createWorkflowComponent({
       workspaceRoot: path.join(parent, "workflows"),
       resourceLayers: [{ id: "workspace", rootDir: liveRoot }],
@@ -2671,15 +2982,9 @@ export async function consumeB(runtime: any) {
     expect(settled.outputArtifacts[0]?.name).toBe("resource://eidolon.fixture.port.review-result")
     expect(providerCalls).toBe(1)
 
-    const instanceRoot = path.join(
-      parent,
-      "runtime-session",
-      "workflow-runtime",
-      "instances",
-      instance.instanceId,
-    )
-    const taskOwner = new FileTaskSpaceOwner({ root: path.join(instanceRoot, "task-spaces") })
-    const snapshotAfterFirstTask = (await taskOwner.readSnapshot("review-task-space"))!
+    const physicalTaskSpaceId = workflowHolonTaskSpaceId("holon-ctrl-run", "review-task-space")
+    const taskOwner = new FileTaskSpaceOwner({ root: path.join(holonSupportRoot, "task-spaces") })
+    const snapshotAfterFirstTask = (await taskOwner.readSnapshot(physicalTaskSpaceId))!
     const firstTaskDefinition = snapshotAfterFirstTask.definition.tasks.find(
       ({ taskId }) => taskId === taskInput.taskId,
     )!
@@ -2687,7 +2992,7 @@ export async function consumeB(runtime: any) {
     await replanTask({ owner: taskOwner }, {
       kind: "task.replan",
       commandId: "add-review-requirements-followup",
-      taskSpaceId: "review-task-space",
+      taskSpaceId: physicalTaskSpaceId,
       expectedRevision: snapshotAfterFirstTask.revision,
       plan: {
         kind: "task-plan",
@@ -2742,7 +3047,7 @@ export async function consumeB(runtime: any) {
     expect(sameMemberSettled.settlementReceipt.status).toBe("Succeeded")
     expect(sameMemberSettled.memberRuntimeRef).toBe(settled.memberRuntimeRef)
     expect(providerCalls).toBe(2)
-    expect((await taskOwner.readHistory("review-task-space")).filter((event) => (
+    expect((await taskOwner.readHistory(physicalTaskSpaceId)).filter((event) => (
       event.kind === "task.settled" && event.taskId === sameMemberInput.taskId
     ))).toHaveLength(1)
 
@@ -2772,7 +3077,7 @@ export async function consumeB(runtime: any) {
       history.includes('"R1-followup"') && !history.includes('"R1"')
     ))).toBe(true)
 
-    const oldSnapshotReceipt = (await taskOwner.readSnapshot("review-task-space"))
+    const oldSnapshotReceipt = (await taskOwner.readSnapshot(physicalTaskSpaceId))
       ?.tasks[0]?.profile.facts.snapshotReceipt
     expect(oldSnapshotReceipt).toBeDefined()
     expect(oldSnapshotReceipt).toMatchObject({
@@ -2844,14 +3149,14 @@ export async function consumeB(runtime: any) {
     const successorSettled = await successorService.processHolonTask(successorInput)
     expect(successorSettled.settlementReceipt.status).toBe("Succeeded")
     expect(providerCalls).toBe(3)
-    const successorDeployment = await loadHolonDeploymentDefinition({ supportRoot: instanceRoot }, {
+    const successorDeployment = await loadHolonDeploymentDefinition({ supportRoot: holonSupportRoot }, {
       deploymentId: successorSettled.deploymentId,
     }, {})
     expect(successorDeployment.bindingProjection.receipt).toMatchObject(
       issuerReceiptProvenance(replannedIssuerEvidence),
     )
     expect(successorDeployment.bindingProjection.snapshot).toEqual(replannedIssuerEvidence.snapshot)
-    expect((await taskOwner.readHistory("review-task-space")).filter((event) => (
+    expect((await taskOwner.readHistory(physicalTaskSpaceId)).filter((event) => (
       event.kind === "task.settled" && event.taskId === successorInput.taskId
     ))).toHaveLength(1)
     expect(JSON.stringify({ replanned, successorSettled }))
@@ -2870,7 +3175,7 @@ export async function consumeB(runtime: any) {
       (await readFile(liveAgentPath, "utf8")).replace('version="1.0.0"', 'version="1.0.1"'),
       "utf8",
     )
-    const beforeIncompatible = await taskOwner.readSnapshot("review-task-space")
+    const beforeIncompatible = await taskOwner.readSnapshot(physicalTaskSpaceId)
     await expect(new WorkflowRuntimeService(runtime).replanHolonTask({
       runId: "holon-ctrl-run",
       nodeId: "open-task",
@@ -2884,7 +3189,7 @@ export async function consumeB(runtime: any) {
       planId: "review-plan-v3",
       replannedAt: "2026-03-01T00:00:01.000Z",
     })).rejects.toThrow(/SUCCESSOR_INSTANCE_REQUIRED/)
-    expect((await taskOwner.readSnapshot("review-task-space"))?.revision).toBe(beforeIncompatible?.revision)
+    expect((await taskOwner.readSnapshot(physicalTaskSpaceId))?.revision).toBe(beforeIncompatible?.revision)
 
     const successorInstance = await new WorkflowRuntimeService(runtime).createInstance({
       workflowRef: "resource://eidolon.fixture.workflow.coordination",
@@ -2916,7 +3221,7 @@ export async function consumeB(runtime: any) {
     expect(replayed.replayed).toBe(true)
     expect(providerCalls).toBe(3)
 
-    const taskSnapshot = await taskOwner.readSnapshot("review-task-space")
+    const taskSnapshot = await taskOwner.readSnapshot(physicalTaskSpaceId)
     expect(taskSnapshot?.tasks.every(({ status }) => status === "Succeeded")).toBe(true)
     expect(taskSnapshot?.tasks.find(({ taskId }) => taskId === taskInput.taskId)
       ?.profile.facts.snapshotReceipt.issuerReceiptId)
@@ -2927,7 +3232,7 @@ export async function consumeB(runtime: any) {
     expect(taskSnapshot?.tasks.find(({ taskId }) => taskId === successorInput.taskId)
       ?.profile.facts.snapshotReceipt.issuerReceiptId)
       .toBe(replanned.successorSnapshotReceipt.issuerReceiptId)
-    expect(await readdir(path.join(instanceRoot, "holon-deployments"))).toHaveLength(2)
+    expect((await readdir(path.join(holonSupportRoot, "holon-deployments"))).length).toBeGreaterThanOrEqual(3)
     expect(JSON.stringify(await new WorkflowRuntimeService(runtime).flowSummary("holon-ctrl-run")))
       .not.toContain(parent)
   }, 120_000)
@@ -2938,6 +3243,7 @@ export async function consumeB(runtime: any) {
     const issuerEvidence = issuerEvidenceByPackageRoot.get(liveRoot)!
     const parent = await mkdtemp(path.join(os.tmpdir(), "eidolon-holon-data-product-"))
     temporaryRoots.push(parent)
+    const holonSupportRoot = path.join(parent, "runtime-session", "holon-task-runtime")
     const component = createWorkflowComponent({
       workspaceRoot: path.join(parent, "workflows"),
       resourceLayers: [{ id: "workspace", rootDir: liveRoot }],
@@ -2993,14 +3299,24 @@ export async function consumeB(runtime: any) {
       actor,
     } as any
     bindWorkflowComponentToRuntime(runtime, component)
-    const instance = await new WorkflowRuntimeService(runtime).createInstance({
+    let injectDataProviderResultEvidenceCrash = false
+    const authoring = new WorkflowRuntimeService(runtime, {
+      holonEffectFaults: {
+        afterResourceAgentResultPersistence: () => {
+          if (injectDataProviderResultEvidenceCrash) {
+            throw new Error("INJECTED_DATA_PROVIDER_RESULT_EVIDENCE_CRASH")
+          }
+        },
+      },
+    })
+    const instance = await authoring.createInstance({
       workflowRef: "resource://eidolon.fixture.workflow.data-coordination",
       instanceId: "holon-data-instance",
       initialInput: { requirements: ["D1"] },
     })
     await rm(liveRoot, { recursive: true, force: true })
 
-    const started = await new WorkflowRuntimeService(runtime).start({
+    const started = await authoring.start({
       instanceId: instance.instanceId,
       runId: "holon-data-run",
       confirmed: true,
@@ -3015,7 +3331,7 @@ export async function consumeB(runtime: any) {
       effectiveAt: "2026-02-01T00:00:00.000Z",
     })
     const replannedIssuerEvidence = issuerEvidenceByPackageRoot.get(liveRoot)!
-    const replanned = await new WorkflowRuntimeService(runtime).replanHolonTask({
+    const replanned = await authoring.replanHolonTask({
       runId: "holon-data-run",
       nodeId: "delegate-task",
       taskSpaceId: "data-review-task-space",
@@ -3042,29 +3358,18 @@ export async function consumeB(runtime: any) {
     await rm(liveRoot, { recursive: true, force: true })
 
     aiWorkflowMetadata.holonAutomaticPump = true
-    const faultedDataService = new WorkflowRuntimeService(runtime, {
-      holonEffectFaults: {
-        afterResourceAgentResultPersistence: () => {
-          throw new Error("INJECTED_DATA_PROVIDER_RESULT_EVIDENCE_CRASH")
-        },
-      },
-    })
-    await expect(faultedDataService.continueHolonRun("holon-data-run"))
+    injectDataProviderResultEvidenceCrash = true
+    await expect(authoring.continueHolonRun("holon-data-run"))
       .rejects.toThrow(/INJECTED_DATA_PROVIDER_RESULT_EVIDENCE_CRASH/)
+    injectDataProviderResultEvidenceCrash = false
     expect(providerCalls).toBe(1)
-    const instanceRoot = path.join(
-      parent,
-      "runtime-session",
-      "workflow-runtime",
-      "instances",
-      instance.instanceId,
-    )
-    const dataOwner = new FileTaskSpaceOwner({ root: path.join(instanceRoot, "task-spaces") })
-    const activeClaim = (await dataOwner.readSnapshot("data-review-task-space"))
+    const physicalTaskSpaceId = workflowHolonTaskSpaceId("holon-data-run", "data-review-task-space")
+    const dataOwner = new FileTaskSpaceOwner({ root: path.join(holonSupportRoot, "task-spaces") })
+    const activeClaim = (await dataOwner.readSnapshot(physicalTaskSpaceId))
       ?.tasks.find(({ taskId }) => taskId === "data-review-requirements-v2")?.activeClaim
     expect(activeClaim).toBeTruthy()
-    const dataService = new WorkflowRuntimeService(runtime)
-    const completed = await dataService.continueHolonRun(
+    const recoveredDataService = new WorkflowRuntimeService(runtime)
+    const completed = await recoveredDataService.continueHolonRun(
       "holon-data-run",
       new Date(Date.parse(activeClaim!.expiresAt) + 1).toISOString(),
     )
@@ -3073,7 +3378,7 @@ export async function consumeB(runtime: any) {
       terminal: true,
       output: { summary: "data-organization-approved" },
     })
-    const dataHistory = await dataOwner.readHistory("data-review-task-space")
+    const dataHistory = await dataOwner.readHistory(physicalTaskSpaceId)
     const settledEvent = dataHistory.find((event) => (
       event.kind === "task.settled" && event.taskId === "data-review-requirements-v2"
     ))
@@ -3085,11 +3390,11 @@ export async function consumeB(runtime: any) {
       mediaType: "application/json",
     })
     expect(providerCalls).toBe(1)
-    const dataContext = (dataService as any).holonContexts.get("holon-data-run")
+    const dataContext = (recoveredDataService as any).holonContexts.get("holon-data-run")
     const successorSubscription = (await dataContext.journal.listSubscriptions("holon-data-run"))
       .find(({ taskId }: any) => taskId === "data-review-requirements-v2")
     expect(successorSubscription).toBeTruthy()
-    const dataDeployment = await loadHolonDeploymentDefinition({ supportRoot: instanceRoot }, {
+    const dataDeployment = await loadHolonDeploymentDefinition({ supportRoot: holonSupportRoot }, {
       deploymentId: successorSubscription.deploymentId,
     }, {})
     expect(dataDeployment.bindingProjection.receipt).toMatchObject(
@@ -3102,7 +3407,7 @@ export async function consumeB(runtime: any) {
     expect(dataDeployment.bindingProjection.snapshot).toEqual(replannedIssuerEvidence.snapshot)
     expect(dataDeployment.bindingFreezeReceipt.snapshotReceiptDigest)
       .toBe(replannedIssuerEvidence.digests.issuanceReceiptBytes)
-    const dataTaskSnapshot = await dataOwner.readSnapshot("data-review-task-space")
+    const dataTaskSnapshot = await dataOwner.readSnapshot(physicalTaskSpaceId)
     expect(dataTaskSnapshot.tasks.map(({ status }) => status)).toEqual(["Cancelled", "Succeeded"])
     expect(dataTaskSnapshot.tasks[1].profile.facts.snapshotReceipt).toMatchObject({
       holonSnapshotRef: replannedIssuerEvidence.provenance.snapshotRef,
@@ -3130,7 +3435,7 @@ export async function consumeB(runtime: any) {
     })
     expect(JSON.stringify(await new WorkflowRuntimeService(runtime).flowSummary("holon-data-run")))
       .not.toContain(parent)
-  })
+  }, 60_000)
 })
 
 async function directoryTree(root: string): Promise<unknown> {

@@ -1,4 +1,4 @@
-<AICtrlWorkflow #eidolon.fixture.SummaryWorkflow apiVersion="depa.flows/v1" version="1.0.0" (
+<AICtrlWorkflow #eidolon.fixture.SummaryWorkflow envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 (
   <FlowContract #eidolon.fixture.SummaryWorkflow>
 ) [
   <Run #summarize { src = "vfs://./flow-code/agent.ts#invokeAgent" config = { agentDefinitionRef = "resource://eidolon.fixture.SummaryAgent" } }>

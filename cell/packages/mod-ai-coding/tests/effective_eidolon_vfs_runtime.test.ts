@@ -43,7 +43,7 @@ describe("production Effective Eidolon VFS preparation", () => {
     await mkdir(path.join(workspace, "resources"), { recursive: true })
     await writeFile(
       path.join(workspace, "resources", "manifest.xnl"),
-      `<ResourcePackage #fixture.workspace.package apiVersion="halfcode.resources/v1" version="1.0.0" { lifecycle = "Active" } ( <Catalogs []> )>\n`,
+      `<ResourcePackage #fixture.workspace.package envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" packageVersion = "1.0.0" } ( <Catalogs []> )>\n`,
     )
 
     const prepared = await prepareEffectiveEidolonVfs({

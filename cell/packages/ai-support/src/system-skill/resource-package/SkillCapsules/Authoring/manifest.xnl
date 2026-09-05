@@ -1,4 +1,4 @@
-<SkillCapsule #Eidolon.Anchor.Skill.Authoring apiVersion="halfcode.resources/v1" version="1.0.25" {
+<SkillCapsule #Eidolon.Anchor.Skill.Authoring envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   name = "sys-eidolon-anchor-authoring"
   lifecycle = "Stable"
   description = "Author resource-native Eidolon applications through exact native operations and progressively loaded standards."

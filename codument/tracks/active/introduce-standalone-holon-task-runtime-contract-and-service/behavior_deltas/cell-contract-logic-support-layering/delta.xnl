@@ -1,0 +1,30 @@
+<BehaviorPatch #track.introduce-standalone-holon-task-runtime-contract-and-service.behavior_patch.cell-contract-logic-support-layering apiVersion="codument.tech/v1alpha1" version="1" { capability = "cell-contract-logic-support-layering" } (
+  <Mutations [
+    <Upsert { selector = "behavior://cell-contract-logic-support-layering/requirements/holon-task-runtime-explicit-effects" } (
+      <Requirement #holon-task-runtime-explicit-effects (
+        <Statement ?>The Holon task runtime SHALL keep closed data and effect ports in ai-organ-contract, pure/async Processors in ai-organ-logic, and environment implementations outside logic, with dependencies supplied through an explicit data-only runtime.</?>
+        <Suites [
+          <Suite #holon-task-runtime-layering { name = "Holon task runtime DEPA layering" } (
+            <Cases [
+              <Case #explicit-runtime (
+                <Given ?>Holon task logic needs TaskSpace, deployment, journal, clock, scheduler or actor effects</?>
+                <When ?>the Processor executes</?>
+                <Then ?>all capabilities SHALL be visible in its runtime contract and SHALL NOT be read from a module global, service locator or config callback</?>
+              )>
+              <Case #no-file-construction-in-logic (
+                <Given ?>a local-file environment composes the Holon task runtime</?>
+                <When ?>ai-organ-logic is inspected</?>
+                <Then ?>new core logic SHALL NOT construct file support and local file implementations SHALL be supplied by the environment composition boundary</?>
+              )>
+              <Case #thin-service-port (
+                <Given ?>the product exposes a HolonTaskRuntimeService object</?>
+                <When ?>its implementation is reviewed</?>
+                <Then ?>the object SHALL be a thin port over explicit Processors and a data-only runtime rather than a mutable business-logic owner; admission registration SHALL be an explicit catalog state transition or port</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

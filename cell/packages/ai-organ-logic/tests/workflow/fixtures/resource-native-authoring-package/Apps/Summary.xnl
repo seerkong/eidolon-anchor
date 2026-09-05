@@ -1,4 +1,4 @@
-<AIWorkflowAppBundle #eidolon.fixture.SummaryApp apiVersion="depa.flows/v1" version="1.0.0" {
+<AIWorkflowAppBundle #eidolon.fixture.SummaryApp envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Active"
   description = "Baseline summary app"
 } (

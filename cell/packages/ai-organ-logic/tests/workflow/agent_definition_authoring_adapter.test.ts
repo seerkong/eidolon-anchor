@@ -7,6 +7,10 @@ import {
   RESOURCE_AUTHORING_SCHEMA_VERSION,
   type ResourceAuthoringProposal,
 } from "halfcode-compiler.xnl/authoring-runtime"
+import {
+  DEPA_AI_RESOURCE_ENVELOPE_VERSION,
+  DEPA_AI_RESOURCE_SPEC_VERSION,
+} from "ai-workflow-contract"
 
 import {
   EidolonAIAgentDefinitionAuthoringAdapter,
@@ -106,11 +110,11 @@ async function effectiveFixture() {
 }
 
 function agentAuthority(resourceId: string, description: string): string {
-  return `<AIAgentDefinition #${resourceId} apiVersion="depa.flows/v1" version="1.0.0" {
+  return `<AIAgentDefinition #${resourceId} envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Active"
   description = "${description}"
 } (
-  <Messages [
+  <MessagePrefix [
     <Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.SummaryPrompt" }>
   ]>
   <ToolRefs []>
@@ -130,7 +134,8 @@ function proposal(input: {
     catalogId: "agents",
     resourceId: input.resourceId,
     kind: "AIAgentDefinition",
-    apiVersion: "depa.flows/v1",
+    envelopeVersion: DEPA_AI_RESOURCE_ENVELOPE_VERSION,
+    writerSpecVersion: DEPA_AI_RESOURCE_SPEC_VERSION,
     sourceShape: "single-file",
     documentUri: `vfs://@/Agents/${input.fileName}.xnl`,
     authorityText: agentAuthority(input.resourceId, `Generated ${input.fileName} Worker`),

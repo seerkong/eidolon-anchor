@@ -46,8 +46,8 @@ import {
   canonicalHolonEffectiveSnapshotBytes,
   canonicalHolonEffectiveSnapshotIssuanceReceiptBytes,
 } from "holarchy-core-contract"
-import { FileTaskSpaceOwner } from "task-manager-file-support"
 import type { TaskRecord, TaskSettlementReceipt } from "task-manager-contract"
+import type { TaskManagerRuntime } from "task-manager-logic"
 import type {
   AIWorkflowAgentTaskRef,
   AIAgentDefinitionSelectionDecision,
@@ -129,23 +129,27 @@ import {
   type HolonGenericActorOwnerPort,
 } from "../../organization/HolonLocalActorRuntime"
 import {
+  createHolonTaskProcessorRuntime,
   executeHolonWorkflowTask,
   type ExecuteHolonWorkflowTaskInput,
   type HolonWorkflowTaskProcessorRuntime,
   type HolonWorkflowTaskExecutionResult,
 } from "../../organization/HolonWorkflowTaskRuntime"
 import {
-  FileHolonTaskPumpJournal,
   type HolonTaskPumpJournalFaultObserver,
+  type HolonTaskPumpJournalPort,
   type HolonTaskPumpSubscription,
 } from "../../organization/HolonTaskPumpJournal"
-import { HolonTaskSpaceCoordinatorActor } from "../../organization/HolonTaskSpaceCoordinatorActor"
-import { getOrganizationManager } from "../../organization/OrganizationManager"
 import {
-  registerCanonicalHolonAssignmentAuthority,
-  type CanonicalHolonAssignmentReceipt,
-  type CanonicalHolonAssignmentRequest,
-} from "../../organization/CanonicalHolonAssignmentFacade"
+  assignHolonTaskThroughMountedCapability,
+  registerHolonTaskRuntimeCapabilityBinding,
+} from "../../organization/HolonTaskRuntimeCapability"
+import { projectFrozenWorkflowHolonTaskAdmission } from "../../organization/LegacyWorkflowHolonTaskProfileAdapter"
+import {
+  bootstrapLocalHolonTaskRuntime,
+  mountLocalWorkflowHolonTaskRuntimeSupport,
+  type LocalWorkflowHolonTaskRuntimeSupport,
+} from "@cell/ai-support"
 
 type WorkflowRuntime = AiAgentOneActorRuntime<any, any>
 type CtrlController = ReturnType<typeof createAICtrlWorkflowController>
@@ -230,6 +234,28 @@ function fingerprint(value: unknown): string {
   return `sha256:${createHash("sha256").update(JSON.stringify(stableValue(value))).digest("hex")}`
 }
 
+/**
+ * Workflow-authored TaskSpace ids are local names. The standalone service has
+ * one TaskSpace authority for the whole VM/session, so its durable identity
+ * must include the run boundary that the former per-instance directory
+ * supplied implicitly.
+ */
+export function workflowHolonTaskSpaceId(runId: string, authoredTaskSpaceId: string): string {
+  const exact = (value: string, location: string): string => {
+    if (typeof value !== "string" || !value || value !== value.trim()
+      || value !== value.normalize("NFC") || /[\u0000-\u001f\u007f]/.test(value)) {
+      throw new Error(`EIDOLON_HOLON_WORKFLOW_TASK_SPACE_ID_INVALID: ${location}`)
+    }
+    return value
+  }
+  const identity = createHash("sha256").update(JSON.stringify([
+    "eidolon.workflow-holon-task-space/v1",
+    exact(runId, "runId"),
+    exact(authoredTaskSpaceId, "authoredTaskSpaceId"),
+  ])).digest("hex").slice(0, 40)
+  return `workflow-holon-task-space-${identity}`
+}
+
 function metadata(runtime: WorkflowRuntime): Record<string, unknown> {
   const value = runtime.vm?.outerCtx?.metadata
   return typeof value === "object" && value !== null ? value as Record<string, unknown> : {}
@@ -240,7 +266,7 @@ function nestedRecord(value: unknown): Record<string, unknown> {
 }
 
 async function terminalTaskSettlement(
-  owner: FileTaskSpaceOwner,
+  owner: TaskManagerRuntime["owner"],
   taskSpaceId: string,
   taskId: string,
 ): Promise<Readonly<{
@@ -380,8 +406,9 @@ type WorkflowHolonDeployment = Readonly<{
 type WorkflowHolonTaskContext = Readonly<{
   proofs: Readonly<Record<string, FrozenHolonTaskTarget>>
   targets: Readonly<Record<string, HolonTaskTarget>>
-  taskManager: Readonly<{ owner: FileTaskSpaceOwner }>
-  journal: FileHolonTaskPumpJournal
+  taskManager: Readonly<{ owner: TaskManagerRuntime["owner"] }>
+  journal: HolonTaskPumpJournalPort
+  support: LocalWorkflowHolonTaskRuntimeSupport
   organizationSnapshots: Readonly<{
     readEffectiveSnapshot(input: Readonly<{
       rootHolonRef: string
@@ -392,19 +419,12 @@ type WorkflowHolonTaskContext = Readonly<{
     }>>
   }>
   deployments: ReadonlyMap<string, WorkflowHolonDeployment>
+  taskSpaceId(authoredTaskSpaceId: string): Promise<string>
   proofForNode(nodeId: string): FrozenHolonTaskTarget
   openTask(
     input: Parameters<typeof openAICtrlHolonTask>[1],
     config: Parameters<typeof openAICtrlHolonTask>[2],
   ): ReturnType<typeof openAICtrlHolonTask>
-  openAssignmentTask(
-    input: Parameters<typeof openAICtrlHolonTask>[1],
-    config: Parameters<typeof openAICtrlHolonTask>[2],
-    assignmentInput: import("holarchy-eidolon-adapter").ClosedValue,
-  ): Promise<Readonly<{
-    opened: Awaited<ReturnType<typeof openAICtrlHolonTask>>
-    subscription: HolonTaskPumpSubscription
-  }>>
   observeTask(
     input: Parameters<typeof observeAICtrlHolonTask>[1],
     config: Parameters<typeof observeAICtrlHolonTask>[2],
@@ -507,13 +527,10 @@ async function validateHolonSettlementMaterial(
 }
 
 function workflowHolonDeploymentId(
-  instanceId: string,
   bindingRef: string,
-  snapshotReceiptDigest?: string,
+  snapshotIdentity: string,
 ): string {
-  const identity = snapshotReceiptDigest === undefined
-    ? `${instanceId}\u0000${bindingRef}`
-    : `${instanceId}\u0000${bindingRef}\u0000${snapshotReceiptDigest}`
+  const identity = `${bindingRef}\u0000${snapshotIdentity}`
   return `holon-${createHash("sha256").update(identity).digest("hex").slice(0, 32)}`
 }
 
@@ -1078,6 +1095,7 @@ export class WorkflowRuntimeService {
         settlement: TaskSettlementReceipt
       }>> = []
       for (const subscription of await context.journal.listSubscriptions(runId)) {
+        if (subscription.recoveryScope.kind !== "workflow") continue
         const taskSpace = await context.taskManager.owner.readSnapshot(subscription.taskSpaceId)
         const task = taskSpace?.tasks.find((candidate) => {
           if (candidate.taskId !== subscription.taskId) return false
@@ -1095,40 +1113,23 @@ export class WorkflowRuntimeService {
           descriptor,
           definition,
           context,
-          subscription.nodeId,
+          subscription.recoveryScope.nodeId,
           target,
           subscription.snapshotReceiptId,
         )
         if (prepared.deployment.deploymentId !== subscription.deploymentId) {
           throw new Error("EIDOLON_HOLON_PUMP_SUBSCRIPTION_DEPLOYMENT_MISMATCH")
         }
-        const coordinatorKey = `${subscription.deploymentId}\u0000${subscription.holonRef}`
-        const coordinators = this.holonCoordinatorActors()
-        let coordinator = coordinators.get(coordinatorKey)
-        if (!coordinator) {
-          coordinator = new HolonTaskSpaceCoordinatorActor({
-            deploymentId: subscription.deploymentId,
-            holonRef: subscription.holonRef,
-          }, {
-            maxTasks: 1_024,
-            maxRelations: 4_096,
-            maxLeaseDurationMs: 24 * 60 * 60 * 1_000,
-          })
-          coordinators.set(coordinatorKey, coordinator)
-        }
-        const pumpInput = {
-          subscription,
-          leaseDurationMs: 30_000,
-          maxSteps: this.options.holonPumpMaxSteps ?? 1_024,
-          observedAt,
-        } as const
-        const pumped = await coordinator.wake(prepared.runtime, pumpInput)
+        const pumped = await context.support.wakeSubscription(subscription)
         if (pumped.status === "yielded") yielded = true
         if (pumped.status === "waiting") {
-          coordinator.scheduleWake(pumpInput, async () => {
+          context.support.scheduleSubscription(
+            subscription,
+            async () => {
             if (!this.holonAutomaticPumpEnabled()) return
             await this.continueHolonRun(runId, new Date().toISOString())
-          }, this.options.holonPumpWaitingProbeMs ?? 100)
+            },
+          )
         }
         const settlement = await this.workflowHolonSubscriptionSettlement(context, subscription)
         if (settlement) correlations.push(Object.freeze({ subscription, settlement }))
@@ -1145,10 +1146,15 @@ export class WorkflowRuntimeService {
       if (projection?.terminal) return projection
       let consumed = false
       for (const correlation of correlations) {
+        const recoveryScope = correlation.subscription.recoveryScope
+        if (recoveryScope.kind !== "workflow") continue
         if (descriptor.form === "AICtrlWorkflow") {
           const handle = Array.isArray(projection?.open_wait_handles)
             ? projection.open_wait_handles.find((candidate: any) => (
                 candidate?.signalKey === correlation.subscription.taskSpaceId
+                || (typeof candidate?.signalKey === "string"
+                  && workflowHolonTaskSpaceId(descriptor.runId, candidate.signalKey)
+                    === correlation.subscription.taskSpaceId)
               )) as any
             : undefined
           if (!handle) continue
@@ -1163,7 +1169,7 @@ export class WorkflowRuntimeService {
             ? projection.nodes.find((node: any) => node?.nodeType === "manual"
                 && node?.result?.status === "Waiting"
                 && Object.values(nestedRecord(node.inputs)).some((binding: any) => (
-                  binding?.nodeId === correlation.subscription.nodeId
+                  binding?.nodeId === recoveryScope.nodeId
                 )))
             : undefined
           if (!waiting) continue
@@ -1202,7 +1208,8 @@ export class WorkflowRuntimeService {
     if (!frozenTarget || !proof || fingerprint(proof.target) !== fingerprint(frozenTarget)) {
       throw new Error(`Holon task node ${input.nodeId} has no authentic frozen target`)
     }
-    const taskSpace = await context.taskManager.owner.readSnapshot(input.taskSpaceId)
+    const durableTaskSpaceId = await context.taskSpaceId(input.taskSpaceId)
+    const taskSpace = await context.taskManager.owner.readSnapshot(durableTaskSpaceId)
     const task = taskSpace?.tasks.find((candidate) => candidate.taskId === input.taskId)
     const taskFacts = nestedRecord(task?.profile?.facts)
     const target = normalizeHolonTaskTarget(taskFacts.target)
@@ -1222,7 +1229,7 @@ export class WorkflowRuntimeService {
       deploymentId: prepared.deployment.deploymentId,
       bindingRef: target.executionBinding.ref,
       holonRef: target.holon.rootHolonRef,
-      taskSpaceId: input.taskSpaceId,
+      taskSpaceId: durableTaskSpaceId,
       taskId: input.taskId,
       workflowInstanceId: descriptor.instanceId,
       runId: descriptor.runId,
@@ -1264,6 +1271,7 @@ export class WorkflowRuntimeService {
       || fingerprint(frozenProof.target) !== fingerprint(frozenTarget)) {
       throw new Error(`EIDOLON_HOLON_REPLAN_TARGET_PROOF_REQUIRED: ${input.nodeId}`)
     }
+    const durableTaskSpaceId = await context.taskSpaceId(input.taskSpaceId)
 
     const liveSnapshot = await this.resourceRegistry.refresh()
     const liveProjection = liveSnapshot.holonExecutionBindings.find(
@@ -1306,9 +1314,8 @@ export class WorkflowRuntimeService {
       throw new Error("EIDOLON_HOLON_REPLAN_SUCCESSOR_INSTANCE_REQUIRED: Agent or Material closure changed")
     }
 
-    const instanceRoot = path.dirname(this.depa.load(descriptor.instanceId).definitionDir)
+    const instanceRoot = this.holonTaskRuntimeComposition().scope.supportRoot
     const deploymentId = workflowHolonDeploymentId(
-      descriptor.instanceId,
       frozenTarget.executionBinding.ref,
       liveProjection.receiptBytesDigest,
     )
@@ -1339,7 +1346,7 @@ export class WorkflowRuntimeService {
       organizationSnapshots,
     }, {
       frozenSuccessorTarget: successorProof,
-      taskSpaceId: input.taskSpaceId,
+      taskSpaceId: durableTaskSpaceId,
       previousTaskId: input.previousTaskId,
       successorTaskId: input.successorTaskId,
       successorTaskName: input.successorTaskName,
@@ -1353,16 +1360,76 @@ export class WorkflowRuntimeService {
       maxRelations: 4_096,
       maxLeaseDurationMs: 24 * 60 * 60 * 1_000,
     })
+    const successorAdmission = await projectFrozenWorkflowHolonTaskAdmission({
+      proof: successorProof,
+      deployment: successorDeployment,
+      scopeRef: descriptor.runId,
+    })
+    const processorConfig = Object.freeze({
+      leaseDurationMs: 30_000,
+      maxSteps: this.options.holonPumpMaxSteps ?? 1_024,
+    })
+    const route = context.support.bind({
+      admission: successorAdmission,
+      processorConfig,
+      deploymentId,
+      contextRef: `${descriptor.runId}:${input.nodeId}:${liveProjection.receiptBytesDigest}`,
+      recoveryScope: Object.freeze({
+        kind: "workflow" as const,
+        workflowInstanceId: descriptor.instanceId,
+        runId: descriptor.runId,
+        nodeId: input.nodeId,
+      }),
+      snapshotReceiptId: replanned.successorSnapshotReceipt.issuerReceiptId as `sha256:${string}`,
+      automaticPump: () => this.holonAutomaticPumpEnabled(),
+      prepareProcessorRuntime: async (subscription) => {
+        const infrastructure = (
+          await this.workflowHolonTaskProcessorRuntime(
+            descriptor,
+            definition,
+            context,
+            input.nodeId,
+            successorTarget,
+            subscription.snapshotReceiptId,
+          )
+        ).runtime
+        return createHolonTaskProcessorRuntime(infrastructure, {
+          deploymentId,
+          workflowSessionLineage: {
+            workflowInstanceId: descriptor.instanceId,
+            runId: descriptor.runId,
+          },
+        })
+      },
+    })
+    registerHolonTaskRuntimeCapabilityBinding(
+      this.runtime.vm,
+      this.holonTaskRuntimeComposition().scope,
+      { admission: successorAdmission, route, processorConfig },
+    )
     await context.journal.subscribe({
+      admissionId: successorAdmission.admissionId,
       deploymentId,
       bindingRef: successorTarget.executionBinding.ref,
       holonRef: successorTarget.holon.rootHolonRef,
       snapshotReceiptId: replanned.successorSnapshotReceipt.issuerReceiptId,
-      taskSpaceId: input.taskSpaceId,
+      taskSpaceId: durableTaskSpaceId,
       taskId: input.successorTaskId,
-      workflowInstanceId: descriptor.instanceId,
-      runId: descriptor.runId,
-      nodeId: input.nodeId,
+      origin: {
+        kind: "workflow",
+        workflowKind: descriptor.form,
+        workflowRef: descriptor.workflowRef as `resource://${string}`,
+        runId: descriptor.runId,
+        nodeId: input.nodeId,
+        invocationId: successorTarget.invocation.invocationId,
+      },
+      recoveryScope: Object.freeze({
+        kind: "workflow" as const,
+        workflowInstanceId: descriptor.instanceId,
+        runId: descriptor.runId,
+        nodeId: input.nodeId,
+      }),
+      processorConfig,
       input: descriptor.frozenInput as import("holarchy-eidolon-adapter").ClosedValue,
       createdAt: input.replannedAt,
     })
@@ -1901,11 +1968,15 @@ export class WorkflowRuntimeService {
     const targets = discoverHolonTaskTargets(descriptor, definition)
     const entries = Object.entries(targets)
     if (entries.length === 0) return undefined
-    const instanceRoot = path.dirname(this.depa.load(descriptor.instanceId).definitionDir)
+    const composition = this.holonTaskRuntimeComposition()
+    const instanceRoot = composition.scope.supportRoot
     const deployments = new Map<string, WorkflowHolonDeployment>()
     for (const target of Object.values(targets)) {
       if (deployments.has(target.executionBinding.ref)) continue
-      const deploymentId = workflowHolonDeploymentId(descriptor.instanceId, target.executionBinding.ref)
+      const deploymentId = workflowHolonDeploymentId(
+        target.executionBinding.ref,
+        target.holon.effectiveAt,
+      )
       const materialized = await materializeHolonDeploymentDefinition({
         supportRoot: instanceRoot,
         resourceRegistry: registry,
@@ -1925,9 +1996,16 @@ export class WorkflowRuntimeService {
     for (const [nodeId, target] of entries) {
       proofs[nodeId] = await registry.freezeWorkflowHolonTaskTarget(target)
     }
-    const taskManager = Object.freeze({
-      owner: new FileTaskSpaceOwner({ root: path.join(instanceRoot, "task-spaces") }),
-    })
+    const taskManager = composition.support.taskManager
+    const journal = composition.support.journal
+    const taskSpaceId = async (authoredTaskSpaceId: string): Promise<string> => {
+      const scoped = workflowHolonTaskSpaceId(descriptor.runId, authoredTaskSpaceId)
+      const retained = (await journal.listSubscriptions(descriptor.runId)).find(
+        (subscription) => subscription.taskSpaceId === authoredTaskSpaceId
+          || subscription.taskSpaceId === scoped,
+      )
+      return retained?.taskSpaceId ?? scoped
+    }
     const organizationSnapshots = Object.freeze({
       readEffectiveSnapshot: async (input: Readonly<{ rootHolonRef: string; effectiveAt: string }>) => {
         const matches: MaterializedHolonDeploymentDefinition[] = []
@@ -1950,71 +2028,197 @@ export class WorkflowRuntimeService {
       },
     })
     const holonRuntime = Object.freeze({ taskManager, organizationSnapshots })
-    const journal = new FileHolonTaskPumpJournal({
-      supportRoot: instanceRoot,
-      faults: this.options.holonJournalFaults,
-    })
-    const openTaskWithInput = async (
-      input: Parameters<typeof openAICtrlHolonTask>[1],
-      config: Parameters<typeof openAICtrlHolonTask>[2],
-      assignmentInput: import("holarchy-eidolon-adapter").ClosedValue,
-    ) => {
-      const opened = await openAICtrlHolonTask(holonRuntime, input, config)
-      const entry = Object.entries(proofs).find(([, proof]) => fingerprint(proof) === fingerprint(input.frozenTarget))
-      const target = entry && targets[entry[0]]
-      const deployment = target && deployments.get(target.executionBinding.ref)
-      if (!entry || !target || !deployment) {
-        throw new Error("EIDOLON_HOLON_PUMP_SUBSCRIPTION_TARGET_UNRESOLVED")
-      }
-      const subscription = await journal.subscribe({
-        deploymentId: deployment.deploymentId,
-        bindingRef: target.executionBinding.ref,
-        holonRef: target.holon.rootHolonRef,
-        snapshotReceiptId: opened.snapshotReceipt.issuerReceiptId,
-        taskSpaceId: input.taskSpaceId,
-        taskId: input.taskId,
-        workflowInstanceId: descriptor.instanceId,
-        runId: descriptor.runId,
-        nodeId: entry[0],
-        input: assignmentInput,
-        createdAt: input.createdAt,
+    const admissions: Record<string, Awaited<ReturnType<typeof projectFrozenWorkflowHolonTaskAdmission>>> = Object.create(null)
+    let context!: WorkflowHolonTaskContext
+    for (const [nodeId, proof] of Object.entries(proofs)) {
+      const target = targets[nodeId]!
+      const deployment = deployments.get(target.executionBinding.ref)
+      if (!deployment) throw new Error("EIDOLON_HOLON_DEPLOYMENT_REQUIRED")
+      const admission = await projectFrozenWorkflowHolonTaskAdmission({
+        proof,
+        deployment: deployment.definition,
+        scopeRef: descriptor.runId,
       })
-      return Object.freeze({ opened, subscription })
+      admissions[nodeId] = admission
+      const route = composition.support.bind({
+        admission,
+        processorConfig: {
+          leaseDurationMs: 30_000,
+          maxSteps: this.options.holonPumpMaxSteps ?? 1_024,
+        },
+        deploymentId: deployment.deploymentId,
+        contextRef: `${descriptor.runId}:${nodeId}`,
+        recoveryScope: Object.freeze({
+          kind: "workflow" as const,
+          workflowInstanceId: descriptor.instanceId,
+          runId: descriptor.runId,
+          nodeId,
+        }),
+        snapshotReceiptId: deployment.definition.definition.snapshotReceiptDigest,
+        automaticPump: () => this.holonAutomaticPumpEnabled(),
+        openTask: async (input) => {
+          const opened = await openAICtrlHolonTask({
+            taskManager,
+            organizationSnapshots,
+          }, {
+            frozenTarget: proof,
+            commandId: input.commandId,
+            taskSpaceId: input.taskSpaceId,
+            taskId: input.taskId,
+            taskName: input.taskName,
+            createdAt: input.invocation.occurredAt,
+          }, {
+            maxTasks: 1_024,
+            maxRelations: 4_096,
+            maxLeaseDurationMs: 24 * 60 * 60 * 1_000,
+          })
+          return Object.freeze({
+            replayed: opened.replayed,
+            snapshotReceipt: Object.freeze({
+              ...opened.snapshotReceipt,
+              schemaVersion: "eidolon.holon-task-snapshot-receipt/v1" as const,
+            }),
+          })
+        },
+        prepareProcessorRuntime: async (subscription) => {
+          const infrastructure = (
+            await this.workflowHolonTaskProcessorRuntime(
+            descriptor,
+            definition,
+            context,
+            nodeId,
+            target,
+            subscription.snapshotReceiptId,
+            )
+          ).runtime
+          return createHolonTaskProcessorRuntime(infrastructure, {
+            deploymentId: deployment.deploymentId,
+            workflowSessionLineage: {
+              workflowInstanceId: descriptor.instanceId,
+              runId: descriptor.runId,
+            },
+          })
+        },
+      })
+      const registered = registerHolonTaskRuntimeCapabilityBinding(
+        this.runtime.vm,
+        composition.scope,
+        {
+          admission,
+          route,
+          processorConfig: {
+            leaseDurationMs: 30_000,
+            maxSteps: this.options.holonPumpMaxSteps ?? 1_024,
+          },
+        },
+      )
+      if (registered.serviceRuntimeRef !== composition.capability.serviceRuntimeRef) {
+        throw new Error("EIDOLON_HOLON_TASK_WORKFLOW_SERVICE_OWNER_MISMATCH")
+      }
     }
-    const context: WorkflowHolonTaskContext = Object.freeze({
+    context = Object.freeze({
       proofs: Object.freeze(proofs),
       targets,
       taskManager,
       journal,
+      support: composition.support,
       deployments,
       organizationSnapshots,
+      taskSpaceId,
       proofForNode: (nodeId: string) => {
         const proof = proofs[nodeId]
         if (!proof) throw new Error(`EIDOLON_HOLON_TARGET_PROOF_REQUIRED: ${nodeId}`)
         return proof
       },
-      openTask: async (input, config) => {
-        return (await openTaskWithInput(
-          input,
-          config,
-          descriptor.frozenInput as import("holarchy-eidolon-adapter").ClosedValue,
-        )).opened
+      openTask: async (input, _config) => {
+        const entry = Object.entries(proofs).find(([, proof]) => (
+          fingerprint(proof) === fingerprint(input.frozenTarget)
+        ))
+        const nodeId = entry?.[0]
+        const target = nodeId ? targets[nodeId] : undefined
+        const admission = nodeId ? admissions[nodeId] : undefined
+        if (!nodeId || !target || !admission) {
+          throw new Error("EIDOLON_HOLON_TASK_WORKFLOW_ADMISSION_UNRESOLVED")
+        }
+        const durableTaskSpaceId = await taskSpaceId(input.taskSpaceId)
+        const accepted = await assignHolonTaskThroughMountedCapability(
+          this.runtime.vm,
+          { kind: "admission", admissionId: admission.admissionId },
+          {
+            kind: "holon-task-runtime-invocation",
+            schemaVersion: "eidolon.holon-task-runtime-invocation/v1",
+            requestId: `${descriptor.runId}:${nodeId}:${input.commandId}`,
+            idempotencyKey: `${descriptor.runId}:${nodeId}:${input.commandId}`,
+            replyMode: "none",
+            occurredAt: input.createdAt,
+            origin: {
+              kind: "workflow",
+              workflowKind: target.invocation.workflowKind,
+              workflowRef: target.invocation.workflowRef,
+              runId: descriptor.runId,
+              nodeId,
+              invocationId: target.invocation.invocationId,
+            },
+            taskRequest: {
+              kind: "exact",
+              identity: {
+                taskSpaceId: durableTaskSpaceId,
+                taskId: input.taskId,
+                commandId: input.commandId,
+              },
+              name: input.taskName,
+            },
+            input: descriptor.frozenInput as import("holarchy-eidolon-adapter").ClosedValue,
+          },
+        )
+        const snapshot = await taskManager.owner.readSnapshot(accepted.task.taskSpaceId)
+        const receipt = await taskManager.owner.readReceiptByCommand(
+          accepted.task.taskSpaceId,
+          accepted.task.commandId,
+        )
+        if (!snapshot || !receipt || receipt.kind !== "task-transition-receipt") {
+          throw new Error("EIDOLON_HOLON_TASK_WORKFLOW_OPEN_PROJECTION_MISSING")
+        }
+        return Object.freeze({
+          snapshot,
+          receipt,
+          snapshotReceipt: Object.freeze({
+            ...accepted.task.snapshotReceipt,
+            schemaVersion: "ai-workflow.holon-task-snapshot-receipt/v1" as const,
+          }),
+          created: !accepted.task.replayed,
+          replayed: accepted.task.replayed,
+        })
       },
-      openAssignmentTask: openTaskWithInput,
       observeTask: async (input, config) => {
-        const observed = await observeAICtrlHolonTask(holonRuntime, input, config)
+        const durableInput = Object.freeze({
+          ...input,
+          taskSpaceId: await taskSpaceId(input.taskSpaceId),
+        })
+        const observed = await observeAICtrlHolonTask(holonRuntime, durableInput, config)
         if (observed.kind !== "waiting") return observed
-        const terminal = await terminalTaskSettlement(taskManager.owner, input.taskSpaceId, input.taskId)
+        const terminal = await terminalTaskSettlement(
+          taskManager.owner,
+          durableInput.taskSpaceId,
+          durableInput.taskId,
+        )
         return terminal
           ? Object.freeze({ kind: "settled" as const, ...terminal })
           : observed
       },
-      replanTask: (input, config) => replanAICtrlHolonTask(holonRuntime, input, config),
+      replanTask: async (input, config) => replanAICtrlHolonTask(holonRuntime, {
+        ...input,
+        taskSpaceId: await taskSpaceId(input.taskSpaceId),
+      }, config),
       consumeTask: async (input, config) => {
+        const durableInput = Object.freeze({
+          ...input,
+          taskSpaceId: await taskSpaceId(input.taskSpaceId),
+        })
         const authority = await this.workflowHolonConsumptionAuthority(
           descriptor,
           context,
-          input,
+          durableInput,
         )
         const consumptionRuntime = {
           taskManager,
@@ -2026,7 +2230,7 @@ export class WorkflowRuntimeService {
         }
         try {
           return await consumeAIDataHolonTask(consumptionRuntime, {
-            ...input,
+            ...durableInput,
             frozenTarget: authority.proof,
             taskId: authority.taskId,
             settlementCommandId: authority.settlementCommandId,
@@ -2036,7 +2240,7 @@ export class WorkflowRuntimeService {
           const terminal = await terminalTaskSettlement(taskManager.owner, input.taskSpaceId, authority.taskId)
           if (!terminal) throw error
           return consumeAIDataHolonTask(consumptionRuntime, {
-            ...input,
+            ...durableInput,
             frozenTarget: authority.proof,
             taskId: authority.taskId,
             settlementCommandId: terminal.receipt.commandId,
@@ -2045,165 +2249,35 @@ export class WorkflowRuntimeService {
       },
     })
     this.holonContexts.set(descriptor.runId, context)
-    for (const [nodeId, proof] of Object.entries(proofs)) {
-      const target = targets[nodeId]!
-      const authorityId = fingerprint({
-        kind: "eidolon.canonical-holon-assignment-authority/v1",
-        workflowInstanceId: descriptor.instanceId,
-        runId: descriptor.runId,
-        nodeId,
-        semanticFingerprint: proof.semanticFingerprint,
-      })
-      registerCanonicalHolonAssignmentAuthority(this.runtime.vm, Object.freeze({
-        authorityId,
-        rootHolonRef: target.holon.rootHolonRef,
-        assign: (request: CanonicalHolonAssignmentRequest) => this.assignCanonicalHolonTask(
-          descriptor,
-          definition,
-          context,
-          nodeId,
-          authorityId,
-          request,
-        ),
-      }))
-    }
     return context
   }
 
-  private async assignCanonicalHolonTask(
-    descriptor: WorkflowRunDescriptor,
-    definition: ResolvedWorkflowDefinition,
-    context: WorkflowHolonTaskContext,
-    nodeId: string,
-    authorityId: string,
-    request: CanonicalHolonAssignmentRequest,
-  ): Promise<CanonicalHolonAssignmentReceipt> {
-    const frozenTarget = context.proofs[nodeId]
-    const target = context.targets[nodeId]
-    if (!frozenTarget || !target) {
-      throw new Error("EIDOLON_CANONICAL_HOLON_ASSIGNMENT_TARGET_MISSING")
-    }
-    // The facade already resolves VM aliases. This second check prevents a
-    // stale/misbound capability from crossing its frozen root Holon.
-    const organization = getOrganizationManager().getHolon(this.runtime.vm, request.holonId)
-    const rawTarget = request.target.includes(":")
-      ? request.target.slice(request.target.indexOf(":") + 1)
-      : request.target
-    if (!organization || ![
-      organization.name,
-      organization.holonId,
-      rawTarget,
-    ].includes(target.holon.rootHolonRef)) {
-      throw new Error("EIDOLON_CANONICAL_HOLON_ASSIGNMENT_TARGET_MISMATCH")
-    }
-    const assignmentId = request.requestId ?? randomUUID()
-    const identity = createHash("sha256")
-      .update(JSON.stringify([authorityId, assignmentId]))
-      .digest("hex")
-      .slice(0, 40)
-    const taskSpaceId = `holon-assignment-space-${identity}`
-    const taskId = `holon-assignment-${identity}`
-    const existingTaskSpace = await context.taskManager.owner.readSnapshot(taskSpaceId)
-    const createdAt = existingTaskSpace?.createdAt ?? new Date().toISOString()
-    const { opened, subscription } = await context.openAssignmentTask({
-      frozenTarget,
-      commandId: `open-${identity}`,
-      taskSpaceId,
-      taskId,
-      taskName: request.content.slice(0, 120) || "Holon assignment",
-      createdAt,
-    }, {
-      maxTasks: 1_024,
-      maxRelations: 4_096,
-      maxLeaseDurationMs: 24 * 60 * 60 * 1_000,
-    }, {
-      content: request.content,
-      replyMode: request.mode,
-      target: target.holon.rootHolonRef,
+  private holonTaskRuntimeComposition() {
+    const runtimeMetadata = metadata(this.runtime)
+    const outer = this.runtime.vm.outerCtx as { workDir?: unknown } | undefined
+    const workspaceRoot = typeof outer?.workDir === "string" && path.isAbsolute(outer.workDir)
+      ? outer.workDir
+      : this.workspace.store.rootPath
+    const sessionDir = typeof runtimeMetadata.sessionDir === "string"
+      && path.isAbsolute(runtimeMetadata.sessionDir)
+      ? runtimeMetadata.sessionDir
+      : path.dirname(this.supportRoot)
+    const scope = Object.freeze({
+      supportRoot: path.join(sessionDir, "holon-task-runtime"),
+      registryRef: `resource://eidolon.effective-resource-registry/${createHash("sha256")
+        .update(workspaceRoot)
+        .digest("hex")}` as const,
     })
-    const prepared = await this.workflowHolonTaskProcessorRuntime(
-      descriptor,
-      definition,
-      context,
-      nodeId,
-      target,
-      opened.snapshotReceipt.issuerReceiptId,
-    )
-    const coordinatorKey = `${prepared.deployment.deploymentId}\u0000${target.holon.rootHolonRef}`
-    const coordinators = this.holonCoordinatorActors()
-    let coordinator = coordinators.get(coordinatorKey)
-    if (!coordinator) {
-      coordinator = new HolonTaskSpaceCoordinatorActor({
-        deploymentId: prepared.deployment.deploymentId,
-        holonRef: target.holon.rootHolonRef,
-      }, {
-        maxTasks: 1_024,
-        maxRelations: 4_096,
-        maxLeaseDurationMs: 24 * 60 * 60 * 1_000,
-      })
-      coordinators.set(coordinatorKey, coordinator)
-    }
-    const pumpInput = {
-      subscription,
-      leaseDurationMs: 30_000,
-      maxSteps: this.options.holonPumpMaxSteps ?? 1_024,
-      observedAt: createdAt,
-    } as const
-    if (request.mode !== "final") {
-      const schedulePump = (): void => coordinator.scheduleWake(pumpInput, async () => {
-        const before = await terminalTaskSettlement(context.taskManager.owner, taskSpaceId, taskId)
-        if (before) return
-        const pumped = await coordinator.wake(prepared.runtime, {
-          ...pumpInput,
-          observedAt: new Date().toISOString(),
-        })
-        const after = await terminalTaskSettlement(context.taskManager.owner, taskSpaceId, taskId)
-        if (!after && (pumped.status === "waiting" || pumped.status === "yielded")) schedulePump()
-      }, this.options.holonPumpWaitingProbeMs ?? 100)
-      schedulePump()
-      return Object.freeze({
-        ok: true,
-        accepted: true,
-        authority_id: authorityId,
-        workflow_run_id: descriptor.runId,
-        workflow_instance_id: descriptor.instanceId,
-        node_id: nodeId,
-        task_space_id: taskSpaceId,
-        task_id: taskId,
-        open_receipt_id: opened.receipt.receiptId,
-        snapshot_receipt_id: opened.snapshotReceipt.issuerReceiptId,
-        subscription_id: subscription.subscriptionId,
-        reply_mode: request.mode,
-        completion_status: request.mode === "none" ? "not_requested" : "waiting",
-        settlement_receipt_id: null,
-        terminal_status: null,
-      })
-    }
-
-    const pumped = await coordinator.wake(prepared.runtime, pumpInput)
-    const terminal = await terminalTaskSettlement(context.taskManager.owner, taskSpaceId, taskId)
-    if (pumped.status === "terminal" && !terminal) {
-      throw new Error(`EIDOLON_CANONICAL_HOLON_TERMINAL_SETTLEMENT_MISSING: ${taskSpaceId}/${taskId}`)
-    }
-    return Object.freeze({
-      ok: true,
-      accepted: true,
-      authority_id: authorityId,
-      workflow_run_id: descriptor.runId,
-      workflow_instance_id: descriptor.instanceId,
-      node_id: nodeId,
-      task_space_id: taskSpaceId,
-      task_id: taskId,
-      open_receipt_id: opened.receipt.receiptId,
-      snapshot_receipt_id: opened.snapshotReceipt.issuerReceiptId,
-      subscription_id: subscription.subscriptionId,
-      reply_mode: request.mode,
-      completion_status: terminal
-        ? "settled"
-        : pumped.status === "waiting" ? "waiting" : "yielded",
-      settlement_receipt_id: terminal?.receipt.receiptId ?? null,
-      terminal_status: terminal?.receipt.status ?? null,
+    const capability = bootstrapLocalHolonTaskRuntime({ vm: this.runtime.vm, ...scope })
+    const support = mountLocalWorkflowHolonTaskRuntimeSupport({
+      vm: this.runtime.vm,
+      supportRoot: scope.supportRoot,
+      options: {
+        journalFaults: this.options.holonJournalFaults,
+        waitingProbeMs: this.options.holonPumpWaitingProbeMs,
+      },
     })
+    return Object.freeze({ scope, capability, support })
   }
 
   private async workflowHolonDeploymentForTask(
@@ -2214,9 +2288,8 @@ export class WorkflowRuntimeService {
   ): Promise<WorkflowHolonDeployment> {
     const initial = context.deployments.get(target.executionBinding.ref)
     if (initial?.definition.definition.snapshotReceiptDigest === issuerReceiptId) return initial
-    const instanceRoot = path.dirname(this.depa.load(descriptor.instanceId).definitionDir)
+    const instanceRoot = this.holonTaskRuntimeComposition().scope.supportRoot
     const deploymentId = workflowHolonDeploymentId(
-      descriptor.instanceId,
       target.executionBinding.ref,
       issuerReceiptId,
     )
@@ -2492,13 +2565,6 @@ export class WorkflowRuntimeService {
   private holonAutomaticPumpEnabled(): boolean {
     const workflow = nestedRecord(metadata(this.runtime).aiWorkflow)
     return workflow.holonAutomaticPump !== false
-  }
-
-  private holonCoordinatorActors(): Map<string, HolonTaskSpaceCoordinatorActor> {
-    return this.runtime.vm.actorRuntime.ensureFacet(
-      "eidolon.holon-task-space-coordinator-actors/v1",
-      () => new Map<string, HolonTaskSpaceCoordinatorActor>(),
-    )
   }
 
   private frozenAgentRegistry(instanceId: string): EidolonAppResourceRegistryAdapter | undefined {

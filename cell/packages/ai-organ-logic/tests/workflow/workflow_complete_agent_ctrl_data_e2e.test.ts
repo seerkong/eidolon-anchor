@@ -27,6 +27,10 @@ import {
   runWorkflowNativeHostCommand,
 } from "../../src/workflow"
 import { WorkflowRuntimeService } from "../../src/workflow/runtime"
+import {
+  depaAIResourceKindContract,
+  type DepaAIResourceKind,
+} from "ai-workflow-contract"
 
 const fixtureRoot = path.join(import.meta.dir, "fixtures", "resource-native-authoring-package")
 const temporaryRoots: string[] = []
@@ -51,15 +55,12 @@ afterEach(async () => {
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
 
-const kindDefinition = (kind: string) => `<KindDefinition #eidolon.fixture.kind.${kind} apiVersion="halfcode.resources/v1" version="1.0.0" {
-  lifecycle = "Stable" resourceKind = "${kind}" sourceShapes = ["single-file"]
-  currentApiVersion = "depa.flows/v1" supportedApiVersions = ["depa.flows/v1"]
-}>
-`
+const kindDefinition = (kind: DepaAIResourceKind) => depaAIResourceKindContract(kind).kindDefinitionSource
 
-const completeManifest = `<ResourcePackage #eidolon.fixture.resource_native_authoring apiVersion="halfcode.resources/v1" version="1.0.0" {
+const completeManifest = `<ResourcePackage #eidolon.fixture.resource_native_authoring envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Active"
   description = "Complete ResourcePackage fixture for whole-package authoring"
+  packageVersion = "1.0.0"
 } (
   <Catalogs [
     <Catalog #kind_definitions { kind = "KindDefinition" shape = "directory" root = "vfs://./KindDefinitions/" entry = "manifest.xnl" }>
@@ -72,13 +73,13 @@ const completeManifest = `<ResourcePackage #eidolon.fixture.resource_native_auth
     <Catalog #schemas { kind = "MessageSchema" shape = "single-file" root = "vfs://./Schemas/" }>
     <Catalog #policies { kind = "EffectPolicy" shape = "single-file" root = "vfs://./Policies/" }>
     <Catalog #ports { kind = "MaterialPort" shape = "single-file" root = "vfs://./Ports/" }>
-    <Catalog #materials { kind = "ArticleMaterial" shape = "single-file" root = "vfs://./Materials/" }>
+    <Catalog #materials { kind = "ContextMaterial" shape = "single-file" root = "vfs://./Materials/" }>
     <Catalog #bindings { kind = "MaterialBinding" shape = "single-file" root = "vfs://./Bindings/" }>
   ]>
 )>
 `
 
-const app = `<AIWorkflowAppBundle #eidolon.fixture.SummaryApp apiVersion="depa.flows/v1" version="1.0.0" {
+const app = `<AIWorkflowAppBundle #eidolon.fixture.SummaryApp envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Active" description = "Complete Agent Ctrl/Data app"
 } (
   <WorkflowBindings [
@@ -88,7 +89,7 @@ const app = `<AIWorkflowAppBundle #eidolon.fixture.SummaryApp apiVersion="depa.f
 )>
 `
 
-const agent = `<AIAgentDefinition #eidolon.fixture.SummaryAgent apiVersion="depa.flows/v1" version="1.0.0" {
+const agent = `<AIAgentDefinition #eidolon.fixture.SummaryAgent envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Active" description = "Exact reusable summary Agent"
 } (
   <MessagePrefix [
@@ -105,7 +106,7 @@ const agent = `<AIAgentDefinition #eidolon.fixture.SummaryAgent apiVersion="depa
 )>
 `
 
-const ctrlWorkflow = `<AICtrlWorkflow #eidolon.fixture.SummaryWorkflow apiVersion="depa.flows/v1" version="1.0.0" (
+const ctrlWorkflow = `<AICtrlWorkflow #eidolon.fixture.SummaryWorkflow envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 (
   <FlowContract #eidolon.fixture.SummaryWorkflow>
   <StepSpaceRef { src = "step-space/step-space.xnl" }>
 )>
@@ -135,7 +136,7 @@ const ctrlSteps = {
   done: `<Step #done (<Core [<Return #done>]>)>`,
 } as const
 
-const dataWorkflow = `<AIDataWorkflow #eidolon.fixture.SummaryDataWorkflow apiVersion="depa.flows/v1" version="1.0.0" (
+const dataWorkflow = `<AIDataWorkflow #eidolon.fixture.SummaryDataWorkflow envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 (
   <FlowContract #eidolon.fixture.SummaryDataWorkflow { inputPorts = ["topic"] outputPorts = ["summary"] }>
   <StepSpaceRef { src = "step-space/step-space.xnl" }>
 )>
@@ -246,45 +247,45 @@ export async function targetAgentById(runtime: any, input: any, config: Record<s
 }
 `
 
-const ctrlBinding = `<MaterialBinding #eidolon.fixture.ArticleBinding apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
+const ctrlBinding = `<MaterialBinding #eidolon.fixture.ArticleBinding envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" } (
   <AgentTaskRef { workflowKind = "AICtrlWorkflow" workflowRef = "resource://eidolon.fixture.SummaryWorkflow" nodeId = "summarize" agentDefinitionRef = "resource://eidolon.fixture.SummaryAgent" }>
   <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.ArticlePort" }>
-  <MaterialRef { kind = "ArticleMaterial" ref = "resource://eidolon.fixture.Article" }>
+  <MaterialRef { kind = "ContextMaterial" ref = "resource://eidolon.fixture.Article" }>
 )>
 `
 
-const dataBinding = `<MaterialBinding #eidolon.fixture.DataArticleBinding apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
+const dataBinding = `<MaterialBinding #eidolon.fixture.DataArticleBinding envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" } (
   <AgentTaskRef { workflowKind = "AIDataWorkflow" workflowRef = "resource://eidolon.fixture.SummaryDataWorkflow" nodeId = "transform" agentDefinitionRef = "resource://eidolon.fixture.SummaryAgent" }>
   <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.ArticlePort" }>
-  <MaterialRef { kind = "ArticleMaterial" ref = "resource://eidolon.fixture.Article" }>
+  <MaterialRef { kind = "ContextMaterial" ref = "resource://eidolon.fixture.Article" }>
 )>
 `
 
-const dataTargetByNameBinding = `<MaterialBinding #eidolon.fixture.DataArticleByNameBinding apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
+const dataTargetByNameBinding = `<MaterialBinding #eidolon.fixture.DataArticleByNameBinding envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" } (
   <AgentTaskRef { workflowKind = "AIDataWorkflow" workflowRef = "resource://eidolon.fixture.SummaryDataWorkflow" nodeId = "refine-data-by-name" agentDefinitionRef = "resource://eidolon.fixture.SummaryAgent" }>
   <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.ArticlePort" }>
-  <MaterialRef { kind = "ArticleMaterial" ref = "resource://eidolon.fixture.Article" }>
+  <MaterialRef { kind = "ContextMaterial" ref = "resource://eidolon.fixture.Article" }>
 )>
 `
 
-const dataTargetByIdBinding = `<MaterialBinding #eidolon.fixture.DataArticleByIdBinding apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
+const dataTargetByIdBinding = `<MaterialBinding #eidolon.fixture.DataArticleByIdBinding envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" } (
   <AgentTaskRef { workflowKind = "AIDataWorkflow" workflowRef = "resource://eidolon.fixture.SummaryDataWorkflow" nodeId = "refine-data-by-id" agentDefinitionRef = "resource://eidolon.fixture.SummaryAgent" }>
   <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.ArticlePort" }>
-  <MaterialRef { kind = "ArticleMaterial" ref = "resource://eidolon.fixture.Article" }>
+  <MaterialRef { kind = "ContextMaterial" ref = "resource://eidolon.fixture.Article" }>
 )>
 `
 
-const ctrlTargetByNameBinding = `<MaterialBinding #eidolon.fixture.ArticleByNameBinding apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
+const ctrlTargetByNameBinding = `<MaterialBinding #eidolon.fixture.ArticleByNameBinding envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" } (
   <AgentTaskRef { workflowKind = "AICtrlWorkflow" workflowRef = "resource://eidolon.fixture.SummaryWorkflow" nodeId = "refine-by-name" agentDefinitionRef = "resource://eidolon.fixture.SummaryAgent" }>
   <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.ArticlePort" }>
-  <MaterialRef { kind = "ArticleMaterial" ref = "resource://eidolon.fixture.Article" }>
+  <MaterialRef { kind = "ContextMaterial" ref = "resource://eidolon.fixture.Article" }>
 )>
 `
 
-const ctrlTargetByIdBinding = `<MaterialBinding #eidolon.fixture.ArticleByIdBinding apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
+const ctrlTargetByIdBinding = `<MaterialBinding #eidolon.fixture.ArticleByIdBinding envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" } (
   <AgentTaskRef { workflowKind = "AICtrlWorkflow" workflowRef = "resource://eidolon.fixture.SummaryWorkflow" nodeId = "refine-by-id" agentDefinitionRef = "resource://eidolon.fixture.SummaryAgent" }>
   <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.ArticlePort" }>
-  <MaterialRef { kind = "ArticleMaterial" ref = "resource://eidolon.fixture.Article" }>
+  <MaterialRef { kind = "ContextMaterial" ref = "resource://eidolon.fixture.Article" }>
 )>
 `
 
@@ -311,7 +312,7 @@ describe("complete AIAgentDefinition Ctrl/Data product integration", () => {
         { kind: "update", path: "/work/Apps/Summary.xnl", content: app },
         { kind: "update", path: "/work/Agents/Summary.xnl", content: agent },
         { kind: "add", path: "/work/KindDefinitions/AgentContextPipeline/manifest.xnl", content: kindDefinition("AgentContextPipeline") },
-        { kind: "add", path: "/work/ContextPipelines/StandardContext.xnl", content: `<AgentContextPipeline #eidolon.fixture.StandardContext apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" description = "Canonical Eidolon context pipeline" } (\n  <Content ?>{"implementation":"eidolon.standard-context-pipeline/v1","stages":["prompt-plan","conversation-prelude","provider-context-facts-at-history-anchors","stable-message-prefix","conversation-boundary-overlays","provider-conversion"]}</?>\n)>` },
+        { kind: "add", path: "/work/ContextPipelines/StandardContext.xnl", content: `<AgentContextPipeline #eidolon.fixture.StandardContext envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" description = "Canonical Eidolon context pipeline" } (\n  <Content ?>{"implementation":"eidolon.standard-context-pipeline/v1","stages":["prompt-plan","conversation-prelude","provider-context-facts-at-history-anchors","stable-message-prefix","conversation-boundary-overlays","provider-conversion"]}</?>\n)>` },
         { kind: "update", path: "/work/Workflows/Summary.xnl", content: ctrlWorkflow },
         { kind: "add", path: "/work/Workflows/step-space/step-space.xnl", content: ctrlStepSpace },
         ...Object.entries(ctrlSteps).map(([stepId, content]) => ({
@@ -338,9 +339,9 @@ describe("complete AIAgentDefinition Ctrl/Data product integration", () => {
         { kind: "add", path: "/work/DataWorkflows/step-space/unreferenced-malformed.xnl", content: `<not-valid` },
         { kind: "add", path: "/work/DataWorkflows/step-space/unreferenced-sibling.xnl", content: `<AIDataWorkflow #eidolon.fixture.Unreferenced apiVersion="depa.flows/v1" version="1.0.0" (<FlowContract #eidolon.fixture.Unreferenced { inputPorts = ["input"] outputPorts = ["output"] }>) [<EntryNode #entry> <ReturnNode #return { inputs = { output = "flow-port://#entry/input" } }>]>` },
         { kind: "add", path: "/work/DataWorkflows/flow-code/agent.ts", content: flowCode },
-        { kind: "add", path: "/work/Schemas/Input.xnl", content: `<MessageSchema #eidolon.fixture.InputSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" } }>` },
-        { kind: "add", path: "/work/Schemas/Output.xnl", content: `<MessageSchema #eidolon.fixture.OutputSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" properties = { summary = { type = "string" } } required = ["summary"] additionalProperties = false } }>` },
-        { kind: "add", path: "/work/Policies/DeclaredOnly.xnl", content: `<EffectPolicy #eidolon.fixture.DeclaredOnlyPolicy apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" toolMode = "declared-only" }>` },
+        { kind: "add", path: "/work/Schemas/Input.xnl", content: `<MessageSchema #eidolon.fixture.InputSchema envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" schema = { type = "object" } }>` },
+        { kind: "add", path: "/work/Schemas/Output.xnl", content: `<MessageSchema #eidolon.fixture.OutputSchema envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" schema = { type = "object" properties = { summary = { type = "string" } } required = ["summary"] additionalProperties = false } }>` },
+        { kind: "add", path: "/work/Policies/DeclaredOnly.xnl", content: `<EffectPolicy #eidolon.fixture.DeclaredOnlyPolicy envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" toolMode = "declared-only" }>` },
         { kind: "add", path: "/work/Bindings/DataArticle.xnl", content: dataBinding },
         { kind: "add", path: "/work/Bindings/DataArticleByName.xnl", content: dataTargetByNameBinding },
         { kind: "add", path: "/work/Bindings/DataArticleById.xnl", content: dataTargetByIdBinding },

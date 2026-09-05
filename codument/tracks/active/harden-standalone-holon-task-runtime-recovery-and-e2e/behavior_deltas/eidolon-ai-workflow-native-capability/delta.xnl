@@ -1,0 +1,17 @@
+<BehaviorPatch #track.harden-standalone-holon-task-runtime-recovery-and-e2e.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/holon-task-runtime-recovery-compatibility" } (
+      <Requirement #holon-task-runtime-recovery-compatibility (
+        <Statement ?>Ctrl/Data Workflow SHALL remain a compatibility adapter over the standalone Holon task owner; legacy Workflow profiles/subscriptions SHALL decode into the neutral processor while new product recovery SHALL contain no Workflow-only required fields.</?>
+        <Suites [
+          <Suite #compatibility { name = "Holon runtime compatibility" } (
+            <Cases [
+              <Case #legacy-profile (<Given ?>a persisted depa.ai.organization-task TaskSpace exists</?> <When ?>the new host recovers it</?> <Then ?>one compatibility decoder SHALL authenticate and pump it through the canonical processor</?> )>
+              <Case #workflow-observer (<Given ?>Ctrl/Data opened a task through the shared service</?> <When ?>it resumes or consumes output</?> <Then ?>the checkpoint SHALL observe canonical settlement/material receipts rather than own task status</?> )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -1,0 +1,52 @@
+<decision #standalone-runtime-authority-boundary apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?01M1ME0E24MQ5FDMTMPR7D9366>
+  独立 Holon task execution 的 canonical composition authority 应当位于哪里，如何与现有 Workflow HolonTaskTarget 共存？
+  </?01M1ME0E24MQ5FDMTMPR7D9366>
+  <recommendation ?01M1ME0E24MQ5FDMTMPR7D9367>
+  在 ai-organ 中建立中立 HolonTaskRuntimeService 与 Halfcode runtime definition；Workflow HolonTaskTarget 保持 adapter DTO，由 WorkflowRuntimeService 映射并委托同一服务。不要泛化 depa-flows 的 Workflow contract，也不要恢复 VM TaskTree。
+  </?01M1ME0E24MQ5FDMTMPR7D9367>
+  <options {  } [
+    <option { key = "A" recommended = true } (
+      <title ?01M1ME0E24MQ5FDMTMPR7D9368>
+      ai-organ 中立服务 + Workflow 薄适配
+      </?01M1ME0E24MQ5FDMTMPR7D9368>
+      <description ?01M1ME0E24MQ5FDMTMPR7D9369>
+      TaskSpace、pump、deployment、MemberRuntime 和 actor runtime 的成熟链路由一个独立服务装配；产品 Holon/member assign 与 Ctrl/Data Workflow 共用该服务。Workflow lineage 仅是 origin metadata。
+      </?01M1ME0E24MQ5FDMTMPR7D9369>
+      <tradeoff ?01M1ME0E24MQ5FDMTMPR7D936A>
+      需要引入中立 resource/admission contract，并为历史 Workflow profile/subscription 提供一次显式兼容归一化。
+      </?01M1ME0E24MQ5FDMTMPR7D936A>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?01M1ME0E24MQ5FDMTMPR7D936B>
+      把 depa-flows HolonTaskTarget 泛化为全局目标
+      </?01M1ME0E24MQ5FDMTMPR7D936B>
+      <description ?01M1ME0E24MQ5FDMTMPR7D936C>
+      直接修改 ai-workflow-contract，使 invocation 不再要求 Workflow identity，再由各入口复用同一个 DTO。
+      </?01M1ME0E24MQ5FDMTMPR7D936C>
+      <tradeoff ?01M1ME0E24MQ5FDMTMPR7D936D>
+      让 Workflow 包拥有组织运行时的通用语言，反转 dependency ownership；同时会碰撞正在演进的 depa-flows 工作树，并把 adapter contract 误当核心 contract。
+      </?01M1ME0E24MQ5FDMTMPR7D936D>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?01M1RBFG8GCSH7XWS9WJA1R2P7>
+    采用 ai-organ 中立服务 + Workflow 薄适配。
+    </?01M1RBFG8GCSH7XWS9WJA1R2P7>
+    <decision-text ?01M1RBFG8GCSH7XWS9WJA1R2P8>
+    `HolonTaskRuntimeService` 与中立 runtime definition/admission 由 ai-organ 拥有；产品 assign 和 Ctrl/Data Workflow 共享同一服务。Workflow `HolonTaskTarget` 保持 adapter contract，旧 VM TaskTree 不恢复。
+    </?01M1RBFG8GCSH7XWS9WJA1R2P8>
+    <rationale ?01M1RBFG8GCSH7XWS9WJA1R2P9>
+    这既延续已经验证的 TaskSpace/pump/MemberRuntime authority，又消除 Workflow 作为底层组织执行能力前置条件的反向依赖。
+    </?01M1RBFG8GCSH7XWS9WJA1R2P9>
+    <evidence ?01M1RBFG8GCSH7XWS9WJA1R2PA>
+    用户明确要求 Holon + TaskSpace 可脱离 AI Workflow 单独派发；归档 Mission `local-file-single-node-holon-task-actor-runtime`；归档 Track `retire-vm-autonomous-holon-tasktree`；当前 `WorkflowRuntimeService.workflowHolonContext()` 与 `CanonicalHolonAssignmentFacade` 代码。
+    </?01M1RBFG8GCSH7XWS9WJA1R2PA>
+  )>
+  <confidence ?01M1RBFG8GCSH7XWS9WJA1R2PB>
+  high
+  </?01M1RBFG8GCSH7XWS9WJA1R2PB>
+  <reversibility ?01M1RBFG8GCSH7XWS9WJA1R2PC>
+  moderate
+  </?01M1RBFG8GCSH7XWS9WJA1R2PC>
+)>

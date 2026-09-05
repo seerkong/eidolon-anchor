@@ -12,6 +12,7 @@
   "dependencies": {
     "@cell/ai-core-contract": "workspace:*",
     "@shared/composer": "workspace:*",
-    "holarchy-eidolon-adapter": "0.1.1"
+    "halfcode-compiler.xnl": "0.3.0",
+    "holarchy-eidolon-adapter": "0.2.0"
   }
 }

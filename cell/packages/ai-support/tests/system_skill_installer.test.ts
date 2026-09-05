@@ -122,7 +122,6 @@ describe("bundled system skills", () => {
     expect(generated).toMatchObject({
       version: "1.0.0",
       source: "halfcode-distribution",
-      apiVersion: "halfcode.resources/v1",
       capsuleFqn: "Halfcode.ResourceDsl.Skill.System",
       closureDigest: plan.closureDigest,
       fileCount: planned?.files.length,

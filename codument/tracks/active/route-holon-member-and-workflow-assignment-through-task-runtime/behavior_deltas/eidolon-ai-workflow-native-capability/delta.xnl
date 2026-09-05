@@ -1,0 +1,30 @@
+<BehaviorPatch #track.route-holon-member-and-workflow-assignment-through-task-runtime.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/holon-task-runtime-service-adapter" } (
+      <Requirement #holon-task-runtime-service-adapter (
+        <Statement ?>AI Ctrl/Data Workflow SHALL adapt frozen Holon targets to the Workflow-neutral HolonTaskRuntimeService rather than owning a parallel product assignment runtime.</?>
+        <Suites [
+          <Suite #workflow-service-adapter { name = "Workflow Holon service adapter" } (
+            <Cases [
+              <Case #explicit-workflow-task-identity (
+                <Given ?>a Flow node has authored taskSpace/task/command identity</?>
+                <When ?>it opens a Holon task through the service</?>
+                <Then ?>the exact identity, submission fingerprint and issuer-backed snapshot receipt SHALL be preserved; conflicting replay SHALL fail closed</?>
+              )>
+              <Case #no-product-weakmap (
+                <Given ?>Workflow runtime materializes frozen Holon admissions</?>
+                <When ?>product capability is exposed</?>
+                <Then ?>the binding SHALL live in the VM facet and no module WeakMap authority SHALL be registered</?>
+              )>
+              <Case #no-private-workflow-runtime-owner (
+                <Given ?>normal VM bootstrap already owns the Holon task runtime service</?>
+                <When ?>Ctrl or Data Workflow registers a frozen target</?>
+                <Then ?>Workflow SHALL contribute only an admission/effect route and SHALL NOT create a private FileTaskSpaceOwner, journal, coordinator map, service or catalog</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

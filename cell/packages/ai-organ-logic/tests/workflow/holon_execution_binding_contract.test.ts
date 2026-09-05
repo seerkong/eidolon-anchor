@@ -5,8 +5,10 @@ import {
   HOLON_EXECUTION_BINDING_KIND,
   HOLON_EXECUTION_BINDING_KIND_DEFINITION_BYTES,
   HOLON_EXECUTION_BINDING_KIND_DEFINITION_FQN,
+  HOLON_EXECUTION_BINDING_KIND_DEFINITION_SPEC_VERSION,
   HOLON_EXECUTION_BINDING_KIND_DEFINITION_SOURCE,
-  HOLON_EXECUTION_BINDING_KIND_DEFINITION_VERSION,
+  HOLON_EXECUTION_BINDING_KIND_OWNER,
+  HOLON_EXECUTION_BINDING_KIND_SPEC_REVISION_V1,
   canonicalHolonExecutionBindingBytes,
   normalizeHolonExecutionBinding,
   parseHolonExecutionBindingBytes,
@@ -36,14 +38,30 @@ const binding = (bindingRef: string, adapter: unknown, target: unknown = {
 })
 
 describe("HolonExecutionBinding contract", () => {
-  it("owns the exact 1.0.0 KindDefinition bytes", () => {
+  it("owns the exact Halfcode 0.3 Kind contract and canonical descriptor bytes", () => {
     expect(HOLON_EXECUTION_BINDING_KIND).toBe("HolonExecutionBinding")
     expect(HOLON_EXECUTION_BINDING_KIND_DEFINITION_FQN)
       .toBe("Eidolon.AI.KindDefinition.HolonExecutionBinding")
     expect(HOLON_EXECUTION_BINDING_API_VERSION).toBe("eidolon.ai/v1")
-    expect(HOLON_EXECUTION_BINDING_KIND_DEFINITION_VERSION).toBe("1.0.0")
+    expect(HOLON_EXECUTION_BINDING_KIND_DEFINITION_SPEC_VERSION).toBe(1)
+    expect(HOLON_EXECUTION_BINDING_KIND_OWNER.sourceContract).toEqual(expect.objectContaining({
+      sourceShapes: ["single-file"],
+      documentCardinality: "one",
+      requiredFiles: [],
+    }))
+    expect(HOLON_EXECUTION_BINDING_KIND_SPEC_REVISION_V1).toEqual(expect.objectContaining({
+      specVersion: 1,
+      sourceContractFingerprint:
+        HOLON_EXECUTION_BINDING_KIND_OWNER.sourceContract.sourceContractFingerprint,
+      stability: "stable",
+    }))
     expect(new TextDecoder().decode(HOLON_EXECUTION_BINDING_KIND_DEFINITION_BYTES))
       .toBe(HOLON_EXECUTION_BINDING_KIND_DEFINITION_SOURCE)
+    expect(HOLON_EXECUTION_BINDING_KIND_DEFINITION_SOURCE)
+      .toContain('envelopeVersion="halfcode.resource-envelope/v1" specVersion=1')
+    expect(HOLON_EXECUTION_BINDING_KIND_DEFINITION_SOURCE)
+      .toContain(`contractFingerprint = "${HOLON_EXECUTION_BINDING_KIND_SPEC_REVISION_V1.contractFingerprint}"`)
+    expect(HOLON_EXECUTION_BINDING_KIND_DEFINITION_SOURCE).not.toContain("halfcode.resources/v1")
   })
 
   it("normalizes the exact closed adapter and target unions", () => {

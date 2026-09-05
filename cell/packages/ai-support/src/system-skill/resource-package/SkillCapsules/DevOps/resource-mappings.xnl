@@ -1,4 +1,4 @@
-<ResourceMappings #Eidolon.Anchor.ResourceMappings.DevOps apiVersion="halfcode.resources/v1" version="1.0.0" (
+<ResourceMappings #Eidolon.Anchor.ResourceMappings.DevOps envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 (
   <SourceRoots [
     <SourceRoot #EidolonDevOps { sourceRoot = "vfs://module/EidolonAnchorSystemSkills/" } [
       <CopyDirectory { from = "content/devops/planning" to = "planning" }>

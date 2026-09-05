@@ -30,7 +30,7 @@ import {
 } from "./GeneratedEidolonSystemSkillPlan";
 
 export const SYSTEM_SKILL_MANIFEST_FILE = ".system-skills.xnl";
-const SYSTEM_SKILL_MANIFEST_SCHEMA = "eidolon.system-skills/v2";
+const SYSTEM_SKILL_MANIFEST_SCHEMA = "eidolon.system-skills/v3";
 
 export type ManagedSystemSkillSource = "eidolon-builtin" | "halfcode-distribution";
 
@@ -41,7 +41,8 @@ export type ManagedSystemSkillSummary = {
   digest: Sha256Digest;
   fileCount: number;
   capsuleFqn?: string;
-  apiVersion?: string;
+  envelopeVersion?: string;
+  specVersion?: number;
   closureDigest?: string;
 };
 
@@ -225,7 +226,8 @@ function materializedSkill(input: {
   source: ManagedSystemSkillSource;
   files: ReadonlyMap<string, Uint8Array>;
   capsuleFqn?: string;
-  apiVersion?: string;
+  envelopeVersion?: string;
+  specVersion?: number;
   closureDigest?: string;
 }): MaterializedSystemSkill {
   assertSystemSkillName(input.name);
@@ -246,7 +248,8 @@ function materializedSkill(input: {
     digest: digestFiles(files),
     fileCount: files.length,
     ...(input.capsuleFqn ? { capsuleFqn: input.capsuleFqn } : {}),
-    ...(input.apiVersion ? { apiVersion: input.apiVersion } : {}),
+    ...(input.envelopeVersion ? { envelopeVersion: input.envelopeVersion } : {}),
+    ...(input.specVersion !== undefined ? { specVersion: input.specVersion } : {}),
     ...(input.closureDigest ? { closureDigest: input.closureDigest } : {}),
     files: Object.freeze(files),
     fileContents: new Map([...input.files.entries()].map(([filePath, content]) => [filePath, Uint8Array.from(content)])),
@@ -328,7 +331,8 @@ async function materializeEidolonSystemSkills(input: {
       source: "halfcode-distribution",
       files,
       capsuleFqn: identity.fqn,
-      apiVersion: identity.apiVersion,
+      envelopeVersion: identity.envelopeVersion,
+      specVersion: identity.specVersion,
       closureDigest: plan.closureDigest,
     });
   });
@@ -344,7 +348,8 @@ function summaryOf(skill: InstalledSystemSkill): ManagedSystemSkillSummary {
     digest: skill.digest,
     fileCount: skill.fileCount,
     ...(skill.capsuleFqn ? { capsuleFqn: skill.capsuleFqn } : {}),
-    ...(skill.apiVersion ? { apiVersion: skill.apiVersion } : {}),
+    ...(skill.envelopeVersion ? { envelopeVersion: skill.envelopeVersion } : {}),
+    ...(skill.specVersion !== undefined ? { specVersion: skill.specVersion } : {}),
     ...(skill.closureDigest ? { closureDigest: skill.closureDigest } : {}),
   });
 }
@@ -357,7 +362,8 @@ function createManifest(skills: readonly InstalledSystemSkill[]): string {
   const entries = skills.map((skill) => {
     const optional = [
       skill.capsuleFqn ? ` capsuleFqn = ${quoteXnl(skill.capsuleFqn)}` : "",
-      skill.apiVersion ? ` apiVersion = ${quoteXnl(skill.apiVersion)}` : "",
+      skill.envelopeVersion ? ` envelopeVersion = ${quoteXnl(skill.envelopeVersion)}` : "",
+      skill.specVersion !== undefined ? ` specVersion = ${skill.specVersion}` : "",
       skill.closureDigest ? ` closureDigest = ${quoteXnl(skill.closureDigest)}` : "",
     ].join("");
     const files = skill.files.map((file) =>
@@ -429,7 +435,7 @@ function parseManifest(source: string): InstalledSystemSkillManifest {
     }
     const owner = `ManagedSkills[${index}]`;
     const attributes = expectAttributes(node, owner, [
-      "name", "version", "source", "digest", "fileCount", "capsuleFqn", "apiVersion", "closureDigest",
+      "name", "version", "source", "digest", "fileCount", "capsuleFqn", "envelopeVersion", "specVersion", "closureDigest",
     ]);
     const name = requireString(attributes, "name", owner);
     assertSystemSkillName(name);
@@ -473,7 +479,7 @@ function parseManifest(source: string): InstalledSystemSkillManifest {
     if (digestFiles(files) !== digest) {
       throw new Error(`SYSTEM_SKILL_MANIFEST_INVALID: ${name} skill digest differs from Files`);
     }
-    const optionalString = (field: "capsuleFqn" | "apiVersion" | "closureDigest"): string | undefined => {
+    const optionalString = (field: "capsuleFqn" | "envelopeVersion" | "closureDigest"): string | undefined => {
       const candidate = attributes[field];
       if (candidate === undefined) return undefined;
       if (typeof candidate !== "string" || candidate.length === 0) {
@@ -482,7 +488,11 @@ function parseManifest(source: string): InstalledSystemSkillManifest {
       return candidate;
     };
     const capsuleFqn = optionalString("capsuleFqn");
-    const apiVersion = optionalString("apiVersion");
+    const envelopeVersion = optionalString("envelopeVersion");
+    const specVersion = attributes.specVersion;
+    if (specVersion !== undefined && (!Number.isSafeInteger(specVersion) || (specVersion as number) < 1)) {
+      throw new Error(`SYSTEM_SKILL_MANIFEST_INVALID: ${name}.specVersion must be a positive safe integer`);
+    }
     const closureDigest = optionalString("closureDigest");
     return Object.freeze({
       name,
@@ -491,7 +501,8 @@ function parseManifest(source: string): InstalledSystemSkillManifest {
       digest,
       fileCount,
       ...(capsuleFqn ? { capsuleFqn } : {}),
-      ...(apiVersion ? { apiVersion } : {}),
+      ...(envelopeVersion ? { envelopeVersion } : {}),
+      ...(specVersion !== undefined ? { specVersion: specVersion as number } : {}),
       ...(closureDigest ? { closureDigest } : {}),
       files: Object.freeze(files),
     });
@@ -517,7 +528,8 @@ function assertExpectedManagedSystemSkillSet(manifest: InstalledSystemSkillManif
       digest: digestFiles(files),
       fileCount: files.length,
       capsuleFqn: expected.capsuleFqn,
-      apiVersion: expected.apiVersion,
+      envelopeVersion: expected.envelopeVersion,
+      specVersion: expected.specVersion,
       closureDigest: expected.closureDigest,
       files,
     };
@@ -529,7 +541,8 @@ function assertExpectedManagedSystemSkillSet(manifest: InstalledSystemSkillManif
     digest: skill.digest,
     fileCount: skill.fileCount,
     capsuleFqn: skill.capsuleFqn,
-    apiVersion: skill.apiVersion,
+    envelopeVersion: skill.envelopeVersion,
+    specVersion: skill.specVersion,
     closureDigest: skill.closureDigest,
     files: skill.files,
   }));

@@ -15,8 +15,8 @@ const sourceRoot = path.join(supportRoot, "src", "system-skill")
 describe("Eidolon Anchor system Skill split plan", () => {
   test("pins the two published authoring modules exactly", async () => {
     const manifest = JSON.parse(await readFile(path.join(supportRoot, "package.json"), "utf8"))
-    expect(manifest.dependencies["halfcode-compiler.xnl"]).toBe("0.2.3")
-    expect(manifest.dependencies["ai-workflow-flow-dsl-reference"]).toBe("0.1.6")
+    expect(manifest.dependencies["halfcode-compiler.xnl"]).toBe("0.3.0")
+    expect(manifest.dependencies["ai-workflow-flow-dsl-reference"]).toBe("0.2.0")
   })
 
   test("uses a generated complete plan instead of a builtin-plus-plan merge", async () => {
@@ -83,7 +83,7 @@ describe("Eidolon Anchor system Skill split plan", () => {
       files: readonly { path: string; contentDigest: string }[]
     }
     expect(provenance.packageName).toBe("ai-workflow-flow-dsl-reference")
-    expect(provenance.packageVersion).toBe("0.1.6")
+    expect(provenance.packageVersion).toBe("0.2.0")
     expect(provenance.files).toHaveLength(31)
     expect(provenance.files.map((file) => file.path)).toContain("spec/flow-core/instance-run.md")
 

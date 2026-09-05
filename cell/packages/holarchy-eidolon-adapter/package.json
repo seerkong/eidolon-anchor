@@ -1,6 +1,6 @@
 {
   "name": "holarchy-eidolon-adapter",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": false,
   "description": "Eidolon ResourcePackage adapter for frozen Holarchy organization snapshots and execution bindings.",
   "type": "module",
@@ -20,10 +20,10 @@
     "test": "bun test"
   },
   "dependencies": {
-    "ai-workflow-contract": "0.1.9",
+    "ai-workflow-contract": "0.2.0",
     "depa-actor": "0.2.2",
-    "halfcode-compiler.xnl": "0.2.9",
-    "holarchy-core-contract": "0.1.1"
+    "halfcode-compiler.xnl": "0.3.0",
+    "holarchy-core-contract": "0.2.0"
   },
   "devDependencies": {
     "typescript": "^5.4.0"

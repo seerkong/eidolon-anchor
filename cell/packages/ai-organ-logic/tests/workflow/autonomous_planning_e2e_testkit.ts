@@ -5,10 +5,12 @@ import type {
   AIDataControlVerifierFact,
 } from "ai-data-workflow-contract"
 import { createAIDataControlRuntime } from "ai-data-workflow-logic"
-import type {
-  AIWorkflowFlowRunCheckpoint,
-  AIWorkflowProfileDurableState,
-  FlowClosedValue,
+import {
+  depaAIResourceKindContract,
+  type AIWorkflowFlowRunCheckpoint,
+  type AIWorkflowProfileDurableState,
+  type DepaAIResourceKind,
+  type FlowClosedValue,
 } from "ai-workflow-contract"
 import { readFile, realpath } from "node:fs/promises"
 import path from "node:path"
@@ -549,13 +551,16 @@ export function verifyAutonomousPlanningReceipt(
   else for (const role of requiredRoles) verifyAgentReuseRole(receipt, role)
 }
 
-const kindDefinition = (kind: string) => `<KindDefinition #eidolon.autonomous.kind.${kind} apiVersion="halfcode.resources/v1" version="1.0.0" { lifecycle = "Stable" resourceKind = "${kind}" sourceShapes = ["single-file"] currentApiVersion = "depa.flows/v1" supportedApiVersions = ["depa.flows/v1"] }>`
+const kindDefinition = (kind: DepaAIResourceKind) => depaAIResourceKindContract(kind).kindDefinitionSource
+
+const CONTROLLER_PROMPT = `You are a generic AI Data control planner. The user message is one JSON object with schemaVersion, immutable goal, frozen capability catalog, and the current canonical observation. Return one raw JSON object only, without Markdown. Every decision requires schemaVersion="depa.ai-data-control/v1", a non-empty decisionId, goalId, observationId, observationDigest, catalogDigest, reason and kind. Copy goalId, observationId, observationDigest and catalogDigest exactly. A revise decision uses the plural field operations, which is an array containing exactly one operation; never use a singular operation field. An add-capability or rewire-capability operation has only op, nodeId, capabilityId, inputs and optional dependsOn. nodeId names a graph node, not fixedConfig.instanceName. For a catalog capability whose implementation kind is agent and carries taskProofRef, nodeId must select the exact frozen AgentTaskRef node associated with that task proof; when the catalog exposes that node as the capability id, use capabilityId exactly and do not invent a suffixed node id. Each inputs value is either {"kind":"port","nodeId":"...","port":"...","schemaRef":"..."} or {"kind":"literal","schemaRef":"...","value":...}. Operation objects never contain outputs. Never create a self-loop or make a revision depend on the protected manual control barrier: that barrier is released only after verifier success and cannot produce a refinement input. To execute the same exact Agent task again when no distinct frozen task node exists, rewire it to a typed literal or an already succeeded non-descendant node. If the current host verifier passed, return kind complete with verifierFactId, outputNodeId, outputPort and outputSchemaRef selected from one succeeded capability node. Otherwise revise with add-capability when no suitable capability node exists, or rewire-capability/remove-node after failure. Use only catalog capability ids and exact typed ports. Never modify protected nodes, invent resources, mutate the graph directly, or claim verifier success.`
+const WORKER_PROMPT = `You are a reusable typed transformation Worker. Read the JSON input payload, transform its value into a concise but materially improved string, and return exactly one raw JSON object {"value":"..."} without Markdown or extra keys. On targeted follow-up, use the new input and prior conversation to produce a genuinely revised value.`
 
 export function autonomousPlanningResourceFiles(
   controlState: AIDataAutonomousControlState,
 ): Readonly<Record<string, string>> {
   return Object.freeze({
-    "manifest.xnl": `<ResourcePackage #eidolon.autonomous.package apiVersion="halfcode.resources/v1" version="1.0.0" { lifecycle = "Active" } (
+    "manifest.xnl": `<ResourcePackage #eidolon.autonomous.package envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" packageVersion = "1.0.0" } (
   <Catalogs [
     <Catalog #kind_definitions { kind = "KindDefinition" shape = "directory" root = "vfs://./KindDefinitions/" entry = "manifest.xnl" }>
     <Catalog #data { kind = "AIDataWorkflow" shape = "single-file" root = "vfs://./DataWorkflows/" }>
@@ -572,19 +577,19 @@ export function autonomousPlanningResourceFiles(
     ...Object.fromEntries([
       "AIDataWorkflow", "AIAgentDefinition", "Prompt", "AgentContextPipeline", "MessageSchema",
       "EffectPolicy", "MaterialPort", "MaterialBinding", "RequestMaterial",
-    ].map((kind) => [`KindDefinitions/${kind}/manifest.xnl`, kindDefinition(kind)])),
+    ].map((kind) => [`KindDefinitions/${kind}/manifest.xnl`, kindDefinition(kind as DepaAIResourceKind)])),
     "flow-code/identity.ts": "export function identity(_runtime: unknown, input: unknown) { return input }\n",
-    "Prompts/Controller.xnl": `<Prompt #eidolon.autonomous.ControllerPrompt apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (<Content ?>You are a generic AI Data control planner. The user message is one JSON object with schemaVersion, immutable goal, frozen capability catalog, and the current canonical observation. Return one raw JSON object only, without Markdown. Every decision requires schemaVersion="depa.ai-data-control/v1", a non-empty decisionId, goalId, observationId, observationDigest, catalogDigest, reason and kind. Copy goalId, observationId, observationDigest and catalogDigest exactly. A revise decision uses the plural field operations, which is an array containing exactly one operation; never use a singular operation field. An add-capability or rewire-capability operation has only op, nodeId, capabilityId, inputs and optional dependsOn. nodeId names a graph node, not fixedConfig.instanceName. For a catalog capability whose implementation kind is agent and carries taskProofRef, nodeId must select the exact frozen AgentTaskRef node associated with that task proof; when the catalog exposes that node as the capability id, use capabilityId exactly and do not invent a suffixed node id. Each inputs value is either {"kind":"port","nodeId":"...","port":"...","schemaRef":"..."} or {"kind":"literal","schemaRef":"...","value":...}. Operation objects never contain outputs. Never create a self-loop or make a revision depend on the protected manual control barrier: that barrier is released only after verifier success and cannot produce a refinement input. To execute the same exact Agent task again when no distinct frozen task node exists, rewire it to a typed literal or an already succeeded non-descendant node. If the current host verifier passed, return kind complete with verifierFactId, outputNodeId, outputPort and outputSchemaRef selected from one succeeded capability node. Otherwise revise with add-capability when no suitable capability node exists, or rewire-capability/remove-node after failure. Use only catalog capability ids and exact typed ports. Never modify protected nodes, invent resources, mutate the graph directly, or claim verifier success.</?>)>`,
-    "Prompts/Worker.xnl": `<Prompt #eidolon.autonomous.WorkerPrompt apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (<Content ?>You are a reusable typed transformation Worker. Read the JSON input payload, transform its value into a concise but materially improved string, and return exactly one raw JSON object {"value":"..."} without Markdown or extra keys. On targeted follow-up, use the new input and prior conversation to produce a genuinely revised value.</?>)>`,
-    "ContextPipelines/Standard.xnl": `<AgentContextPipeline #eidolon.autonomous.StandardContext apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (<Content ?>{"implementation":"eidolon.standard-context-pipeline/v1","stages":["prompt-plan","conversation-prelude","provider-context-facts-at-history-anchors","stable-message-prefix","conversation-boundary-overlays","provider-conversion"]}</?>)>`,
-    "Schemas/ControllerInput.xnl": `<MessageSchema #eidolon.autonomous.ControllerInput apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" required = ["schemaVersion" "goal" "catalog" "observation"] properties = { schemaVersion = { type = "string" } goal = { type = "object" } catalog = { type = "object" } observation = { type = "object" } } } }>`,
-    "Schemas/ControllerDecision.xnl": `<MessageSchema #eidolon.autonomous.ControllerDecision apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" additionalProperties = false required = ["schemaVersion" "kind" "decisionId" "goalId" "observationId" "observationDigest" "catalogDigest" "reason"] properties = { schemaVersion = { type = "string" } kind = { type = "string" } decisionId = { type = "string" } goalId = { type = "string" } observationId = { type = "string" } observationDigest = { type = "string" } catalogDigest = { type = "string" } reason = { type = "string" } operations = { type = "array" minItems = 1 maxItems = 1 items = { type = "object" } } verifierFactId = { type = "string" } outputNodeId = { type = "string" } outputPort = { type = "string" } outputSchemaRef = { type = "string" } failureCode = { type = "string" } } } }>`,
-    "Schemas/WorkerInput.xnl": `<MessageSchema #eidolon.autonomous.WorkerInput apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" required = ["value"] properties = { value = { type = "string" } } } }>`,
-    "Schemas/WorkerOutput.xnl": `<MessageSchema #eidolon.autonomous.WorkerOutput apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" required = ["value"] additionalProperties = false properties = { value = { type = "string" } } } }>`,
-    "Policies/NoTools.xnl": `<EffectPolicy #eidolon.autonomous.NoTools apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" toolMode = "none" }>`,
-    "Ports/Request.xnl": `<MaterialPort #eidolon.autonomous.RequestPort apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" materialKind = "RequestMaterial" required = true cardinality = "one" }>`,
-    "RequestMaterials/Request.xnl": `<RequestMaterial #eidolon.autonomous.Request apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" value = { request = "autonomous planning" } }>`,
-    "Agents/Controller.xnl": `<AIAgentDefinition #eidolon.autonomous.ControllerAgent apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" description = "Reusable autonomous AI Data controller" } (
+    "Prompts/Controller.xnl": `<Prompt #eidolon.autonomous.ControllerPrompt envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" template = ${JSON.stringify(CONTROLLER_PROMPT)} }>`,
+    "Prompts/Worker.xnl": `<Prompt #eidolon.autonomous.WorkerPrompt envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" template = ${JSON.stringify(WORKER_PROMPT)} }>`,
+    "ContextPipelines/Standard.xnl": `<AgentContextPipeline #eidolon.autonomous.StandardContext envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" } (<Content ?>{"implementation":"eidolon.standard-context-pipeline/v1","stages":["prompt-plan","conversation-prelude","provider-context-facts-at-history-anchors","stable-message-prefix","conversation-boundary-overlays","provider-conversion"]}</?>)>`,
+    "Schemas/ControllerInput.xnl": `<MessageSchema #eidolon.autonomous.ControllerInput envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" schema = { type = "object" required = ["schemaVersion" "goal" "catalog" "observation"] properties = { schemaVersion = { type = "string" } goal = { type = "object" } catalog = { type = "object" } observation = { type = "object" } } } }>`,
+    "Schemas/ControllerDecision.xnl": `<MessageSchema #eidolon.autonomous.ControllerDecision envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" schema = { type = "object" additionalProperties = false required = ["schemaVersion" "kind" "decisionId" "goalId" "observationId" "observationDigest" "catalogDigest" "reason"] properties = { schemaVersion = { type = "string" } kind = { type = "string" } decisionId = { type = "string" } goalId = { type = "string" } observationId = { type = "string" } observationDigest = { type = "string" } catalogDigest = { type = "string" } reason = { type = "string" } operations = { type = "array" minItems = 1 maxItems = 1 items = { type = "object" } } verifierFactId = { type = "string" } outputNodeId = { type = "string" } outputPort = { type = "string" } outputSchemaRef = { type = "string" } failureCode = { type = "string" } } } }>`,
+    "Schemas/WorkerInput.xnl": `<MessageSchema #eidolon.autonomous.WorkerInput envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" schema = { type = "object" required = ["value"] properties = { value = { type = "string" } } } }>`,
+    "Schemas/WorkerOutput.xnl": `<MessageSchema #eidolon.autonomous.WorkerOutput envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" schema = { type = "object" required = ["value"] additionalProperties = false properties = { value = { type = "string" } } } }>`,
+    "Policies/NoTools.xnl": `<EffectPolicy #eidolon.autonomous.NoTools envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" toolMode = "none" }>`,
+    "Ports/Request.xnl": `<MaterialPort #eidolon.autonomous.RequestPort envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" materialKind = "RequestMaterial" required = true cardinality = "one" }>`,
+    "RequestMaterials/Request.xnl": `<RequestMaterial #eidolon.autonomous.Request envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" value = { request = "autonomous planning" } }>`,
+    "Agents/Controller.xnl": `<AIAgentDefinition #eidolon.autonomous.ControllerAgent envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" description = "Reusable autonomous AI Data controller" } (
   <MessagePrefix [<Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.autonomous.ControllerPrompt" }>]>
   <ContextPipeline { kind = "AgentContextPipeline" ref = "resource://eidolon.autonomous.StandardContext" }>
   <InputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.autonomous.ControllerInput" }>
@@ -593,7 +598,7 @@ export function autonomousPlanningResourceFiles(
   <EffectPolicyRef { kind = "EffectPolicy" ref = "resource://eidolon.autonomous.NoTools" }>
   <MaterialPortRefs [<MaterialPortRef #request { kind = "MaterialPort" ref = "resource://eidolon.autonomous.RequestPort" }>]>
 )>`,
-    "Agents/Worker.xnl": `<AIAgentDefinition #eidolon.autonomous.WorkerAgent apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" description = "Reusable autonomous AI Data worker" } (
+    "Agents/Worker.xnl": `<AIAgentDefinition #eidolon.autonomous.WorkerAgent envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" description = "Reusable autonomous AI Data worker" } (
   <MessagePrefix [<Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.autonomous.WorkerPrompt" }>]>
   <ContextPipeline { kind = "AgentContextPipeline" ref = "resource://eidolon.autonomous.StandardContext" }>
   <InputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.autonomous.WorkerInput" }>
@@ -602,17 +607,17 @@ export function autonomousPlanningResourceFiles(
   <EffectPolicyRef { kind = "EffectPolicy" ref = "resource://eidolon.autonomous.NoTools" }>
   <MaterialPortRefs [<MaterialPortRef #request { kind = "MaterialPort" ref = "resource://eidolon.autonomous.RequestPort" }>]>
 )>`,
-    "Bindings/Controller.xnl": `<MaterialBinding #eidolon.autonomous.ControllerBinding apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
+    "Bindings/Controller.xnl": `<MaterialBinding #eidolon.autonomous.ControllerBinding envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" } (
   <AgentTaskRef { workflowKind = "AIDataWorkflow" workflowRef = "resource://eidolon.autonomous.DataWorkflow" nodeId = "control" agentDefinitionRef = "resource://eidolon.autonomous.ControllerAgent" }>
   <PortRef { kind = "MaterialPort" ref = "resource://eidolon.autonomous.RequestPort" }>
   <MaterialRef { kind = "RequestMaterial" ref = "resource://eidolon.autonomous.Request" }>
 )>`,
-    "Bindings/Worker.xnl": `<MaterialBinding #eidolon.autonomous.WorkerBinding apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
+    "Bindings/Worker.xnl": `<MaterialBinding #eidolon.autonomous.WorkerBinding envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" } (
   <AgentTaskRef { workflowKind = "AIDataWorkflow" workflowRef = "resource://eidolon.autonomous.DataWorkflow" nodeId = "worker" agentDefinitionRef = "resource://eidolon.autonomous.WorkerAgent" }>
   <PortRef { kind = "MaterialPort" ref = "resource://eidolon.autonomous.RequestPort" }>
   <MaterialRef { kind = "RequestMaterial" ref = "resource://eidolon.autonomous.Request" }>
 )>`,
-    "DataWorkflows/Autonomous.xnl": `<AIDataWorkflow #eidolon.autonomous.DataWorkflow apiVersion="depa.flows/v1" version="1.0.0" (
+    "DataWorkflows/Autonomous.xnl": `<AIDataWorkflow #eidolon.autonomous.DataWorkflow envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 (
   <FlowContract #eidolon.autonomous.DataWorkflow { inputPorts = ["value"] outputPorts = ["value"] }>
   <StepSpaceRef { src = "autonomous/step-space.xnl" }>
 )>`,

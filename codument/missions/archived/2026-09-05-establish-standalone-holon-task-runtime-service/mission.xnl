@@ -1,0 +1,224 @@
+<Mission #establish-standalone-holon-task-runtime-service apiVersion="codument.tech/v1alpha1" version="1" { status = "archived" goal = "建立可脱离 AI Workflow 独立运行的 HolonTaskRuntimeService，并完成 XNL VFS、Halfcode 0.3、Holarchy、depa-flows 资源契约、依赖库正式发布与 Eidolon 最终构建。" description = "在既有 File-XNL Holon snapshot、HolonExecutionBinding、TaskSpace pump、HolonCoordinator 与 MemberRuntime 之上统一产品与 Workflow 入口；由 XNL VFS、Halfcode、Holarchy、depa-flows 与 Eidolon 分别拥有各自 contract authority，并把 clean build 实际需要的已验证公共闭包按依赖拓扑发布到官方 npm registry，随后刷新 Eidolon lock、执行 clean/frozen install 和最终构建。" question_mode = "decision-tree" question_severity = "auto" revision = 81 created_at = "2026-09-03T20:01:06.698Z" updated_at = "2026-09-05T08:38:05.868Z" } (
+  <Ports { scope = "mission" } [
+    <MaterialBundle { role = "state" name = "analysis" domain = "mission" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "state" name = "reports" domain = "mission" path = "vfs://./reports/" }>
+    <MaterialBundle { role = "output" name = "tracks" domain = "codument" path = "vfs://@/codument/tracks/" }>
+  ]>
+  <ProjectRefs [
+    <ProjectRef #host { kind = "host" }>
+    <ProjectRef #xnl { kind = "external" }>
+    <ProjectRef #halfcode { kind = "external" }>
+    <ProjectRef #holon-workbench { kind = "external" }>
+    <ProjectRef #depa-flows { kind = "external" }>
+  ]>
+  <ActorSets { default = "standalone-holon-runtime-loop" } [
+    <ActorSet #standalone-holon-runtime-loop [
+      <Actor { role = "MissionPlanner" project_ref = "host" } (
+        <Description ?01M1ME9EA0FFXKWSX8AX36ZD0H>
+        把旧 VM autonomy、canonical TaskSpace pump、Workflow adapter 与产品 assign 入口切成可独立验收的真实 Track，并保持唯一 authority。
+        </?01M1ME9EA0FFXKWSX8AX36ZD0H>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "host" } (
+        <Description ?01M1ME9EA0FFXKWSX8AX36ZD0J>
+        持续观察历史 Codument 设计、Halfcode 资源投影、TaskSpace receipts、MemberRuntime 会话、恢复文件和 Ctrl/Data Workflow 回归证据。
+        </?01M1ME9EA0FFXKWSX8AX36ZD0J>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "host" } (
+        <Description ?01M1ME9EA0FFXKWSX8AX36ZD0K>
+        比较独立服务目标与实际代码，拒绝恢复旧 VM TaskTree、复制 TaskSpace owner 或让 Workflow 继续成为 Holon assignment 的隐式前置条件。
+        </?01M1ME9EA0FFXKWSX8AX36ZD0K>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "host" } (
+        <Description ?01M1ME9EA0FFXKWSX8AX36ZD0M>
+        创建、绑定、实现、验证并归档 ready Track；每个 operation 后回写 Mission 状态，并在证据偏离时有界重规划。
+        </?01M1ME9EA0FFXKWSX8AX36ZD0M>
+      )>
+    ]>
+    <ActorSet #halfcode-03-release-loop [
+      <Actor { role = "MissionPlanner" project_ref = "halfcode" } (
+        <Description ?01M1NVAGSR7GCC24XE0BWR536F>
+        把 0.3 envelope、exact Kind spec contract 与 npm distribution candidate 收敛为可被外部仓库消费的发布单元。
+        </?01M1NVAGSR7GCC24XE0BWR536F>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "halfcode" } (
+        <Description ?01M1NVAGSR7GCC24XE0BWR536G>
+        观察核心 contract 测试、公开 exports、tarball 边界、独立 consumer 和发布凭据预检证据。
+        </?01M1NVAGSR7GCC24XE0BWR536G>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "halfcode" } (
+        <Description ?01M1NVAGSR7GCC24XE0BWR536H>
+        拒绝描述性或伪造 fingerprint、隐式 legacy envelope 兼容以及未经过 tarball consumer 的发布候选。
+        </?01M1NVAGSR7GCC24XE0BWR536H>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "halfcode" } (
+        <Description ?01M1NVAGSR7GCC24XE0BWR536J>
+        实现并验证 Halfcode 0.3 Track；只做发布准备，真实 npm 发布必须另获明确授权并显式使用官方 userconfig。
+        </?01M1NVAGSR7GCC24XE0BWR536J>
+      )>
+    ]>
+    <ActorSet #holarchy-03-migration-loop [
+      <Actor { role = "MissionPlanner" project_ref = "holon-workbench" } (
+        <Description ?01M1NVAGSR7GCC24XE0BWR536K>
+        把 HolonEffectiveSnapshot 的 Kind authority 与本地文件运行时发布闭包迁移到 Halfcode 0.3。
+        </?01M1NVAGSR7GCC24XE0BWR536K>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "holon-workbench" } (
+        <Description ?01M1NVAGSR7GCC24XE0BWR536M>
+        观察 snapshot canonical bytes、Kind spec fingerprint、包依赖闭包、构建测试和 tarball 消费证据。
+        </?01M1NVAGSR7GCC24XE0BWR536M>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "holon-workbench" } (
+        <Description ?01M1NVAGSR7GCC24XE0BWR536N>
+        保持 Holarchy 对组织快照的唯一 ownership，拒绝由 Eidolon 复制或猜测 snapshot contract。
+        </?01M1NVAGSR7GCC24XE0BWR536N>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "holon-workbench" } (
+        <Description ?01M1NVAGSR7GCC24XE0BWR536P>
+        实现并验证 Holarchy 迁移 Track，准备按需发布的库包闭包，不发布 server/web 业务应用。
+        </?01M1NVAGSR7GCC24XE0BWR536P>
+      )>
+    ]>
+    <ActorSet #depa-flows-03-migration-loop [
+      <Actor { role = "MissionPlanner" project_ref = "depa-flows" } (
+        <Description ?01M1NZ8B50D7PZRWFB1W1PQSR2>
+        把 AI Workflow、AIAgentDefinition、Prompt/Message/Material 的 issuer-owned Kind contract 与发布闭包迁移到 Halfcode 0.3。
+        </?01M1NZ8B50D7PZRWFB1W1PQSR2>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "depa-flows" } (
+        <Description ?01M1NZ8B50D7PZRWFB1W1PQSR3>
+        观察 authoritative projection grammar、run-freeze fingerprint、Kind descriptor、package dependency、fixture 与 tarball consumer 证据。
+        </?01M1NZ8B50D7PZRWFB1W1PQSR3>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "depa-flows" } (
+        <Description ?01M1NZ8B50D7PZRWFB1W1PQSR4>
+        拒绝由 Eidolon 重建 depa-flows Kind owner、伪造 fingerprint 或用 legacy Halfcode fallback 绕开 exact reader resolution。
+        </?01M1NZ8B50D7PZRWFB1W1PQSR4>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "depa-flows" } (
+        <Description ?01M1NZ8B50D7PZRWFB1W1PQSR5>
+        实现并验证 depa-flows 0.3 Track，准备 Eidolon 所需公共库候选；真实 npm 发布必须另获授权并使用官方 userconfig。
+        </?01M1NZ8B50D7PZRWFB1W1PQSR5>
+      )>
+    ]>
+  ]>
+  <TaskSpace #space_establish-standalone-holon-task-runtime-service { name = "establish-standalone-holon-task-runtime-service" version = "1" child_mode = "dag" } (
+    <Description ?01M1ME9EA0FFXKWSX8AX36ZD0N>
+    从历史语义复原开始，依次建立中立服务、统一入口、持久恢复与端到端验收。
+    </?01M1ME9EA0FFXKWSX8AX36ZD0N>
+    <SubNodes [
+      <TaskGroup #G0 { name = "历史语义与 authority 基线" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #G0-T1 { name = "记录旧 autonomy 到 canonical Holon TaskSpace 的演进与当前耦合点" status = "DONE" order = 0 }>
+          <Task #G0-T2 { name = "冻结独立服务、资源 admission、Holon/member target 与 Workflow adapter 的边界" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #G1 { name = "中立 contract 与独立运行时服务" status = "DONE" order = 1 } (
+        <SubNodes [
+          <Task #G1-T1 { name = "实现 HolonTaskRuntimeService 的中立 contract、资源 admission 与 TaskSpace/pump 装配" status = "DONE" order = 0 } (
+            <TrackLink #introduce-standalone-holon-task-runtime-contract-and-service { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G2 { name = "产品 assign 与 Workflow 统一适配" status = "DONE" order = 2 } (
+        <SubNodes [
+          <Task #G2-T1 { name = "让 Holon/member assign 与 Ctrl/Data Workflow 委托同一 HolonTaskRuntimeService" status = "DONE" order = 0 } (
+            <TrackLink #route-holon-member-and-workflow-assignment-through-task-runtime { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G3 { name = "恢复、兼容与真实验收" status = "SUPERSEDED" order = 3 } (
+        <SubNodes [
+          <Task #G3-T1 { name = "补齐独立启动、崩溃恢复、模式语义、Workflow 回归和架构文档" status = "SUPERSEDED" order = 0 } (
+            <TrackLink #harden-standalone-holon-task-runtime-recovery-and-e2e { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G4 { name = "Mission 收敛验证" status = "SUPERSEDED" order = 4 } (
+        <SubNodes [
+          <Task #G4-T1 { name = "独立复核 authority、无 Workflow 场景、Holon/member 派发、恢复证据与残余风险" status = "SUPERSEDED" order = 0 }>
+        ]>
+      )>
+      <TaskGroup #G5 { name = "Halfcode 0.3 contract 与发布候选" status = "DONE" order = 5 actor_set = "halfcode-03-release-loop" } (
+        <SubNodes [
+          <Task #G5-T1 { name = "冻结 exact envelope/Kind spec contract 并验证 halfcode-compiler.xnl@0.3.0 tarball" status = "DONE" order = 0 } (
+            <TrackLink #prepare-halfcode-03-kind-contract-release { state = "bound" project_ref = "halfcode" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G6 { name = "Holarchy snapshot authority 的 0.3 迁移" status = "DONE" order = 6 actor_set = "holarchy-03-migration-loop" } (
+        <SubNodes [
+          <Task #G6-T1 { name = "迁移 HolonEffectiveSnapshot Kind contract 并准备本地文件库包发布闭包" status = "DONE" order = 0 } (
+            <TrackLink #migrate-holarchy-snapshot-kind-to-halfcode-03 { state = "bound" project_ref = "holon-workbench" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G6D { name = "depa-flows Agent/Workflow Kind authority 的 0.3 迁移" status = "DONE" order = 7 actor_set = "depa-flows-03-migration-loop" } (
+        <SubNodes [
+          <Task #G6D-T1 { name = "迁移 depa-flows resource Kind contract 与 Eidolon 消费所需公共包闭包" status = "DONE" order = 0 } (
+            <TrackLink #migrate-depa-ai-resource-kinds-to-halfcode-03 { state = "bound" project_ref = "depa-flows" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G7 { name = "Eidolon 0.3 consumer 与物理 runtime 验收" status = "DONE" order = 8 } (
+        <SubNodes [
+          <Task #G7-T1 { name = "迁移 Eidolon resource authors、adapter 与 runtime consumer，并完成 normal VM/fresh restart 物理验收" status = "DONE" order = 0 } (
+            <TrackLink #migrate-eidolon-resource-runtime-to-halfcode-03 { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G8 { name = "联合迁移收敛验证" status = "DONE" order = 9 } (
+        <SubNodes [
+          <Task #G8-T1 { name = "独立复核三仓 authority、tarball consumer、无 Workflow 派发与 fresh-process recovery" status = "DONE" order = 0 }>
+        ]>
+      )>
+      <TaskGroup #G9 { name = "官方发布与 Eidolon 最终构建" status = "DONE" order = 10 } (
+        <SubNodes [
+          <Task #G9-T1 { name = "按已验证依赖拓扑发布全部公共候选并回读 registry 完整性" status = "DONE" order = 0 }>
+          <Task #G9-T2 { name = "从官方 registry 刷新 Eidolon bun.lock 并完成 clean/frozen install" status = "DONE" order = 1 }>
+          <Task #G9-T3 { name = "修复 clean build 暴露的 XNL VFS 发布闭包并重复 lock、最终构建、产物 smoke 与严格收敛验证" status = "DONE" order = 2 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_establish-standalone-holon-task-runtime-service" } [
+      <Node #G1 [
+        <After { ref = "G0" }>
+      ]>
+      <Node #G2 [
+        <After { ref = "G1" }>
+      ]>
+      <Node #G3 [
+        <After { ref = "G2" }>
+      ]>
+      <Node #G4 [
+        <After { ref = "G3" }>
+      ]>
+      <Node #G5 [
+        <After { ref = "G2" }>
+      ]>
+      <Node #G6 [
+        <After { ref = "G5" }>
+      ]>
+      <Node #G6D [
+        <After { ref = "G5" }>
+      ]>
+      <Node #G7 [
+        <After { ref = "G5" }>
+        <After { ref = "G6" }>
+        <After { ref = "G6D" }>
+      ]>
+      <Node #G8 [
+        <After { ref = "G7" }>
+      ]>
+      <Node #G9 [
+        <After { ref = "G8" }>
+      ]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "mission:after-node" } (
+      <MissionReconcile { max_tracks = 10 on_limit = "checkpoint" on_drift = "replan-or-block" }>
+    )>
+  ]>
+)>

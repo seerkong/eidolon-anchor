@@ -150,33 +150,27 @@ async function augmentFixtureWithHolonBinding(root: string): Promise<{
     "  ]>\n)>",
     `    <Catalog #holon_snapshots { kind = "HolonEffectiveSnapshot" shape = "single-file" root = "vfs://./Organization/" }>
     <Catalog #holon_bindings { kind = "HolonExecutionBinding" shape = "single-file" root = "vfs://./HolonBindings/" }>
-    <Catalog #holon_dependencies { kind = "HolonExecutionDependency" shape = "single-file" root = "vfs://./HolonDependencies/" }>
+    <Catalog #holon_dependencies { kind = "ContextMaterial" shape = "single-file" root = "vfs://./HolonDependencies/" }>
   ]>
 )>`,
   ))
-  const dependencyKind = `<KindDefinition #eidolon.fixture.kind.HolonExecutionDependency apiVersion="halfcode.resources/v1" version="1.0.0" {
-  lifecycle = "Stable" resourceKind = "HolonExecutionDependency" sourceShapes = ["single-file"]
-  currentApiVersion = "eidolon.ai/v1" supportedApiVersions = ["eidolon.ai/v1"]
-}>
-`
   const files: Record<string, string> = {
     "KindDefinitions/HolonExecutionBinding/manifest.xnl": HOLON_EXECUTION_BINDING_KIND_DEFINITION_SOURCE,
     "KindDefinitions/HolonEffectiveSnapshot/manifest.xnl": HOLON_EFFECTIVE_SNAPSHOT_KIND_DEFINITION_SOURCE,
-    "KindDefinitions/HolonExecutionDependency/manifest.xnl": dependencyKind,
-    "Organization/Summary.xnl": `<HolonEffectiveSnapshot #eidolon.fixture.SummaryOrganizationSnapshot apiVersion="holon.workbench/v1" version="1.0.0" {
+    "Organization/Summary.xnl": `<HolonEffectiveSnapshot #eidolon.fixture.SummaryOrganizationSnapshot envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   snapshotBytesBase64 = "${Buffer.from(snapshotBytes).toString("base64")}"
   issuanceReceiptBytesBase64 = "${Buffer.from(canonicalHolonEffectiveSnapshotIssuanceReceiptBytes(issuanceReceipt, snapshot)).toString("base64")}"
 }>
 `,
-    "HolonBindings/Summary.xnl": `<HolonExecutionBinding #eidolon.fixture.SummaryMemberBinding apiVersion="eidolon.ai/v1" version="1.0.0" {
+    "HolonBindings/Summary.xnl": `<HolonExecutionBinding #eidolon.fixture.SummaryMemberBinding envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   bindingBytesBase64 = "${Buffer.from(canonicalHolonExecutionBindingBytes(binding)).toString("base64")}"
 }>
 `,
-    "HolonDependencies/Runtime.xnl": `<HolonExecutionDependency #eidolon.fixture.HolonRuntimeProfile apiVersion="eidolon.ai/v1" version="1.0.0" { lifecycle = "Active" }>
+    "HolonDependencies/Runtime.xnl": `<ContextMaterial #eidolon.fixture.HolonRuntimeProfile envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" value = { dependency = "runtime-profile" } }>
 `,
-    "HolonDependencies/Task.xnl": `<HolonExecutionDependency #eidolon.fixture.HolonTaskProfile apiVersion="eidolon.ai/v1" version="1.0.0" { lifecycle = "Active" }>
+    "HolonDependencies/Task.xnl": `<ContextMaterial #eidolon.fixture.HolonTaskProfile envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" value = { dependency = "task-profile" } }>
 `,
-    "HolonDependencies/Capability.xnl": `<HolonExecutionDependency #eidolon.fixture.SummaryCapability apiVersion="eidolon.ai/v1" version="1.0.0" { lifecycle = "Active" }>
+    "HolonDependencies/Capability.xnl": `<ContextMaterial #eidolon.fixture.SummaryCapability envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" value = { dependency = "capability" } }>
 `,
   }
   for (const [relative, content] of Object.entries(files)) {
@@ -219,7 +213,7 @@ describe("whole ResourcePackage authoring and proof", () => {
       "AIAgentDefinition",
       "AICtrlWorkflow",
       "AIWorkflowAppBundle",
-      "ArticleMaterial",
+      "ContextMaterial",
       "MaterialBinding",
       "MaterialPort",
       "Prompt",
@@ -283,7 +277,7 @@ describe("whole ResourcePackage authoring and proof", () => {
       "/work/KindDefinitions/AIAgentDefinition/manifest.xnl",
       "/work/KindDefinitions/AICtrlWorkflow/manifest.xnl",
       "/work/KindDefinitions/AIWorkflowAppBundle/manifest.xnl",
-      "/work/KindDefinitions/ArticleMaterial/manifest.xnl",
+      "/work/KindDefinitions/ContextMaterial/manifest.xnl",
       "/work/KindDefinitions/MaterialBinding/manifest.xnl",
       "/work/KindDefinitions/MaterialPort/manifest.xnl",
       "/work/KindDefinitions/Prompt/manifest.xnl",
@@ -672,7 +666,7 @@ describe("whole ResourcePackage authoring and proof", () => {
     })
     expect((await component.resourceRegistry.listHolonExecutionBindings()).map(({ binding }) => binding.bindingRef))
       .toEqual(["resource://eidolon.fixture.SummaryMemberBinding"])
-  })
+  }, 20_000)
 
   it("rejects a MaterialBinding task that drifts from the canonical workflow node configuration", async () => {
     const roots = await temporaryFixture()

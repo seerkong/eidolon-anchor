@@ -1,4 +1,4 @@
-<SkillCapsule #Eidolon.Anchor.Skill.Run apiVersion="halfcode.resources/v1" version="1.0.5" {
+<SkillCapsule #Eidolon.Anchor.Skill.Run envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   name = "sys-eidolon-anchor-run"
   lifecycle = "Stable"
   description = "Operate published Eidolon resources through exact runtime identities, transitions and evidence reads."

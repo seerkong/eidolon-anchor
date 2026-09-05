@@ -1,0 +1,119 @@
+<Track #route-holon-member-and-workflow-assignment-through-task-runtime apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "让产品 Holon/member assign 与 AI Ctrl/Data Workflow 通过同一个显式 HolonTaskRuntimeService capability 进入 canonical TaskSpace/coordinator/MemberRuntime 链。" description = "引入 VM actor-runtime facet 上的显式 runtime capability，删除 CanonicalHolonAssignmentFacade 的模块 WeakMap；以 Workflow compatibility adapter 提供同一 service 的 effect ports，并让 Ctrl/Data openTask 与产品工具共享该 service。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-03T20:53:18.717Z" updated_at = "2026-09-03T21:58:02.130Z" modeling_base_commit = "a2b284679188201744f3295bd67bb3b622d737a5" engineering_base_commit = "a2b284679188201744f3295bd67bb3b622d737a5" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #code { role = "output" name = "code" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/" }>
+    <MaterialBundle #tests { role = "output" name = "tests" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/" }>
+  ]>
+  <TaskSpace #space_route-holon-member-and-workflow-assignment-through-task-runtime { name = "route-holon-member-and-workflow-assignment-through-task-runtime" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "显式 capability 与产品入口" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "建立 VM facet-backed HolonTaskRuntime capability" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKKQ>
+              每个显式 `{supportRoot, registryRef}` scope 只在 actor-runtime facet 中拥有一个 serviceRuntimeRef、一个 HolonTaskRuntimeService 与一个 catalog；admission 只绑定 config/effect route，禁止 per-admission service、模块 WeakMap、全局 locator 与隐式最近实例选择。
+              </?01M1MHFE12GD52PZYMYM4FTKKQ>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKKR>
+              capability 使用 canonical admission resolver 做 zero/one/many cardinality；registration conflict 与 exact member selection fail closed。
+              </?01M1MHFE12GD52PZYMYM4FTKKR>
+              <Criterion #P1-T1-AC3 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKKS>
+              invocation 使用闭合 `taskRequest` 判别联合：product 只能 `derive`，Workflow 必须 `exact(taskSpaceId,taskId,commandId)`；TaskSpace receipt 校验三元 identity 与包含 occurredAt 的 submission fingerprint，冲突 fail closed。
+              </?01M1MHFE12GD52PZYMYM4FTKKS>
+            ]>
+          )>
+          <Task #P1-T2 { name = "在正常 Eidolon VM bootstrap 中装配唯一 standalone runtime" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKKT>
+              正常 Eidolon VM composition 即使没有 Workflow 也为显式 supportRoot/registryRef scope 挂载唯一 capability；ai-support/terminal 只装配文件、TaskSpace、actor 等 effect ports，ai-organ-logic 不创建 file support。
+              </?01M1MHFE12GD52PZYMYM4FTKKT>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKTV>
+              同一 VM 重复 bootstrap 是幂等 replay，不同 scope 或第二 owner fail closed；bootstrap 暴露稳定 serviceRuntimeRef 供产品与 Workflow adapter 核对。
+              </?01M1MHFE12GD52PZYMYM4FTKTV>
+            ]>
+          )>
+          <Task #P1-T3 { name = "让 HolonAssign、ActorAssign 与 MemberAssign 路由 shared capability" status = "DONE" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P1-T3-AC1 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKTW>
+              autonomous Holon assignment 只调用 shared HolonTaskRuntimeService 并返回中立 admission/task/wake/settlement receipt，不要求 Workflow ids。
+              </?01M1MHFE12GD52PZYMYM4FTKTW>
+              <Criterion #P1-T3-AC2 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKKV>
+              属于 autonomous Holon 且有 exact member admission 的 Member/Actor assignment 使用 member selector；缺失或歧义不得退回 VM member mailbox。
+              </?01M1MHFE12GD52PZYMYM4FTKKV>
+              <Criterion #P1-T3-AC3 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKKW>
+              不属于 canonical autonomous Holon 的普通 Member direct messaging 与 leader-led Holon 路径保持原语义。
+              </?01M1MHFE12GD52PZYMYM4FTKKW>
+              <Criterion #P1-T3-AC4 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKTX>
+              同一 Member 同时属于多个 autonomous Holon 时，缺少显式 holonRef 的产品 assign 必须报告歧义，禁止选择 first/last。
+              </?01M1MHFE12GD52PZYMYM4FTKTX>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Workflow compatibility adapter 与同路执行" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "把 frozen Workflow target 投影为 runtime admission 与 service ports" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKKX>
+              adapter 从真实 frozen target、deployment binding 与 snapshot issuer authority 构造中立 admission，不由 VM governance 或名字推断。
+              </?01M1MHFE12GD52PZYMYM4FTKKX>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKKY>
+              TaskSpace submit、typed coordinator mailbox wake 与 settlement observation 仅注册为 facet 唯一 owner 的 effect route；adapter state 是可重建 runtime correlation，不是 task truth，也不创建第二 catalog/service。
+              </?01M1MHFE12GD52PZYMYM4FTKKY>
+              <Criterion #P2-T1-AC3 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKKZ>
+              legacy depa.ai.organization-task profile 可继续读取，但新 service receipt 与 invocation 不泄漏 Workflow identity 到 canonical core。
+              </?01M1MHFE12GD52PZYMYM4FTKKZ>
+            ]>
+          )>
+          <Task #P2-T2 { name = "让 Ctrl/Data openTask 与产品 assign 委托同一 service" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKM0>
+              AICtrlWorkflow、AIDataWorkflow 与产品 Holon/member assign 的 Holon task open path 具有相同 serviceRuntimeRef、service object 与 catalog，而不是并列私有 assignment 实现。
+              </?01M1MHFE12GD52PZYMYM4FTKM0>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKM1>
+              Workflow 指定的 taskSpace/task/command identity 与 TaskSpace receipt 精确一致，自动 pump、consume 与 replan 仍观察 canonical receipts。
+              </?01M1MHFE12GD52PZYMYM4FTKM1>
+              <Criterion #P2-T2-AC3 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKM2>
+              旧 CanonicalHolonAssignmentAuthority/assignCanonicalHolonTask 私有路径删除或收缩为无独立业务状态的 compatibility projection；WorkflowRuntimeService 静态禁止私有 FileTaskSpaceOwner、journal 与 coordinator map。
+              </?01M1MHFE12GD52PZYMYM4FTKM2>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "统一入口验收" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "验证 standalone 产品、member 与 Ctrl/Data 矩阵" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKM3>
+              无任何 Workflow instance 的正常 VM bootstrap 可自动挂载唯一 service owner，并通过产品 Holon/member assign 完成 canonical task。
+              </?01M1MHFE12GD52PZYMYM4FTKM3>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKM4>
+              Ctrl/Data Workflow 回归证明 open、pump、settlement/consume 仍可运行，且产品/Ctrl/Data 三种入口观测相同 serviceRuntimeRef 与 catalog revision。
+              </?01M1MHFE12GD52PZYMYM4FTKM4>
+              <Criterion #P3-T1-AC3 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKM5>
+              静态扫描确认 CanonicalHolonAssignmentFacade 与 Workflow runtime 不再注册模块 WeakMap authority，TaskSpace/actor/session authority 未复制。
+              </?01M1MHFE12GD52PZYMYM4FTKM5>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P3-G1 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKM6>
+          产品、member 与两个 Workflow mode 的可执行行为证据完整。
+          </?01M1MHFE12GD52PZYMYM4FTKM6>
+          <Criterion #P3-G2 { checked = true } ?01M1MHFE12GD52PZYMYM4FTKM7>
+          DEPA runtime/effect/actor 权威边界无已知 blocker。
+          </?01M1MHFE12GD52PZYMYM4FTKM7>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_route-holon-member-and-workflow-assignment-through-task-runtime" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

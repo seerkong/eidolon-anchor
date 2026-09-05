@@ -1,0 +1,21 @@
+<KindDefinition #Depa.Flows.KindDefinition.ContextMaterial envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
+  lifecycle = "Stable"
+  resourceKind = "ContextMaterial"
+  subjectFqn = "Depa.Flows.KindDefinition.ContextMaterial"
+  sourceShapes = ["single-file"]
+  documentCardinality = "one"
+  description = "Canonical depa-flows ContextMaterial resource contract."
+} (
+  <SpecRevisions [
+    <SpecRevision #v1 {
+      specVersion = 1
+      schemaRef = "vfs://./spec-v1.schema.json"
+      schemaFingerprint = "sha256:fece2b88fce84abcf60040018724f2281d3c39007118596d69e5034f0c00fe1c"
+      contractFingerprint = "sha256:df321212d696a7a9bbb7665feb7f364cbc8edc980182605fbc38cf8e358ae947"
+      semanticValidatorFingerprint = "sha256:d160a86536caa6e3c6a5e1f966e782357fb201148fab686fe19f117de713fdf1"
+      referenceProjectionFingerprint = "sha256:b60a043d7b29ee3093a77ce67d2e456a0817c7e8aaac36bdec9e8c7f20ab6731"
+      compilerInputFingerprint = "sha256:a8091730cd508da9ed7f01d6e6f6839d2b3f697be9917b3420eaa1b61c208ccf"
+      stability = "stable"
+    }>
+  ]>
+)>

@@ -11,7 +11,7 @@ import {
   type HolonTaskSpacePumpResult,
   type PumpHolonTaskSpaceInput,
 } from "./HolonTaskSpacePump"
-import type { HolonWorkflowTaskProcessorRuntime } from "./HolonWorkflowTaskRuntime"
+import type { HolonTaskProcessorRuntime } from "./HolonTaskRuntimeProcessor"
 
 export interface HolonTaskSpaceCoordinatorActorIdentity {
   readonly deploymentId: string
@@ -31,7 +31,7 @@ type PumpOutcome = Readonly<
 >
 
 type PumpCapability = Readonly<{
-  runtime: HolonWorkflowTaskProcessorRuntime
+  runtime: HolonTaskProcessorRuntime
 }>
 
 /**
@@ -85,7 +85,7 @@ export class HolonTaskSpaceCoordinatorActor {
   }
 
   wake(
-    runtime: HolonWorkflowTaskProcessorRuntime,
+    runtime: HolonTaskProcessorRuntime,
     input: PumpHolonTaskSpaceInput,
   ): Promise<HolonTaskSpacePumpResult> {
     this.assertSubscription(input)
@@ -132,6 +132,12 @@ export class HolonTaskSpaceCoordinatorActor {
       this.scheduledWakes.set(subscriptionId, timer)
     }
     schedule()
+  }
+
+  close(): void {
+    for (const timer of this.scheduledWakes.values()) clearTimeout(timer)
+    this.scheduledWakes.clear()
+    this.capabilities.clear()
   }
 
   private cancelScheduledWake(subscriptionId: string): void {

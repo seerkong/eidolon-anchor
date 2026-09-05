@@ -1,0 +1,114 @@
+<Track #migrate-eidolon-resource-runtime-to-halfcode-03 apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "让 Eidolon 以 Halfcode 0.3 exact Kind contract 消费 Holarchy snapshot、HolonExecutionBinding 与 HolonTaskRuntimeDefinition，并完成无 Workflow 的 normal VM/fresh restart 物理验收。" description = "迁移 Eidolon 自有 Kind authority、ResourcePackage 作者资源与 registry adapter；绑定 Halfcode/Holarchy 0.3 候选包；复用既有 standalone HolonTaskRuntimeService，在真实文件 registry、TaskSpace、journal 与 fresh process 上关闭此前被拒绝的物理验收。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-04T10:03:30.915Z" updated_at = "2026-09-04T15:23:27.032Z" modeling_base_commit = "a2b284679188201744f3295bd67bb3b622d737a5" engineering_base_commit = "a2b284679188201744f3295bd67bb3b622d737a5" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #adapter { role = "output" name = "adapter" domain = "code" path = "vfs://@/cell/packages/holarchy-eidolon-adapter/" }>
+    <MaterialBundle #contract { role = "output" name = "contract" domain = "code" path = "vfs://@/cell/packages/ai-organ-contract/" }>
+    <MaterialBundle #logic { role = "output" name = "logic" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/" }>
+    <MaterialBundle #resource-authors { role = "output" name = "resource-authors" domain = "code" path = "vfs://@/cell/packages/" }>
+    <MaterialBundle #tests { role = "output" name = "tests" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/workflow/" }>
+    <MaterialBundle #reports { role = "output" name = "reports" domain = "docs" path = "vfs://./reports/" }>
+  ]>
+  <TaskSpace #space_migrate-eidolon-resource-runtime-to-halfcode-03 { name = "migrate-eidolon-resource-runtime-to-halfcode-03" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Eidolon Kind authority 与作者资源迁移" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "为 HolonExecutionBinding 与 HolonTaskRuntimeDefinition 建立 Halfcode 0.3 exact contract" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1NYBNDFN4R6YABGZ4CAHW9N>
+              两个 Eidolon-owned Kind 均导出真实 owner、schema、semantic contract、SpecRevision 与 reader registration；KindDefinition source 中的 fingerprint 来自同一注册对象，不是手写描述或伪造常量。
+              </?01M1NYBNDFN4R6YABGZ4CAHW9N>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M1NYBNDFN4R6YABGZ4CAHW9P>
+              Halfcode 0.3 resolveResourceTree 接受合法 definition/binding 资源，并对 forged contract/schema/semantic fingerprint 与 legacy halfcode.resources/v1 envelope fail closed。
+              </?01M1NYBNDFN4R6YABGZ4CAHW9P>
+              <Criterion #P1-T1-AC3 { checked = true } ?01M1NYBNDFN4R6YABGZ4CAHW9Q>
+              HolonEffectiveSnapshot contract 只从 Holarchy 包导入，Eidolon 不复制或重新计算其 subject ownership。
+              </?01M1NYBNDFN4R6YABGZ4CAHW9Q>
+            ]>
+          )>
+          <Task #P1-T2 { name = "迁移 Eidolon 内置与测试 ResourcePackage 作者资源到 0.3 envelope" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M1NYBNDFN4R6YABGZ4CAHW9R>
+              系统 skill、builtin VFS generator、资源 fixture 与对应 manifest 使用 halfcode.resource-envelope/v1 + specVersion，不再产生 apiVersion=halfcode.resources/v1。
+              </?01M1NYBNDFN4R6YABGZ4CAHW9R>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M1NYBNDFN4R6YABGZ4CAHW9S>
+              生产与测试作者资源均由同一 contract registration 生成或校验；静态扫描不留下属于 Halfcode ResourcePackage 的 legacy envelope。
+              </?01M1NYBNDFN4R6YABGZ4CAHW9S>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "0.3 registry consumer 与依赖闭包" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "迁移 EidolonAppResourceRegistryAdapter 到 authored/resolved 两阶段" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M1NYBNDFN4R6YABGZ4CAHW9T>
+              adapter 明确区分 AuthoredResourceTree 与 ResolvedResourceTree；进入 Holon runtime projection 前，相关 Kind 已通过 exact reader profile 和 KindContractRegistry admission。
+              </?01M1NYBNDFN4R6YABGZ4CAHW9T>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M1NYBNDFN4R6YABGZ4CAHW9V>
+              layer composition、content identity、publication fence 与 Effective VFS authority 保持原语义；不得用 host 文本扫描、名称启发式或 legacy envelope fallback 绕开 0.3 contract。
+              </?01M1NYBNDFN4R6YABGZ4CAHW9V>
+              <Criterion #P2-T1-AC3 { checked = true } ?01M1NYBNDFN4R6YABGZ4CAHW9W>
+              Eidolon manifests 使用 Halfcode 0.3.0 与 Holarchy 候选版本；开发期物理验证可消费 tarball，但正式 manifest/lock 不写本机 file 路径。
+              </?01M1NYBNDFN4R6YABGZ4CAHW9W>
+            ]>
+          )>
+          <Task #P2-T2 { name = "准备 holarchy-eidolon-adapter 发布候选并验证隔离消费" status = "DONE" priority = "P1" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M1NYBNDFN4R6YABGZ4CAHW9X>
+              公开 adapter 版本与依赖闭包能打包，隔离 Bun consumer 从 tarball 加载 Kind registration 与 canonical binding parser。
+              </?01M1NYBNDFN4R6YABGZ4CAHW9X>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M1NYBNDFN4R6YABGZ4CAHW9Y>
+              只生成 release candidate 与校验报告；本 Track 不执行 npm publish，未来发布命令必须显式使用 /Users/kongweixian/.npmrc_official。
+              </?01M1NYBNDFN4R6YABGZ4CAHW9Y>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "物理 runtime 与跨模式回归" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "关闭 normal VM 与 fresh restart 物理验收" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M1NYBNDFN4R6YABGZ4CAHW9Z>
+              normal VM 在无 Workflow instance 时从真实有效 registry materialize/load deployment，并用唯一 facet owner 注册 stable admission/effect route。
+              </?01M1NYBNDFN4R6YABGZ4CAHW9Z>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M1NYBNDFN4R6YABGZ4CAHWA0>
+              fresh process 从物理 registry、deployment、TaskSpace 与 pump journal 恢复非终态任务，不重复已接受 effect，且不读取 VM TaskTree 或 Workflow checkpoint。
+              </?01M1NYBNDFN4R6YABGZ4CAHWA0>
+              <Criterion #P3-T1-AC3 { checked = true } ?01M1NYBNDFN4R6YABGZ4CAHWA1>
+              Holon、exact Member、final/none/stream、同 key replay、crash-after-effect 均在 canonical standalone service 上通过。
+              </?01M1NYBNDFN4R6YABGZ4CAHWA1>
+            ]>
+          )>
+          <Task #P3-T2 { name = "回归 Ctrl/Data Workflow 与三仓迁移边界" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M1NYBNDFN4R6YABGZ4CAHWA2>
+              Ctrl/Data Workflow 仍通过同一 HolonTaskRuntimeService adapter，Workflow checkpoint 只消费 TaskSpace receipt/material。
+              </?01M1NYBNDFN4R6YABGZ4CAHWA2>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M1NYBNDFN4R6YABGZ4CAHWA3>
+              目标测试、typecheck、package checks 与 strict Codument validation 通过；报告记录真实命令、数量、候选包摘要和剩余发布顺序。
+              </?01M1NYBNDFN4R6YABGZ4CAHWA3>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P3-G1 { checked = true } ?01M1NYBNDFN4R6YABGZ4CAHWA4>
+          Eidolon 资源 admission 已物理进入 Halfcode 0.3 resolved pipeline，未用兼容 fallback 稀释 contract。
+          </?01M1NYBNDFN4R6YABGZ4CAHWA4>
+          <Criterion #P3-G2 { checked = true } ?01M1NYBNDFN4R6YABGZ4CAHWA5>
+          无 Workflow 的 normal VM 与 fresh-process recovery 证据完整，且 Ctrl/Data 回归无 blocker。
+          </?01M1NYBNDFN4R6YABGZ4CAHWA5>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_migrate-eidolon-resource-runtime-to-halfcode-03" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

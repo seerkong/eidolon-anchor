@@ -1,4 +1,4 @@
-<ResourceMappings #Eidolon.Anchor.ResourceMappings.Authoring apiVersion="halfcode.resources/v1" version="1.0.0" (
+<ResourceMappings #Eidolon.Anchor.ResourceMappings.Authoring envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 (
   <SourceRoots [
     <SourceRoot #EidolonAuthoring { sourceRoot = "vfs://module/EidolonAnchorSystemSkills/" } [
       <CopyDirectory { from = "content/authoring/operations" to = "operations" }>

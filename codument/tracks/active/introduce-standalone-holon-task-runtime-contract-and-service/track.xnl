@@ -1,0 +1,131 @@
+<Track #introduce-standalone-holon-task-runtime-contract-and-service apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "建立不依赖 Workflow identity 的 Holon task runtime contract、Processor 与可注入的 HolonTaskRuntimeService。" description = "新增中立 definition/admission/selector/invocation/profile contracts，把执行核心从 HolonWorkflowTaskRuntime 中提取，并以显式 runtime ports 组合 TaskSpace、pump、deployment 与 actor execution。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-03T20:14:18.509Z" updated_at = "2026-09-03T21:00:36.643Z" modeling_base_commit = "a2b284679188201744f3295bd67bb3b622d737a5" engineering_base_commit = "a2b284679188201744f3295bd67bb3b622d737a5" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #code { role = "output" name = "code" domain = "code" path = "vfs://@/cell/packages/" }>
+    <MaterialBundle #tests { role = "output" name = "tests" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/" }>
+  ]>
+  <TaskSpace #space_introduce-standalone-holon-task-runtime-contract-and-service { name = "introduce-standalone-holon-task-runtime-contract-and-service" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "中立 contract 与 profile compatibility" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "定义并验证 runtime definition、admission、selector、invocation 与 receipt contracts" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1MESD28NKZPE0BVNE2HBVGM>
+              `ai-organ-contract` 暴露 closed `HolonTaskRuntimeDefinition`、frozen admission、Holon/member selector、invocation/origin 与 service receipt/port；`ai-organ-logic` normalizer 拒绝缺失、额外、原型污染和不合法 identity。
+              </?01M1MESD28NKZPE0BVNE2HBVGM>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M1MESD28NKZPE0BVNE2HBVGN>
+              中立 contract 不要求 `workflowInstanceId`、`runId` 或 `nodeId`，Workflow lineage 只能作为 adapter origin metadata。
+              </?01M1MESD28NKZPE0BVNE2HBVGN>
+              <Criterion #P1-T1-AC3 { checked = true } ?01M1MESD28NKZPE0BVNE2HBVGP>
+              Data/effect ownership 由类型与测试固定：TaskSpace、deployment、journal、clock/scheduler、actor dispatch 以显式 runtime port 注入。
+              </?01M1MESD28NKZPE0BVNE2HBVGP>
+            ]>
+          )>
+          <Task #P1-T2 { name = "建立中立 organization-task profile 与 legacy Workflow profile 归一化边界" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M1MESD28NKZPE0BVNE2HBVGQ>
+              新 profile 保存中立 definition/admission 与 snapshot receipt，且 snapshot/binding/task contract 必须精确一致。
+              </?01M1MESD28NKZPE0BVNE2HBVGQ>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M1MESD28NKZPE0BVNE2HBVGR>
+              一个独立 adapter decoder 使用 `ai-workflow-contract` 原 schema 读取历史 `depa.ai.organization-task` profile 并投影；canonical profile normalizer、service 与 Processor 不 import Workflow contract，且新核心不散落双 schema 分支。
+              </?01M1MESD28NKZPE0BVNE2HBVGR>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Processor 与独立 service" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "把 Workflow-specific task execution 提取为中立 Processor" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M1MESD28NKZPE0BVNE2HBVGS>
+              canonical execution processor 使用显式 runtime/input/config，不读取 Workflow、模块级 service locator 或隐藏时钟。
+              </?01M1MESD28NKZPE0BVNE2HBVGS>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M1MESD28NKZPE0BVNE2HBVGT>
+              task-attempt identity 使用中立 origin；历史 Workflow 调用通过薄 wrapper/decoder 保持可执行。
+              </?01M1MESD28NKZPE0BVNE2HBVGT>
+              <Criterion #P2-T1-AC3 { checked = true } ?01M1MESD28NKZPE0BVNE2HBVGV>
+              TaskSpace 仍是 claim/start/heartbeat/settlement owner，journal 只拥有 accepted-effect/idempotency record，actor/session 仍拥有 conversation。
+              </?01M1MESD28NKZPE0BVNE2HBVGV>
+            ]>
+          )>
+          <Task #P2-T2 { name = "实现可注入的 HolonTaskRuntimeService 与精确 target resolution" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M1MESD28NKZPE0BVNE2HBVGW>
+              service 可注册冻结 admission，并按 closed Holon/member selector 解析唯一候选；零候选与多候选分别 fail required/ambiguous。
+              </?01M1MESD28NKZPE0BVNE2HBVGW>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M1MESD28NKZPE0BVNE2HBVGX>
+              无任何 Workflow instance 时，注入的 runtime ports 可通过 TaskSpace command 创建任务、向唯一 `(deploymentId,holonRef)` coordinator actor mailbox 发送 typed wake，并观察 final settlement receipt；service 不跨 actor 直接调用。
+              </?01M1MESD28NKZPE0BVNE2HBVGX>
+              <Criterion #P2-T2-AC3 { checked = true } ?01M1MESD28NKZPE0BVNE2HBVGY>
+              canonical member selector 只能命中 binding target 为该 member 的 admission；调用方不能传 resolved Member 或 Agent instance。
+              </?01M1MESD28NKZPE0BVNE2HBVGY>
+              <Criterion #P2-T2-AC4 { checked = true } ?01M1MFDXZ9DTC3VN5SDEVW537G>
+              admission 注册是显式 catalog state transition/port；service facade 不持有隐藏 mutable Map 或 module-level locator。
+              </?01M1MFDXZ9DTC3VN5SDEVW537G>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "公共表面与 focused verification" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "验证 standalone runtime、compatibility 与 DEPA 边界" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M1MESD28NKZPE0BVNE2HBVGZ>
+              focused tests 覆盖无 Workflow Holon final assignment、exact member、required/ambiguous、legacy profile、coordinator mailbox wake 与 replay。
+              </?01M1MESD28NKZPE0BVNE2HBVGZ>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M1MESD28NKZPE0BVNE2HBVH0>
+              contract/logic exports、TypeScript typecheck 与相关 TaskSpace/Holon tests 通过。
+              </?01M1MESD28NKZPE0BVNE2HBVH0>
+              <Criterion #P3-T1-AC3 { checked = true } ?01M1MESD28NKZPE0BVNE2HBVH1>
+              静态审查确认新 logic 不构造 file support、不使用 module `WeakMap`、canonical core 不 import Workflow contract、且不复制 TaskSpace truth。
+              </?01M1MESD28NKZPE0BVNE2HBVH1>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P3-G1 { checked = true } ?01M1MESD28NKZPE0BVNE2HBVH2>
+          所有新 behavior cases 有可执行测试证据。
+          </?01M1MESD28NKZPE0BVNE2HBVH2>
+          <Criterion #P3-G2 { checked = true } ?01M1MESD28NKZPE0BVNE2HBVH3>
+          DEPA Data/Effect/Processor/Actor 边界无已知 blocker。
+          </?01M1MESD28NKZPE0BVNE2HBVH3>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "纠正 admission 与 task snapshot receipt 边界" status = "DONE" priority = "P0" order = 3 } (
+        <SubNodes [
+          <Task #P4-T1 { name = "拆分冻结 runtime authority 与逐次 TaskSpace snapshot receipt" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M1MH4WQWTKTMCK9N0CX1NDF0>
+              runtime admission 只保存可复用的冻结 Holon/snapshot/binding eligibility，不含某次提交才产生的 taskSpaceId 或 issuer receipt。
+              </?01M1MH4WQWTKTMCK9N0CX1NDF0>
+              <Criterion #P4-T1-AC2 { checked = true } ?01M1MH4WQWTKTMCK9N0CX1NDF1>
+              TaskSpace submit effect 返回该次任务的 exact snapshot receipt；service 验证 receipt 与 admission authority、taskSpaceId 和 binding 一致，并把它写入 assignment receipt。
+              </?01M1MH4WQWTKTMCK9N0CX1NDF1>
+              <Criterion #P4-T1-AC3 { checked = true } ?01M1MH4WQWTKTMCK9N0CX1NDF2>
+              同一 admission 可接受两个不同 request 并产生两个不同 TaskSpace receipts；Workflow compatibility adapter 仍由原 schema 验证后投影，不重新引入 Workflow identity 到 canonical core。
+              </?01M1MH4WQWTKTMCK9N0CX1NDF2>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P4-G1 { checked = true } ?01M1MH4WQWTKTMCK9N0CX1NDF3>
+          integration-ready contract 不要求预先存在的 TaskSpace，且 focused tests、typecheck、strict validation 通过。
+          </?01M1MH4WQWTKTMCK9N0CX1NDF3>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_introduce-standalone-holon-task-runtime-contract-and-service" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+      <Node #P4 [
+        <After { ref = "P3" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

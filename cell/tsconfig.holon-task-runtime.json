@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": false
+  },
+  "include": [
+    "packages/ai-organ-contract/src/organization/HolonTaskRuntime.ts",
+    "packages/ai-organ-logic/src/organization/HolonTaskExecutionProfile.ts",
+    "packages/ai-organ-logic/src/organization/HolonTaskPumpJournal.ts",
+    "packages/ai-organ-logic/src/organization/HolonTaskRuntimeCapability.ts",
+    "packages/ai-organ-logic/src/organization/HolonTaskRuntimeContract.ts",
+    "packages/ai-organ-logic/src/organization/HolonTaskRuntimeProcessor.ts",
+    "packages/ai-organ-logic/src/organization/HolonTaskRuntimeService.ts",
+    "packages/ai-organ-logic/src/organization/HolonTaskSpaceCoordinatorActor.ts",
+    "packages/ai-organ-logic/src/organization/HolonTaskSpacePump.ts",
+    "packages/ai-support/src/organization/LocalHolonTaskRuntimeSupport.ts",
+    "packages/ai-organ-logic/type-tests/holon-task-runtime.ts"
+  ],
+  "exclude": []
+}

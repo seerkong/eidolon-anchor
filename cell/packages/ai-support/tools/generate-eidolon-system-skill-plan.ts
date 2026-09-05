@@ -69,8 +69,21 @@ const flowDslProvenance = JSON.parse(await readFile(
   readonly files: readonly { readonly path: string; readonly contentDigest: string }[]
 }
 
+const halfcodeResourceDslModule = loadHalfcodeResourceDslSystemSkillModule()
+const canonicalSkillCapsuleKindDefinition = await readFile(path.join(
+  halfcodeResourceDslModule.resourceRootDir,
+  "KindDefinitions/SkillCapsule/manifest.xnl",
+))
+const mirroredSkillCapsuleKindDefinition = await readFile(path.join(
+  EIDOLON_ANCHOR_SYSTEM_SKILL_MODULE.resourceRootDir,
+  "KindDefinitions/SkillCapsule/manifest.xnl",
+))
+if (!canonicalSkillCapsuleKindDefinition.equals(mirroredSkillCapsuleKindDefinition)) {
+  throw new Error("EIDOLON_SYSTEM_SKILL_KIND_DEFINITION_DRIFT: SkillCapsule must mirror Halfcode 0.3 canonical bytes")
+}
+
 const modules = [
-  loadHalfcodeResourceDslSystemSkillModule(),
+  halfcodeResourceDslModule,
   flowDslReferenceModule,
   EIDOLON_ANCHOR_SYSTEM_SKILL_MODULE,
 ] as const
@@ -154,7 +167,7 @@ function assertCanonicalPlan(): void {
   ].sort((left, right) => left < right ? -1 : left > right ? 1 : 0)
   const actualFlowTargets = [...flowTargets].sort((left, right) => left < right ? -1 : left > right ? 1 : 0)
   if (flowDslProvenance.packageName !== "ai-workflow-flow-dsl-reference"
-    || flowDslProvenance.packageVersion !== "0.1.6"
+    || flowDslProvenance.packageVersion !== "0.2.0"
     || JSON.stringify(actualFlowTargets) !== JSON.stringify(expectedFlowTargets)) {
     throw new Error("EIDOLON_SYSTEM_SKILL_PLAN_INVALID: Flow DSL targets differ from the published module provenance")
   }
@@ -221,7 +234,8 @@ function renderGeneratedModule(projection: ReturnType<typeof skillCapsuleDistrib
     "  readonly name: string",
     "  readonly version: string",
     "  readonly capsuleFqn: string",
-    "  readonly apiVersion: string",
+    "  readonly envelopeVersion: string",
+    "  readonly specVersion: number",
     "  readonly closureDigest: string",
     "  readonly files: readonly { readonly path: string; readonly digest: string }[]",
     "}",
@@ -231,7 +245,8 @@ function renderGeneratedModule(projection: ReturnType<typeof skillCapsuleDistrib
     "    name: capsule.identity.name,",
     "    version: capsule.identity.version,",
     "    capsuleFqn: capsule.identity.fqn,",
-    "    apiVersion: capsule.identity.apiVersion,",
+    "    envelopeVersion: capsule.identity.envelopeVersion,",
+    "    specVersion: capsule.identity.specVersion,",
     "    closureDigest: plan.closureDigest,",
     "    files: Object.freeze(capsule.files.map((file) => Object.freeze({",
     "      path: file.capsuleRelativePath,",

@@ -1,4 +1,4 @@
-<SkillCapsule #Eidolon.Anchor.Skill.DevOps apiVersion="halfcode.resources/v1" version="1.0.29" {
+<SkillCapsule #Eidolon.Anchor.Skill.DevOps envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   name = "sys-eidolon-anchor-devops"
   lifecycle = "Stable"
   description = "Route the explicit Eidolon application lifecycle to its authoring and run sibling Skills."

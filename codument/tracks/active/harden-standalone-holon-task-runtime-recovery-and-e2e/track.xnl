@@ -1,0 +1,116 @@
+<Track #harden-standalone-holon-task-runtime-recovery-and-e2e apiVersion="codument.tech/v1alpha1" version="1" { status = "cancelled" goal = "让正常 Eidolon 启动从 Halfcode 资源独立装载 Holon task admissions，在无 Workflow 时真实执行并从 durable TaskSpace/journal 恢复，同时保持 legacy Workflow 兼容。" description = "投影 HolonTaskRuntimeDefinition 资源；把 canonical profile、pump subscription、MemberRuntime session 与 local actor execution 从 Workflow lineage 中解耦；由 ai-support/terminal 装配唯一 standalone host，并完成 final/none/stream、fresh-process recovery 与 Ctrl/Data 回归。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-03T22:00:09.161Z" updated_at = "2026-09-04T09:17:16.308Z" modeling_base_commit = "a2b284679188201744f3295bd67bb3b622d737a5" engineering_base_commit = "a2b284679188201744f3295bd67bb3b622d737a5" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #contract { role = "output" name = "contract" domain = "code" path = "vfs://@/cell/packages/ai-organ-contract/" }>
+    <MaterialBundle #logic { role = "output" name = "logic" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/" }>
+    <MaterialBundle #support { role = "output" name = "support" domain = "code" path = "vfs://@/cell/packages/ai-support/" }>
+    <MaterialBundle #terminal { role = "output" name = "terminal" domain = "code" path = "vfs://@/terminal/packages/organ/" }>
+    <MaterialBundle #docs { role = "output" name = "docs" domain = "docs" path = "vfs://@/docs/ai/architecture/" }>
+  ]>
+  <TaskSpace #space_harden-standalone-holon-task-runtime-recovery-and-e2e { name = "harden-standalone-holon-task-runtime-recovery-and-e2e" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "资源 admission 与部署恢复" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "投影并冻结 HolonTaskRuntimeDefinition 资源" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1MNCDX3CWPM8NNZED6B2MJ4>
+              Halfcode registry 能投影 closed HolonTaskRuntimeDefinition，并把 definition content identity、HolonExecutionBinding freeze receipt、issuer snapshot bytes 组合成可复现 admission；不按 VM 名字推断。
+              </?01M1MNCDX3CWPM8NNZED6B2MJ4>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M1MNCDX3CWPM8NNZED6B2MJ5>
+              definition/binding/snapshot 不匹配、重复默认 definition、target 不在 frozen eligibility 中均 fail closed。
+              </?01M1MNCDX3CWPM8NNZED6B2MJ5>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Workflow-neutral 执行与 durable recovery" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "让 coordinator、pump 与 MemberRuntime 原生处理 canonical profile/origin" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M1MNCDX3CWPM8NNZED6B2MJ8>
+              coordinator/pump 原生读取 eidolon.ai.holon-task profile；legacy depa.ai.organization-task 只经 compatibility decoder 进入同一 Processor。
+              </?01M1MNCDX3CWPM8NNZED6B2MJ8>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M1MNCDX3CWPM8NNZED6B2MJ9>
+              新 subscription 使用 origin + neutral recovery scope，不要求 workflowInstanceId/runId/nodeId；旧 v1 Workflow bytes 仍可验证并投影。
+              </?01M1MNCDX3CWPM8NNZED6B2MJ9>
+              <Criterion #P2-T1-AC3 { checked = true } ?01M1MNCDX3CWPM8NNZED6B2MJA>
+              shared 与 isolated-task-runtime 仍由 frozen binding policy 决定；generic actor/session history 不被 TaskSpace 或 support host 复制。
+              </?01M1MNCDX3CWPM8NNZED6B2MJA>
+            ]>
+          )>
+          <Task #P2-T2 { name = "实现 standalone local actor route 与 fresh-process recover" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M1MNCDX3CWPM8NNZED6B2MJB>
+              ai-support 通过显式 generic actor/session/adapter ports 执行 canonical task，accepted effect 由 journal 幂等，TaskSpace 仍是 lifecycle truth。
+              </?01M1MNCDX3CWPM8NNZED6B2MJB>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M1MNCDX3CWPM8NNZED6B2MJC>
+              fresh process 扫描 durable subscriptions、重建 support/coordinator，并通过显式 Processor/actor ports 续跑非终态任务；不读取 VM TaskTree 或 Workflow checkpoint。
+              </?01M1MNCDX3CWPM8NNZED6B2MJC>
+              <Criterion #P2-T2-AC3 { checked = true } ?01M1MNCDX3CWPM8NNZED6B2MJD>
+              同一 supportRoot 的 live owner、wake timer 与 close 生命周期明确；并发恢复不会形成第二 coordinator。
+              </?01M1MNCDX3CWPM8NNZED6B2MJD>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "产品语义、回归与文档验收" status = "NOT_STARTED" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "验证无 Workflow 产品 assign 与 fresh restart" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M1MNCDX3CWPM8NNZED6B2MJE>
+              真实 File TaskSpace/actor E2E 覆盖 Holon、exact Member、final/none/stream、同 key replay、crash-after-effect 与 fresh restart。
+              </?01M1MNCDX3CWPM8NNZED6B2MJE>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M1MNCDX3CWPM8NNZED6B2MJF>
+              final 返回 settlement；none/stream 先返回 accepted receipt并由 runtime lifecycle 继续；失败/歧义具稳定可观察错误。
+              </?01M1MNCDX3CWPM8NNZED6B2MJF>
+            ]>
+          )>
+          <Task #P3-T2 { name = "回归 Workflow 与固化 canonical 架构" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M1MNCDX3CWPM8NNZED6B2MJG>
+              Ctrl/Data legacy profile/subscription 回归仍走同 service owner；Workflow checkpoint 只消费 TaskSpace receipt/material。
+              </?01M1MNCDX3CWPM8NNZED6B2MJG>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M1MNCDX3CWPM8NNZED6B2MJH>
+              架构文档明确 DEPA authority、Halfcode resource admission、shared/fresh MemberRuntime、恢复序列与被移除的 Workflow/VM 隐式依赖。
+              </?01M1MNCDX3CWPM8NNZED6B2MJH>
+              <Criterion #P3-T2-AC3 { checked = true } ?01M1MNCDX3CWPM8NNZED6B2MJJ>
+              静态扫描无 module WeakMap、VM TaskTree writer、Workflow-only requirement 或 ai-organ-logic 直接 file construction。
+              </?01M1MNCDX3CWPM8NNZED6B2MJJ>
+            ]>
+          )>
+          <Task #P3-T3 { name = "验证有效 registry 的正常 VM 物理装配" status = "REFUSED" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P3-T3-AC1 { checked = false } ?01M1MNCDX3CWPM8NNZED6B2MJ6>
+              normal VM 在无 Workflow instance 时从有效 registry materialize/load deployment，并在唯一 facet owner 注册 stable admission/effect route。
+              </?01M1MNCDX3CWPM8NNZED6B2MJ6>
+              <Criterion #P3-T3-AC2 { checked = false } ?01M1MNCDX3CWPM8NNZED6B2MJ7>
+              相同冻结资源 replay 复用 service/catalog；资源 revision 或 deployment authority 冲突不得覆盖已有事实。
+              </?01M1MNCDX3CWPM8NNZED6B2MJ7>
+              <Criterion #P3-T3-AC3 { checked = false } ?01M1MNCDX3CWPM8NNZED6B2MJN>
+              fresh normal VM 从物理 registry/deployment 文件重开 MemberRuntime/coordinator actor，并续跑一项非终态任务且不重复已接受 effect。
+              </?01M1MNCDX3CWPM8NNZED6B2MJN>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P3-G1 { checked = false } ?01M1MNCDX3CWPM8NNZED6B2MJK>
+          无 Workflow 的真实执行与 fresh-process recovery 证据完整。
+          </?01M1MNCDX3CWPM8NNZED6B2MJK>
+          <Criterion #P3-G2 { checked = false } ?01M1MNCDX3CWPM8NNZED6B2MJM>
+          兼容回归与 DEPA authority 复核无 blocker。
+          </?01M1MNCDX3CWPM8NNZED6B2MJM>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_harden-standalone-holon-task-runtime-recovery-and-e2e" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

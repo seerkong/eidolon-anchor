@@ -1115,6 +1115,16 @@ function compareCodeUnits(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0
 }
 
+function resourcePackageVersion(manifest: {
+  readonly node: { readonly properties: Readonly<Record<string, unknown>> }
+}): string {
+  const value = manifest.node.properties.packageVersion
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error("Workflow ResourcePackage must declare a non-empty packageVersion property")
+  }
+  return value.trim()
+}
+
 function resourceRef(resourceId: string): `resource://${string}` {
   return `resource://${resourceId}`
 }
@@ -2020,8 +2030,7 @@ export class WorkflowAuthoringSessionStore {
         ?? (candidateSnapshot.registry.byKind.get("AICtrlWorkflow")?.length ? "AICtrlWorkflow" : "AIDataWorkflow")
       const now = new Date().toISOString()
       const revision = hashWorkflowBinaryFiles(sourceFiles)
-      const packageVersion = loaded.manifest.metadata.version
-      if (!packageVersion) throw new Error("Workflow resource package manifest requires an exact version")
+      const packageVersion = resourcePackageVersion(loaded.manifest)
       const target: WorkflowResourcePackageTarget = {
         kind: "workspace-resource-package",
         layerId: "workspace",
@@ -3056,7 +3065,7 @@ export class WorkflowAuthoringSessionStore {
         resourceDiagnostics(error),
       )
     }
-    const packageVersion = loaded.manifest.metadata.version
+    const packageVersion = resourcePackageVersion(loaded.manifest)
     if (
       loaded.manifest.resourceId !== target.packageId
       || packageVersion !== target.packageVersion
@@ -3097,7 +3106,7 @@ export class WorkflowAuthoringSessionStore {
       ...receipt("resource-package-load", contentTree),
       kind: "workflow.resourcePackageLoadReceipt",
       packageId: loaded.manifest.resourceId,
-      packageVersion: packageVersion!,
+      packageVersion,
       manifestResourceId: loaded.manifest.resourceId,
       contentTreeDigest: digestJson(contentTree),
       diagnosticCount: 0,

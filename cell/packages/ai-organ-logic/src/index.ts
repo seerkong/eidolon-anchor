@@ -1,4 +1,8 @@
-export { spawnChildExecutionActor } from "./agent/DelegateActor";
+export {
+  invokeAddressedChildExecutionActor,
+  spawnChildExecutionActor,
+  type AddressedChildExecutionReference,
+} from "./agent/DelegateActor";
 export {
   ensureActorProviderContextEpochBeforeTransport,
   forceCompressActorHistory,
@@ -65,6 +69,12 @@ export { loadMcpServers, MCPManager, setDebug } from "./mcp/McpSupport";
 export { getMemberManager } from "./organization/MemberManager";
 export * from "./organization/HolonDeploymentDefinition";
 export * from "./organization/HolonDeploymentRuntimeStore";
+export * from "./organization/HolonTaskRuntimeContract";
+export * from "./organization/HolonTaskExecutionProfile";
+export * from "./organization/HolonTaskRuntimeProcessor";
+export * from "./organization/HolonTaskRuntimeService";
+export * from "./organization/HolonTaskRuntimeCapability";
+export * from "./organization/LegacyWorkflowHolonTaskProfileAdapter";
 export * from "./organization/HolonMemberRuntime";
 export * from "./organization/HolonCoordinator";
 export * from "./organization/HolonLocalActorRuntime";

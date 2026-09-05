@@ -1,4 +1,21 @@
-<KindDefinition #eidolon.fixture.kind.Prompt apiVersion="halfcode.resources/v1" version="1.0.0" {
-  lifecycle = "Stable" resourceKind = "Prompt" sourceShapes = ["single-file"]
-  currentApiVersion = "depa.flows/v1" supportedApiVersions = ["depa.flows/v1"]
-}>
+<KindDefinition #Depa.Flows.KindDefinition.Prompt envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
+  lifecycle = "Stable"
+  resourceKind = "Prompt"
+  subjectFqn = "Depa.Flows.KindDefinition.Prompt"
+  sourceShapes = ["single-file"]
+  documentCardinality = "one"
+  description = "Canonical depa-flows Prompt resource contract."
+} (
+  <SpecRevisions [
+    <SpecRevision #v1 {
+      specVersion = 1
+      schemaRef = "vfs://./spec-v1.schema.json"
+      schemaFingerprint = "sha256:7c2db2a16d6640529bfb49150df19d225e0c9975ae809c825e67d203e44b3bd4"
+      contractFingerprint = "sha256:51f8129324b660ec979aff77559a88e4d095784b226fd2b0be59899703706fae"
+      semanticValidatorFingerprint = "sha256:c21895e889fb31dd96fd8214b6890953055ad04078b66bd395c57d07cd6e96bc"
+      referenceProjectionFingerprint = "sha256:17158903e6a16d8dab3bf503dac279f36d00bbb9d657ffb8f34e3682b8389dd8"
+      compilerInputFingerprint = "sha256:5fbe5fa57cb3e2339ca7f79e50e1d751b659d8bfa842685fc600b9bd58ea43b9"
+      stability = "stable"
+    }>
+  ]>
+)>

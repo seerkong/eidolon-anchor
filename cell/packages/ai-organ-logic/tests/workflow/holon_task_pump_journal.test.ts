@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from "bun:test"
-import { mkdtemp, rm } from "node:fs/promises"
+import { createHash } from "node:crypto"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import { canonicalOwnDataDigest } from "task-manager-contract"
 
 import {
   FileHolonTaskPumpJournal,
@@ -35,26 +37,100 @@ function intent() {
 }
 
 describe("FileHolonTaskPumpJournal", () => {
-  it("persists exact workflow subscriptions for fresh reconstruction", async () => {
+  it("persists neutral v2 subscriptions for fresh reconstruction and exact scope queries", async () => {
     const supportRoot = await root()
     const first = new FileHolonTaskPumpJournal({ supportRoot })
-    const subscribed = await first.subscribe({
+    const subscriptionInput = {
+      admissionId: "admission-review",
       deploymentId: "deployment-review",
       bindingRef: "resource://eidolon.fixture.binding.ai",
       holonRef: "holon-review",
       snapshotReceiptId: "snapshot-receipt-review",
       taskSpaceId: "space-review",
       taskId: "task-review",
-      workflowInstanceId: "instance-review",
-      runId: "run-review",
-      nodeId: "delegate-review",
+      origin: {
+        kind: "workflow",
+        workflowKind: "AICtrlWorkflow",
+        workflowRef: "resource://eidolon.fixture.workflow.review",
+        runId: "run-review",
+        nodeId: "delegate-review",
+        invocationId: "invocation-review",
+      },
+      recoveryScope: {
+        kind: "workflow",
+        workflowInstanceId: "instance-review",
+        runId: "run-review",
+        nodeId: "delegate-review",
+      },
+      processorConfig: { leaseDurationMs: 30_000, maxSteps: 16 },
       input: { requirements: ["R1"] },
       createdAt: "2026-01-01T00:00:00.000Z",
+    } as const
+    const subscribed = await first.subscribe(subscriptionInput)
+    const replayedAtLaterObservation = await first.subscribe({
+      ...subscriptionInput,
+      createdAt: "2026-01-01T00:00:02.000Z",
     })
 
     const reconstructed = new FileHolonTaskPumpJournal({ supportRoot })
+    expect(subscribed.schemaVersion).toBe("eidolon.holon-task-pump/v2")
+    expect(replayedAtLaterObservation).toEqual(subscribed)
+    expect(await reconstructed.listSubscriptions()).toEqual([subscribed])
     expect(await reconstructed.listSubscriptions("run-review")).toEqual([subscribed])
     expect(await reconstructed.listSubscriptions("another-run")).toEqual([])
+    await expect(first.subscribe({
+      ...subscriptionInput,
+      input: { requirements: ["changed"] },
+      createdAt: "2026-01-01T00:00:03.000Z",
+    })).rejects.toMatchObject({ code: "EIDOLON_HOLON_PUMP_JOURNAL_CONFLICT" })
+  })
+
+  it("verifies exact legacy v1 Workflow bytes and projects them without rewriting the fact", async () => {
+    const supportRoot = await root()
+    const input = Object.freeze({ requirements: ["R1"] })
+    const identity = Object.freeze({
+      deploymentId: "deployment-review",
+      snapshotReceiptId: "snapshot-receipt-review",
+      taskSpaceId: "space-review",
+      taskId: "task-review",
+      runId: "run-review",
+      nodeId: "delegate-review",
+    })
+    const legacy = Object.freeze({
+      schemaVersion: "eidolon.holon-task-pump/v1" as const,
+      subscriptionId: canonicalOwnDataDigest(identity),
+      ...identity,
+      bindingRef: "resource://eidolon.fixture.binding.ai",
+      holonRef: "holon-review",
+      workflowInstanceId: "instance-review",
+      input,
+      inputDigest: canonicalOwnDataDigest(input),
+      createdAt: "2026-01-01T00:00:00.000Z",
+    })
+    const bytes = Buffer.from(JSON.stringify(legacy))
+    const directory = path.join(supportRoot, "holon-task-pump", "subscriptions")
+    await mkdir(directory, { recursive: true })
+    const target = path.join(
+      directory,
+      `${createHash("sha256").update(legacy.subscriptionId).digest("hex")}.json`,
+    )
+    await writeFile(target, bytes)
+
+    const [projected] = await new FileHolonTaskPumpJournal({ supportRoot })
+      .listSubscriptions("run-review")
+    expect(projected).toMatchObject({
+      schemaVersion: "eidolon.holon-task-pump/v2",
+      subscriptionId: legacy.subscriptionId,
+      recoveryScope: {
+        kind: "workflow",
+        workflowInstanceId: "instance-review",
+        runId: "run-review",
+        nodeId: "delegate-review",
+      },
+      processorConfig: { leaseDurationMs: 30_000, maxSteps: 1_024 },
+      origin: { kind: "service" },
+    })
+    expect(await readFile(target)).toEqual(bytes)
   })
 
   it("serializes concurrent dispatch and replays one durable accepted result", async () => {
@@ -72,6 +148,7 @@ describe("FileHolonTaskPumpJournal", () => {
       first.dispatch(intent(), effect),
       second.dispatch(intent(), effect),
     ])
+    expect(intent().schemaVersion).toBe("eidolon.holon-task-pump/v1")
     expect(effects).toBe(1)
     expect(left.receipt).toEqual(right.receipt)
     expect([left.replayed, right.replayed].sort()).toEqual([false, true])

@@ -1,4 +1,4 @@
-<ResourcePackage #Eidolon.Anchor.SystemSkills.Package apiVersion="halfcode.resources/v1" version="1.0.0" {
+<ResourcePackage #Eidolon.Anchor.SystemSkills.Package envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Stable"
   description = "Eidolon Anchor DevOps, authoring and run system Skill resources."
 } (

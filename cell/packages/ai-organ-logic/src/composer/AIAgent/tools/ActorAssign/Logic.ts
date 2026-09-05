@@ -9,7 +9,10 @@ import {
 import { getControlRuntimeContext } from "../_controlRuntime"
 import { getOrganizationManager } from "@cell/ai-organ-logic/organization/OrganizationManager"
 import { resolveActorTarget } from "../_resolveActorTarget"
-import { assignCanonicalAutonomousHolon } from "../../../../organization/CanonicalHolonAssignmentFacade"
+import {
+  assignCanonicalAutonomousHolon,
+  assignCanonicalAutonomousMember,
+} from "../../../../organization/CanonicalHolonAssignmentFacade"
 import { queueLeaderLedHolonAssign } from "../_leaderLedHolonAssignCore"
 import { getLatestAssistantText, parseFormalAssignMode, requireNonEmptyContent, setTargetWatchState } from "../_formalTooling"
 import type { ActorAssignInnerConfig, ActorAssignInnerInput, ActorAssignInnerOutput, ActorAssignInnerRuntime } from "./InnerTypes"
@@ -73,6 +76,19 @@ export const actorAssignCoreLogic: StdInnerLogic<
     const member = memberByQuery
     if (!member || member.actor.key !== targetActor.key) {
       return JSON.stringify({ ok: false, error: "member_not_found", target: targetQuery })
+    }
+    const autonomousHolons = getOrganizationManager().listAutonomousHolons(runtime.vm)
+      .filter(({ memberIds }) => memberIds.includes(member.memberId))
+    if (autonomousHolons.length > 0) {
+      return assignCanonicalAutonomousMember({
+        runtime,
+        target: targetQuery,
+        mode,
+        content,
+        memberId: member.memberId,
+        memberName: member.name,
+        surface: "ActorAssign",
+      })
     }
     members.sendMessage({
       to: member.memberId,

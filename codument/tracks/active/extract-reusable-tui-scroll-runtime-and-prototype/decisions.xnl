@@ -1,0 +1,37 @@
+<decision #prototype-before-integration apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>滚动功能是直接修补业务视图，还是先以DEPA包与独立原型验证后接入？</?>
+  <recommendation ?>共享能力包与真实OpenTUI原型共用实现，验收后接入。</?>
+  <answer (
+    <raw-answer ?>同意创建这个track；希望将tui滚动处理用depa思想建立原型和功能代码包，验证好了再集成，实现可复用沉淀。</?>
+    <decision-text ?>采用原型先验收后集成；P3到P4为硬前置依赖。</?>
+    <rationale ?>多次视图局部修补仍出现回归，需要隔离可验证的状态与effect边界，并以相同包实现缩小原型与产品差异。</?>
+    <evidence ?>2026-09-06用户明确要求；design.md包边界及track.xnl P3/P4门槛。</?>
+  )>
+)>
+<decision #execution-policy apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P1" blocks = ["implementation-start"] durable_candidate = false } (
+  <question ?>是否采用manual提交、每阶段GapLoop、verify_round=true及最终coding方向审查？</?>
+  <recommendation ?>manual + every_phase GapLoop + verify_round=true；原型门槛始终有效。</?>
+  <answer (
+    <raw-answer ?>同意采用 manual + 每阶段 GapLoop + verify_round=true + 最终架构审查。</?>
+    <decision-text ?>选择A：commit_mode=manual；P1至P5均挂phase:after GapLoop，max_rounds=5、on_exhausted=block、verify_round=true；P5最后执行AttractorCheck use=coding。</?>
+    <rationale ?>用户明确批准逐阶段纠偏与首次NO_GAP后的独立验证，保留原型先验证后接入的硬前置条件。</?>
+    <evidence ?>用户本轮确认；track.xnl的五个phase hooks与P4-G1。</?>
+  )>
+  <options [
+    <option { key = "A" recommended = true } (
+      <title ?>每阶段GapLoop与验证轮</?>
+      <description ?>manual，每个阶段检查并纠偏，首次NO_GAP后追加独立验证轮；最后做coding方向审查。</?>
+      <tradeoff ?>验证成本较高，更早发现接口和集成偏差。</?>
+    )>
+    <option { key = "B" } (
+      <title ?>仅最终阶段GapLoop</?>
+      <description ?>manual，final_phase GapLoop，verify_round默认false；保留原型自动验收和最终方向审查。</?>
+      <tradeoff ?>中间阶段没有fresh gap检查，执行开销较小。</?>
+    )>
+    <option { key = "C" } (
+      <title ?>人工确认</?>
+      <description ?>manual，最终阶段HumanConfirm；保留原型自动验收和最终方向审查。</?>
+      <tradeoff ?>最后需要用户审查，不自动运行GapLoop。</?>
+    )>
+  ]>
+)>

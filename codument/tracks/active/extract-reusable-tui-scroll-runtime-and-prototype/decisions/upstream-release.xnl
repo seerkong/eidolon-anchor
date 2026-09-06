@@ -1,0 +1,10 @@
+<decision #authorize-upstream-release apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>是否将上游依赖版本对齐与必要发布纳入本次范围，再继续接入？</?>
+  <recommendation ?>在原owner项目验证并交付最小必要依赖闭包，然后继续真实宿主接入。</?>
+  <answer (
+    <raw-answer ?>同意。并且上游的代码也可以commit。</?>
+    <decision-text ?>增加P4-T0：允许必要上游依赖对齐、npm发布与上游提交。使用.npmrc_official和既定author，不发布应用，不自动提交或安装Eidolon，不跳过原型与现场门槛。</?>
+    <rationale ?>宿主引用上游尚未发布的公开入口，必须完成真实依赖交付，不能用mock或vendor补丁代替。</?>
+    <evidence ?>2026-09-06用户追加授权；reports/p4-integration-blocker.md。</?>
+  )>
+)>

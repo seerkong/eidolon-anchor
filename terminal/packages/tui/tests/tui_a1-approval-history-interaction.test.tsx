@@ -214,7 +214,10 @@ function createRuntimeHarness() {
         get: async () => ({ data: { model: "openai/gpt-4o-mini" } }),
       },
       session: {
-        messages: async () => ({ data: messages }),
+        messages: async () => ({ data: messages, page: { status: "ok", snapshotId: "approval-fixture-v1",
+          startCursor: null, endCursor: "approval-fixture-eof", hasPreviousPage: false, hasNextPage: false,
+          observedBytes: 0, sourceBytes: 0 } }),
+        userInputs: async () => ({ data: [] }),
         status: async () => ({ data: { ses_1: { type: "idle" } } }),
       },
       permission: {

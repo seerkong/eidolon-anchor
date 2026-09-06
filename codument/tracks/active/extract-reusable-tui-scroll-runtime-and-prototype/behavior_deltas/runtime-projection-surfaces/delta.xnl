@@ -1,0 +1,25 @@
+<BehaviorPatch #track.extract-reusable-tui-scroll-runtime-and-prototype.behavior_patch.runtime-projection-surfaces apiVersion="codument.tech/v1alpha1" version="1" { capability = "runtime-projection-surfaces" } (
+  <Mutations [
+    <Upsert { selector = "behavior://runtime-projection-surfaces/requirements/paginated-conversation-history-projection/suites/evicted-page-revisit" } (
+      <Suite #evicted-page-revisit { name = "淘汰页面的有界回访" } (
+            <Cases [
+              <Case #forward-page-is-bounded (
+                <Given ?>较新页面已从UI缓存淘汰，surface仍有合法当前页边界</?>
+                <When ?>surface请求相邻较新历史页</?>
+                <Then ?>projection SHALL 提供只读opaque边界的有界回访，保持正序不重不漏及观察字节预算，MUST NOT 全量materialize历史</?>
+              )>
+              <Case #forward-cursor-respects-generation (
+                <Given ?>页面边界创建后active actor或visible generation改变</?>
+                <When ?>surface请求向前或向后页面</?>
+                <Then ?>projection SHALL 校验来源并返回typed stale结果，MUST NOT 泄漏旧分支记录</?>
+              )>
+              <Case #before-compatibility (
+                <Given ?>已有消费者使用无cursor尾页或before分页</?>
+                <When ?>引入回访能力后调用原接口</?>
+                <Then ?>原接口 SHALL 保持兼容与既有预算/authority语义，UI MUST NOT 解码文件位置</?>
+              )>
+            ]>
+          )>
+    )>
+  ]>
+)>

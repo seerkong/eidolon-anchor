@@ -28,6 +28,8 @@ function makeStubPort(): ConversationProjectionReadPort {
         snapshotId: "snapshot",
         startCursor: null,
         hasPreviousPage: false,
+        endCursor: null,
+        hasNextPage: false,
       },
       observedBytes: 0,
       sourceBytes: 0,

@@ -22,6 +22,7 @@ import {
   digestProviderContextClosedValue,
   digestProviderContextHistoryFrontier,
 } from "./ProviderContextEpochV2";
+import { resolveConversationHistoryLineage } from "@cell/ai-persistence-logic/ConversationHistoryLineage";
 
 export type ConversationForkSourceSnapshot = ConversationForkAuthoritySnapshot;
 
@@ -359,8 +360,17 @@ export function resolveConversationForkPoint(
   }
 
   const generationById = new Map(source.historyGenerations.map((generation) => [generation.generationId, generation]));
-  const head = source.historyIndex.heads[actorKey];
-  const visibleIds = [...new Set([...(head?.visibleGenerationIds ?? []), historyHeadGenerationId])];
+  const lineage = resolveConversationHistoryLineage({
+    historyIndex: source.historyIndex, actorKey,
+    activeGenerationId: historyHeadGenerationId,
+    historyGenerations: source.historyGenerations,
+  });
+  if (lineage.status === "rejected") {
+    return reject("SOURCE_AUTHORITY_CHANGED", "History lineage cannot prove the selected generation order", {
+      reason: lineage.reason, generationId: lineage.generationId,
+    });
+  }
+  const visibleIds = lineage.generationIds;
   const visibleGenerations: ActorHistoryGenerationData[] = [];
   for (const generationId of visibleIds) {
     const generation = generationById.get(generationId);
@@ -375,6 +385,9 @@ export function resolveConversationForkPoint(
   }
   const activeGenerationIndex = visibleGenerations.findIndex((generation) => generation.generationId === historyHeadGenerationId);
   if (activeGenerationIndex < 0) return reject("SOURCE_HISTORY_HEAD_MISSING", "active History generation is not reachable");
+  if (activeGenerationIndex !== visibleGenerations.length - 1) {
+    return reject("SOURCE_AUTHORITY_CHANGED", "visible History contains generations outside the proven head ancestry");
+  }
   const activeGeneration = visibleGenerations[activeGenerationIndex]!;
   const prompt = source.promptGenerations.find((generation) => generation.promptGenerationId === promptHeadGenerationId);
   if (!prompt

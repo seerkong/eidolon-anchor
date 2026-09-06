@@ -2,30 +2,14 @@ import { describe, expect, it } from "bun:test"
 import fs from "fs"
 import os from "os"
 import path from "path"
-import { parseXnl } from "xnl-core"
-import { __setLlmAdapterFactoryForTest, configureTuiRuntime, getTuiRuntimeBridge } from "../src/runtime/bridge/TuiRuntime"
+import { createLocalFileConversationProjectionReadPort } from "@cell/ai-support/conversation/LocalFileConversationProjectionReadPort"
+import { __setLlmAdapterFactoryForTest, configureTuiRuntime, disposeTuiRuntimeBridge, getTuiRuntimeBridge } from "../src/runtime/bridge/TuiRuntime"
 
 function makeTempWorkdir(): string {
   const dir = path.join(os.tmpdir(), `tui-history-no-mirrored-think-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   fs.mkdirSync(path.join(dir, ".eidolon", "agents"), { recursive: true })
   fs.mkdirSync(path.join(dir, ".eidolon", "mcp"), { recursive: true })
   return dir
-}
-
-async function readTranscriptXnl(filePath: string): Promise<{ streams: string[]; text: string }> {
-  const doc = parseXnl(fs.readFileSync(filePath, "utf8"))
-  const records = (doc.nodes ?? [])
-    .filter((record: any) => record?.kind === "DataElement" && record?.tag === "actor-transcript-record")
-  const streams: string[] = []
-  const textParts: string[] = []
-  for (const record of records as any[]) {
-    for (const item of record.body ?? []) {
-      if (item?.kind !== "TextElement" || item?.tag !== "record") continue
-      streams.push(String(item.metadata?.stream ?? record.metadata.stream ?? ""))
-      textParts.push(String(item.text ?? ""))
-    }
-  }
-  return { streams, text: textParts.join("\n") }
 }
 
 describe("TuiRuntime mirrored think suppression", () => {
@@ -68,7 +52,12 @@ describe("TuiRuntime mirrored think suppression", () => {
       expect(replayedAssistantMessages.some((message) => message.reasoning_content)).toBe(false)
       expect(replayedAssistantMessages.some((message) => !message.content && !message.tool_calls)).toBe(false)
     } finally {
-      __setLlmAdapterFactoryForTest(null)
+      try {
+        await disposeTuiRuntimeBridge("reasoning-only-replay-session")
+      } finally {
+        __setLlmAdapterFactoryForTest(null)
+        fs.rmSync(workdir, { recursive: true, force: true })
+      }
     }
   })
 
@@ -105,20 +94,23 @@ describe("TuiRuntime mirrored think suppression", () => {
       const runtime = await getTuiRuntimeBridge("mirrored-think-session")
       await runtime!.turn("你是谁")
 
-      const sessionsDir = path.join(workdir, ".eidolon", "sessions")
-      const sessionDirs = fs.readdirSync(sessionsDir)
-      expect(sessionDirs.length).toBe(1)
-      const actorsDir = path.join(sessionsDir, sessionDirs[0]!, "actors")
-      const actorDirs = fs.readdirSync(actorsDir)
-      expect(actorDirs.length).toBeGreaterThan(0)
-      const historyPath = path.join(actorsDir, actorDirs[0]!, "transcript.xnl")
-      const history = await readTranscriptXnl(historyPath)
+      const port = createLocalFileConversationProjectionReadPort()
+      const sessionDir = path.join(workdir, ".eidolon", "sessions", "mirrored-think-session")
+      const session = await port.loadSessionProjection({ sessionDir })
+      expect(session.activeActorKey).toBeTruthy()
+      const history = await port.loadHistoryProjection({ sessionDir, actorKey: session.activeActorKey! })
+      expect(history.source).toBe("conversation")
 
-      expect(history.streams.includes("think")).toBe(false)
-      expect(history.streams.includes("content")).toBe(true)
-      expect(history.text.match(/我是你的AI助手/g)?.length ?? 0).toBe(1)
+      expect(history.messages.some((message) => Boolean(message.reasoning_content))).toBe(false)
+      expect(history.messages.filter((message) => message.role === "assistant").map((message) => message.content)).toEqual(["我是你的AI助手"])
+      expect(history.messages.map((message) => String(message.content)).join("\n").match(/我是你的AI助手/g)?.length ?? 0).toBe(1)
     } finally {
-      __setLlmAdapterFactoryForTest(null)
+      try {
+        await disposeTuiRuntimeBridge("mirrored-think-session")
+      } finally {
+        __setLlmAdapterFactoryForTest(null)
+        fs.rmSync(workdir, { recursive: true, force: true })
+      }
     }
   })
 })

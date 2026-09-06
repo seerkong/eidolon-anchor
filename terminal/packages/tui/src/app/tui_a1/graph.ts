@@ -247,9 +247,8 @@ function createInitialSnapshot(options: {
 
 function sortedRuntimeMessages(messages: TuiA1RuntimeMessages): Message[] {
   return Object.values(messages).sort((left, right) => {
-    const createdDiff = (left.time.created ?? 0) - (right.time.created ?? 0)
-    if (createdDiff !== 0) return createdDiff
-    return left.id.localeCompare(right.id)
+    if (!left.historyOrder || !right.historyOrder) return 0
+    return left.historyOrder[0] - right.historyOrder[0] || left.historyOrder[1] - right.historyOrder[1]
   })
 }
 
@@ -292,6 +291,7 @@ function isSameSelection(left: TuiA1Selection, right: TuiA1Selection): boolean {
 }
 
 function isSameMessage(left: Message, right: Message): boolean {
+  if (JSON.stringify(left.historyOrder) !== JSON.stringify(right.historyOrder)) return false
   return (
     left.id === right.id &&
     left.sessionID === right.sessionID &&
@@ -1000,7 +1000,8 @@ function reduceTuiA1GraphState(
           ...state,
           runtimeMessages: {
             ...state.runtimeMessages,
-            [event.message.id]: cloneRuntimeMessage(event.message),
+            [event.message.id]: cloneRuntimeMessage({ ...event.message,
+              historyOrder: event.message.historyOrder ?? state.runtimeMessages[event.message.id]?.historyOrder }),
           },
         }),
       )

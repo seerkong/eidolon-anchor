@@ -95,6 +95,24 @@ function repositoryReads(data: ReturnType<typeof fixture>) {
 }
 
 describe("conversation lower-logic boundary", () => {
+  it("orders legacy visible memberships by envelopes so a predecessor cannot overwrite the active body", async () => {
+    const data = fixture();
+    const old = structuredClone(data.history);
+    old.generationId = "old";
+    old.messages[1]!.message.content = "old result";
+    data.history.predecessorGenerationIds = ["old"];
+    data.rawSession.historyIndex.heads.main = { version, sessionId, actorKey, actorId, activeGenerationId: "history", visibleGenerationIds: ["history", "old"], updatedAt: timestamp };
+    const { repository } = repositoryReads(data);
+    const reads = new Proxy(repository, { get(target, key) {
+      if (key === "loadHistoryGeneration") return async (id: string) => id === "old" ? old : id === "history" ? data.history : null;
+      return Reflect.get(target, key);
+    } });
+    const raw = await loadConversationActorRawState({ sessionDir: "/nonexistent/session", repository: reads });
+    expect(raw!.visibleGenerationIds).toEqual(["old", "history"]);
+    expect(materializeConversationVisibleHistory(raw!).at(-1)?.content).toBe("result");
+    expect(data.rawSession.historyIndex.lineages).toEqual({});
+  });
+
   it("recovers solely through injected reads and retains directory-basename session identity", async () => {
     const data = freezeDeep(fixture());
     const { repository, calls } = repositoryReads(data);

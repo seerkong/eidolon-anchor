@@ -49,6 +49,10 @@ import type {
 import { projectInputContentText, type InputContentPart } from "@shared/composer";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { stat } from "node:fs/promises";
+import { projectVisibleHistoryIdentities } from "@cell/ai-persistence-logic/ConversationProjection";
+import { resolveConversationHistoryLineage } from "@cell/ai-persistence-logic/ConversationHistoryLineage";
+import { createLocalHistoryRecordIndex } from "./LocalHistoryRecordIndex";
 import {
   buildVisibleGenerationOrder,
   loadConversationActorRawState,
@@ -104,9 +108,9 @@ async function findBoundedXnlRecord(input: {
 }
 
 type LocalHistoryPageCursor = {
-  v: 1;
+  v: 2;
   snapshotId: string;
-  beforeOffset: number;
+  position: number;
 };
 
 function encodeHistoryPageCursor(cursor: LocalHistoryPageCursor): string {
@@ -117,8 +121,8 @@ function decodeHistoryPageCursor(value: string | null | undefined): LocalHistory
   if (!value) return null;
   try {
     const decoded = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as Partial<LocalHistoryPageCursor>;
-    if (decoded.v !== 1 || typeof decoded.snapshotId !== "string"
-      || !Number.isSafeInteger(decoded.beforeOffset) || Number(decoded.beforeOffset) < 0) return null;
+    if (decoded.v !== 2 || typeof decoded.snapshotId !== "string"
+      || !Number.isSafeInteger(decoded.position) || Number(decoded.position) < 0) return null;
     return decoded as LocalHistoryPageCursor;
   } catch {
     return null;
@@ -231,10 +235,24 @@ async function resolveRootConversationSessionDir(sessionDir: string): Promise<st
  * `createRepository(sessionDir)` the surface used to call itself), so the
  * surface no longer constructs one and there is no second source path.
  */
-export function createLocalFileConversationProjectionReadPort(): ConversationProjectionReadPort & Required<
-  Pick<ConversationProjectionReadPort, "loadHistoryPageProjection">
+export function createLocalFileConversationProjectionReadPort(options: { signal?: AbortSignal } = {}): ConversationProjectionReadPort & Required<
+  Pick<ConversationProjectionReadPort, "loadHistoryPageProjection" | "loadHistoryPageIndexProjection">
 > {
+  const recordIndex = createLocalHistoryRecordIndex();
+  const promptWitnesses = new Map<string, { exists: boolean; target: string | null }>();
+  options.signal?.addEventListener("abort", () => { recordIndex.clear(); promptWitnesses.clear(); }, { once: true });
   return {
+    async loadHistoryPageIndexProjection(target) {
+      options.signal?.throwIfAborted();
+      try {
+        const prepared = await recordIndex.prepare(getLocalConversationPaths(target.sessionDir).historyXnlPath);
+        return { observedBytes: prepared.observedBytes, sourceBytes: prepared.sourceBytes,
+          recordCount: prepared.entries.length, cacheHit: prepared.cacheHit };
+      } catch (error: any) {
+        if (error?.code === "ENOENT") return { observedBytes: 0, sourceBytes: 0, recordCount: 0, cacheHit: false };
+        throw error;
+      }
+    },
     async loadHistoryProjection(
       target: ConversationProjectionTarget,
     ): Promise<ConversationHistoryProjection> {
@@ -258,6 +276,10 @@ export function createLocalFileConversationProjectionReadPort(): ConversationPro
       target: ConversationProjectionTarget,
       query: ConversationHistoryPageQuery = {},
     ): Promise<ConversationHistoryPageProjection> {
+      options.signal?.throwIfAborted();
+      if (query.before != null && query.after != null) {
+        throw new Error("conversation_history_page_conflicting_cursors");
+      }
       const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(
         target.sessionDir,
       );
@@ -273,7 +295,9 @@ export function createLocalFileConversationProjectionReadPort(): ConversationPro
         ?? promptIndex.heads[target.actorKey]?.activePromptGenerationId
         ?? null;
       const paths = getLocalConversationPaths(target.sessionDir);
-      let observedBytes = 0;
+      const authorityFingerprint = JSON.stringify([historyIndex, promptIndex, sessionIndex]);
+      const authorityBytes = Buffer.byteLength(authorityFingerprint);
+      let observedBytes = authorityBytes;
       let sourceBytes = 0;
       const boundedLookup = async (input: Parameters<typeof findBoundedXnlRecord>[0]) => {
         const remaining = MAX_HISTORY_PAGE_TOTAL_OBSERVED_BYTES - observedBytes;
@@ -283,25 +307,27 @@ export function createLocalFileConversationProjectionReadPort(): ConversationPro
         sourceBytes = Math.max(sourceBytes, result.sourceBytes);
         return result.record;
       };
-      const promptRecord = promptGenerationId
-        ? await boundedLookup({
-            filePath: paths.promptsXnlPath,
-            tags: PROMPT_GENERATION_RECORD_TAGS,
-            matches: (record) => {
-              const generation = promptGenerationXnlRecordToData(record);
-              return generation?.promptGenerationId === promptGenerationId;
-            },
-            maxObservedBytes: 0,
-          })
-        : null;
-      const promptGeneration = promptRecord ? promptGenerationXnlRecordToData(promptRecord) : null;
-      const promptTargetHistoryGenerationId = promptGeneration
-        ? resolvePromptTargetHistoryGenerationId({
-            promptGeneration,
-            historyIndex,
-            actorKey: target.actorKey,
-          })
-        : null;
+      const promptStat = promptGenerationId ? await stat(paths.promptsXnlPath).catch(() => null) : null;
+      const promptSignature = promptStat
+        ? [promptStat.dev, promptStat.ino, promptStat.size, promptStat.mtimeMs, promptStat.ctimeMs].join(":") : "absent";
+      const witnessKey = createHash("sha256").update(JSON.stringify([
+        paths.promptsXnlPath, target.actorKey, promptGenerationId, historyIndex, promptSignature,
+      ])).digest("hex");
+      let witness = promptWitnesses.get(witnessKey);
+      if (!witness) {
+        const promptRecord = promptGenerationId ? await boundedLookup({
+          filePath: paths.promptsXnlPath, tags: PROMPT_GENERATION_RECORD_TAGS,
+          matches: record => promptGenerationXnlRecordToData(record)?.promptGenerationId === promptGenerationId,
+          maxObservedBytes: 0,
+        }) : null;
+        const promptGeneration = promptRecord ? promptGenerationXnlRecordToData(promptRecord) : null;
+        witness = { exists: Boolean(promptGeneration), target: promptGeneration
+          ? resolvePromptTargetHistoryGenerationId({ promptGeneration, historyIndex, actorKey: target.actorKey }) : null };
+        options.signal?.throwIfAborted();
+        if (promptWitnesses.size >= 2) promptWitnesses.delete(promptWitnesses.keys().next().value!);
+        promptWitnesses.set(witnessKey, witness);
+      }
+      const promptTargetHistoryGenerationId = witness.target;
       const historyGenerationIdentity = (record: XnlStreamRecord) => {
         if (record.tag === HISTORY_MESSAGE_RECORD_TAG) {
           return {
@@ -314,28 +340,27 @@ export function createLocalFileConversationProjectionReadPort(): ConversationPro
           ? { generationId: generation.generationId, createdReason: generation.createdReason }
           : null;
       };
+      const indexedHistory = await recordIndex.getPrepared(paths.historyXnlPath);
+      const resolveHistoryIdentity = async (generationId: string) => {
+        const indexed = indexedHistory?.entries.find(entry =>
+          entry.actorKey === target.actorKey && entry.generationId === generationId);
+        if (indexed) return { generationId, createdReason: indexed.createdReason };
+        // Legacy generation envelopes may not contain individual message records.
+        const record = await boundedLookup({
+          filePath: paths.historyXnlPath,
+          tags: [HISTORY_MESSAGE_RECORD_TAG, HISTORY_GENERATION_RECORD_TAG],
+          matches: record => historyGenerationIdentity(record)?.generationId === generationId,
+          maxObservedBytes: 0,
+        });
+        return record ? historyGenerationIdentity(record) : null;
+      };
       const targetHistoryRecord = promptTargetHistoryGenerationId
-        ? await boundedLookup({
-            filePath: paths.historyXnlPath,
-            tags: [HISTORY_MESSAGE_RECORD_TAG, HISTORY_GENERATION_RECORD_TAG],
-            matches: (record) => historyGenerationIdentity(record)?.generationId === promptTargetHistoryGenerationId,
-            maxObservedBytes: 0,
-          })
-        : null;
-      const declaredHistoryRecord = promptTargetHistoryGenerationId
-        && declaredHistoryGenerationId
+        ? await resolveHistoryIdentity(promptTargetHistoryGenerationId) : null;
+      const declaredHistoryRecord = promptTargetHistoryGenerationId && declaredHistoryGenerationId
         && declaredHistoryGenerationId !== promptTargetHistoryGenerationId
-        ? await boundedLookup({
-            filePath: paths.historyXnlPath,
-            tags: [HISTORY_MESSAGE_RECORD_TAG, HISTORY_GENERATION_RECORD_TAG],
-            matches: (record) => historyGenerationIdentity(record)?.generationId === declaredHistoryGenerationId,
-            maxObservedBytes: 0,
-          })
-        : promptTargetHistoryGenerationId ? targetHistoryRecord : null;
-      const declaredReason = declaredHistoryRecord
-        ? historyGenerationIdentity(declaredHistoryRecord)?.createdReason
-        : null;
-      const activeGenerationId = promptGeneration
+        ? await resolveHistoryIdentity(declaredHistoryGenerationId) : targetHistoryRecord;
+      const declaredReason = declaredHistoryRecord?.createdReason ?? null;
+      const activeGenerationId = witness.exists
         && targetHistoryRecord
         && declaredReason !== "compaction"
         ? promptTargetHistoryGenerationId
@@ -352,108 +377,135 @@ export function createLocalFileConversationProjectionReadPort(): ConversationPro
         visibleGenerationIds,
         promptGenerationId,
       });
-      const decodedCursor = decodeHistoryPageCursor(query.before);
-      const emptyPage = (status: "ok" | "stale_cursor", sourceBytes = 0): ConversationHistoryPageProjection => ({
-        status,
-        source: "empty",
-        messages: [],
-        pageInfo: {
-          snapshotId,
-          startCursor: null,
-          hasPreviousPage: false,
-        },
-        historyGenerationId: activeGenerationId,
-        promptGenerationId,
-        observedBytes,
-        sourceBytes,
+      const emptyPage = (status: "ok" | "stale_cursor", snapshot = snapshotId): ConversationHistoryPageProjection => ({
+        status, source: "empty", messages: [], historyGenerationId: activeGenerationId, promptGenerationId,
+        pageInfo: { snapshotId: snapshot, startCursor: null, hasPreviousPage: false, endCursor: null, hasNextPage: false },
+        observedBytes, sourceBytes,
       });
-      if (query.before && (!decodedCursor || decodedCursor.snapshotId !== snapshotId)) {
-        return emptyPage("stale_cursor");
-      }
-      if (!activeGenerationId || visibleGenerationIds.length === 0) return emptyPage("ok");
-      if (observedBytes >= MAX_HISTORY_PAGE_TOTAL_OBSERVED_BYTES) {
-        throw new Error("conversation_history_page_budget_exhausted_before_messages");
+      if (!activeGenerationId || visibleGenerationIds.length === 0) {
+        return emptyPage(query.before != null || query.after != null ? "stale_cursor" : "ok");
       }
 
       const filePath = paths.historyXnlPath;
-      const visible = new Set(visibleGenerationIds);
+      let prepared = await recordIndex.getPrepared(filePath);
+      if (!prepared) {
+        // Preserve inline preparation for small callers, charging every byte to
+        // this page. Large sources require the explicit, measured preparation view.
+        const size = (await stat(filePath)).size;
+        if (size > (MAX_HISTORY_PAGE_TOTAL_OBSERVED_BYTES - observedBytes) / 2) {
+          throw new Error("conversation_history_page_index_prepare_required");
+        }
+        prepared = await recordIndex.prepare(filePath);
+        observedBytes += prepared.observedBytes;
+      }
+      sourceBytes = Math.max(sourceBytes, prepared.sourceBytes);
+      const snapshot = createHash("sha256").update(snapshotId + prepared.sourceSignature + promptSignature).digest("hex");
+      const cursor = query.after ?? query.before;
+      const decodedCursor = decodeHistoryPageCursor(cursor);
+      if (cursor != null && (!decodedCursor || decodedCursor.snapshotId !== snapshot)) {
+        return emptyPage("stale_cursor", snapshot);
+      }
+      const lineageEnvelopes = prepared.generations.filter(generation => generation.actorKey === target.actorKey);
+      let orderedGenerationIds = visibleGenerationIds;
+      for (const generation of lineageEnvelopes.filter(value => visibleGenerationIds.includes(value.generationId))) {
+        const indexed = historyIndex.lineages[generation.generationId];
+        if (generation.sessionId !== historyIndex.sessionId || generation.actorId !== (actorBinding?.actorId ?? head?.actorId)
+          || (indexed && (indexed.sessionId !== generation.sessionId || indexed.actorKey !== generation.actorKey
+            || indexed.actorId !== generation.actorId || indexed.generationId !== generation.generationId))) {
+          throw new Error("conversation_history_page_lineage_identity_mismatch");
+        }
+        if (indexed && JSON.stringify(indexed.predecessorGenerationIds) !== JSON.stringify(generation.predecessorGenerationIds)) {
+          throw new Error("conversation_history_page_lineage_lineage_conflict");
+        }
+      }
+      // Modern committed records carry complete envelope authority even when
+      // old index.lineages is empty. Legacy empty/envelope-less sources retain
+      // their established index-only semantics; contradictory evidence never does.
+      const visibleEnvelopeCount = lineageEnvelopes.filter(generation => visibleGenerationIds.includes(generation.generationId)).length;
+      if (visibleEnvelopeCount > 0 && !visibleGenerationIds.every(id => lineageEnvelopes.some(generation => generation.generationId === id))) {
+        throw new Error("conversation_history_page_lineage_missing_generation");
+      }
+      if (visibleGenerationIds.every(id => lineageEnvelopes.some(generation => generation.generationId === id))) {
+        const effectiveHead = head ? { ...head, activeGenerationId } : {
+          actorKey: target.actorKey, actorId: actorBinding?.actorId ?? "",
+          sessionId: historyIndex.sessionId, version: 1, updatedAt: historyIndex.updatedAt,
+          activeGenerationId, visibleGenerationIds,
+        };
+        const lineage = resolveConversationHistoryLineage({ historyIndex: {
+          // Provider handoff may select a different effective read head; retain
+          // declared identity so a mismatch remains a rejection, not a repair.
+          ...historyIndex, heads: { ...historyIndex.heads, [target.actorKey]: effectiveHead },
+        }, actorKey: target.actorKey, activeGenerationId, historyGenerations: lineageEnvelopes });
+        if (lineage.status === "rejected") throw new Error(`conversation_history_page_lineage_${lineage.reason}`);
+        orderedGenerationIds = lineage.generationIds;
+      }
+      const generationOrder = new Map(orderedGenerationIds.map((id, index) => [id, index]));
+      // Last physical revision wins within a generation, then canonical sequence
+      // orders that generation. Logical identity is scoped to this actor/source.
+      const records = new Map<string, typeof prepared.entries[number]>();
+      for (const entry of prepared.entries) {
+        if (entry.actorKey !== target.actorKey || !generationOrder.has(entry.generationId) || !entry.messageId) continue;
+        records.set(JSON.stringify([entry.generationId, entry.recordId]), entry);
+      }
+      const ordered = [...records.values()].sort((a, b) =>
+        generationOrder.get(a.generationId)! - generationOrder.get(b.generationId)!
+        || (a.sequence ?? a.physicalRevision) - (b.sequence ?? b.physicalRevision)
+        || a.recordId.localeCompare(b.recordId));
+      const logical = projectVisibleHistoryIdentities(ordered.map(entry => ({
+        id: entry.messageId, namespace: entry.hasMessageId ? "message" as const : "record" as const,
+        order: [generationOrder.get(entry.generationId)!, entry.sequence ?? entry.physicalRevision] as const,
+        value: entry,
+      })));
+      if (decodedCursor && decodedCursor.position > logical.length) return emptyPage("stale_cursor", snapshot);
       const limit = Math.min(MAX_HISTORY_PAGE_SIZE, Math.max(1, Math.floor(query.limit ?? DEFAULT_HISTORY_PAGE_SIZE)));
-      let beforeOffset = decodedCursor?.beforeOffset;
-      let hasPreviousPage = false;
-      let continuationOffset = beforeOffset ?? null;
-      const selected: Array<{ message: NonNullable<ReturnType<typeof historyMessageXnlRecordToChatMessage>>; startOffset: number }> = [];
-      const identities = new Set<string>();
-
-      while (selected.length < limit && observedBytes < MAX_HISTORY_PAGE_TOTAL_OBSERVED_BYTES) {
-        const recordPage = await readXnlRecordPage({
-          filePath,
-          tags: HISTORY_MESSAGE_RECORD_TAG,
-          beforeOffset,
-          limit: Math.max(limit * 2, 64),
-          maxObservedBytes: MAX_HISTORY_PAGE_TOTAL_OBSERVED_BYTES - observedBytes,
-        });
-        observedBytes += recordPage.observedBytes;
-        sourceBytes = Math.max(sourceBytes, recordPage.fileSize);
-        if (recordPage.oversizedRecord) {
+      const forward = query.after != null;
+      const boundary = decodedCursor?.position ?? logical.length;
+      const start = forward ? boundary : Math.max(0, boundary - limit);
+      const end = forward ? Math.min(logical.length, start + limit) : boundary;
+      const messages: NonNullable<ReturnType<typeof historyMessageXnlRecordToChatMessage>>[] = [];
+      const messageOrder: Record<string, readonly [number, number]> = {};
+      for (const row of logical.slice(start, end)) {
+        options.signal?.throwIfAborted();
+        const length = row.value.endOffset - row.value.startOffset;
+        if (length > MAX_HISTORY_PAGE_TOTAL_OBSERVED_BYTES - observedBytes - authorityBytes) {
           throw new Error("conversation_history_record_exceeds_page_budget");
         }
-        hasPreviousPage = recordPage.hasPreviousPage;
-        if (!recordPage.exists || recordPage.records.length === 0) break;
-
-        for (let index = recordPage.records.length - 1; index >= 0 && selected.length < limit; index -= 1) {
-          const entry = recordPage.records[index];
-          const generationId = String(entry.record.metadata.generationId ?? "");
-          const recordId = String(entry.record.metadata.id ?? "");
-          if (String(entry.record.metadata.actorKey ?? "") !== target.actorKey || !visible.has(generationId)) continue;
-          const identity = `${generationId}:${recordId}`;
-          if (identities.has(identity)) continue;
-          const decoded = historyMessageXnlRecordToChatMessage(entry.record);
-          if (!decoded) continue;
-          identities.add(identity);
-          selected.push({
-            message: decoded.messageId ? decoded : { ...decoded, messageId: recordId || `history:${identity}` },
-            startOffset: entry.startOffset,
-          });
+        const page = await readXnlRecordPage({
+          filePath, tags: HISTORY_MESSAGE_RECORD_TAG, afterOffset: row.value.startOffset,
+          limit: 1, windowBytes: length, maxObservedBytes: length,
+        });
+        observedBytes += page.observedBytes;
+        const entry = page.records[0];
+        if (page.oversizedRecord || !entry || entry.startOffset !== row.value.startOffset || entry.endOffset !== row.value.endOffset) {
+          return emptyPage("stale_cursor", snapshot);
         }
-
-        const oldestSelectedOffset = selected.at(-1)?.startOffset;
-        if (oldestSelectedOffset !== undefined && recordPage.records.some((entry) => {
-          if (entry.startOffset >= oldestSelectedOffset) return false;
-          const generationId = String(entry.record.metadata.generationId ?? "");
-          return String(entry.record.metadata.actorKey ?? "") === target.actorKey && visible.has(generationId);
-        })) {
-          hasPreviousPage = true;
-        }
-
-        const nextOffset = recordPage.previousOffset;
-        continuationOffset = nextOffset;
-        if (nextOffset == null || nextOffset <= 0 || nextOffset === beforeOffset) {
-          hasPreviousPage = false;
-          break;
-        }
-        beforeOffset = nextOffset;
-        if (!recordPage.hasPreviousPage) break;
+        const message = historyMessageXnlRecordToChatMessage(entry.record);
+        if (!message) throw new Error("conversation_history_index_record_decode_failed");
+        messages.push(message);
+        messageOrder[row.id] = row.order;
       }
-
-      const chronological = selected.reverse();
-      const oldestOffset = chronological[0]?.startOffset ?? continuationOffset ?? beforeOffset ?? 0;
-      const mayHaveEarlierVisibleRecords = hasPreviousPage || (chronological.length === limit && oldestOffset > 0);
-      const startCursor = mayHaveEarlierVisibleRecords && oldestOffset > 0
-        ? encodeHistoryPageCursor({ v: 1, snapshotId, beforeOffset: oldestOffset })
-        : null;
+      if (!(await recordIndex.getPrepared(filePath))) return emptyPage("stale_cursor", snapshot);
+      const finalAuthority = JSON.stringify(await Promise.all([
+        repository.loadHistoryIndex(), repository.loadPromptIndex(), repository.loadSessionIndex(),
+      ]));
+      observedBytes += Buffer.byteLength(finalAuthority);
+      if (observedBytes > MAX_HISTORY_PAGE_TOTAL_OBSERVED_BYTES) throw new Error("conversation_history_page_authority_exceeds_budget");
+      if (finalAuthority !== authorityFingerprint) return emptyPage("stale_cursor", snapshot);
+      const finalPromptStat = promptGenerationId ? await stat(paths.promptsXnlPath).catch(() => null) : null;
+      const finalPromptSignature = finalPromptStat
+        ? [finalPromptStat.dev, finalPromptStat.ino, finalPromptStat.size, finalPromptStat.mtimeMs, finalPromptStat.ctimeMs].join(":") : "absent";
+      if (finalPromptSignature !== promptSignature) return emptyPage("stale_cursor", snapshot);
+      options.signal?.throwIfAborted();
       return {
-        status: "ok",
-        source: chronological.length > 0 ? "conversation" : "empty",
-        messages: chronological.map((entry) => entry.message),
+        status: "ok", source: messages.length ? "conversation" : "empty", messages, messageOrder,
+        historyGenerationId: activeGenerationId, promptGenerationId, observedBytes, sourceBytes,
         pageInfo: {
-          snapshotId,
-          startCursor,
-          hasPreviousPage: Boolean(startCursor),
+          snapshotId: snapshot,
+          startCursor: start > 0 ? encodeHistoryPageCursor({ v: 2, snapshotId: snapshot, position: start }) : null,
+          hasPreviousPage: start > 0,
+          endCursor: encodeHistoryPageCursor({ v: 2, snapshotId: snapshot, position: end }),
+          hasNextPage: end < logical.length,
         },
-        historyGenerationId: activeGenerationId,
-        promptGenerationId,
-        observedBytes,
-        sourceBytes,
       };
     },
 

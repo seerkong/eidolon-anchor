@@ -292,7 +292,10 @@ function createRuntimeMock(
         get: async () => ({ data: { model: "openai/gpt-4o-mini" } }),
       },
       session: {
-        messages: async () => ({ data: messages }),
+        messages: async () => ({ data: messages, page: { status: "ok", snapshotId: "questionnaire-fixture-v1",
+          startCursor: null, endCursor: "questionnaire-fixture-eof", hasPreviousPage: false, hasNextPage: false,
+          observedBytes: 0, sourceBytes: 0 } }),
+        userInputs: async () => ({ data: [] }),
         status: async () => ({ data: { ses_1: { type: "idle" } } }),
       },
       actor: {

@@ -191,6 +191,37 @@ function command(messageId: string): ConversationSessionForkCommand {
 }
 
 describe("Conversation message-level fork proof RED", () => {
+  it("uses lineage order when visible membership lists the active head before its predecessors", () => {
+    const source = sourceSnapshot({ predecessorMessages: [message("predecessor::0", "old-user", "user", "old question")] });
+    source.historyIndex.heads.main!.visibleGenerationIds.reverse();
+    const result = resolveConversationForkPoint({ source, command: { ...command("m-assistant"), selector: { kind: "current_head" } } });
+    expect(result.status).toBe("resolved");
+    if (result.status !== "resolved") return;
+    expect(result.value.sourceHistoryGenerations.map(generation => generation.generationId)).toEqual(["predecessor", "compact-active"]);
+    expect(result.value.sourcePromptGeneration).toEqual(source.promptGenerations[0]);
+  });
+
+  it("proves a legacy empty lineage index from immutable generation envelopes", () => {
+    const source = sourceSnapshot({ predecessorMessages: [message("predecessor::0", "old-user", "user", "old question")] });
+    source.historyIndex.heads.main!.visibleGenerationIds.reverse();
+    source.historyIndex.lineages = {};
+    const result = resolveConversationForkPoint({ source, command: { ...command("m-assistant"), selector: { kind: "current_head" } } });
+    expect(result.status).toBe("resolved");
+    if (result.status !== "resolved") return;
+    expect(result.value.sourceHistoryGenerations.map(generation => generation.generationId)).toEqual(["predecessor", "compact-active"]);
+    expect(source.historyIndex.lineages).toEqual({});
+  });
+
+  it("does not silently drop a visible generation whose relation to the head is unproven", () => {
+    const source = sourceSnapshot({ predecessorMessages: [message("predecessor::0", "old-user", "user", "old question")] });
+    source.historyIndex.lineages = {};
+    source.historyGenerations.at(-1)!.predecessorGenerationIds = [];
+    source.promptGenerations[0]!.basis = { version: 1, basisHistoryGenerationIds: ["compact-active"], basisMessageRecordIds: [] };
+    source.promptGenerations[0]!.transforms = [];
+    const result = resolveConversationForkPoint({ source, command: { ...command("m-assistant"), selector: { kind: "current_head" } } });
+    expect(result).toMatchObject({ status: "rejected", rejection: { code: "SOURCE_AUTHORITY_CHANGED" } });
+  });
+
   it("plans an active-tail cutoff only through the selected canonical record", () => {
     const result = planConversationSessionFork({
       command: command("m-assistant"),

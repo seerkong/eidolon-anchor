@@ -586,8 +586,37 @@ function materializePromptTransformLateStatusOverlays(params: {
   return overlays;
 }
 
+/** The caller supplies predecessor-first generations and canonical sequence order.
+ * A retained identity keeps its first display position; a successor replaces its
+ * value, not its position. This is a read projection, never a history rewrite. */
+export function projectVisibleHistoryIdentities<T>(entries: Iterable<{
+  id: string; order: readonly [number, number]; value: T; namespace?: "message" | "record";
+}>): Array<{ id: string; order: readonly [number, number]; value: T }> {
+  const logical = new Map<string, { id: string; order: readonly [number, number]; value: T }>();
+  const namespaces = new Map<string, { kind: string; generation: number }>();
+  for (const entry of entries) {
+    const namespace = entry.namespace ?? "message";
+    const previousNamespace = namespaces.get(entry.id);
+    // Recovery promotes an inherited recordId to messageId in a successor.
+    // That is the same identity, unlike two namespaces colliding in one generation.
+    if (previousNamespace && previousNamespace.kind !== namespace && previousNamespace.generation === entry.order[0]) {
+      throw new Error("conversation_history_identity_ambiguous");
+    }
+    namespaces.set(entry.id, { kind: namespace, generation: entry.order[0] });
+    const first = logical.get(entry.id);
+    logical.set(entry.id, { ...entry, order: first?.order ?? entry.order });
+  }
+  return [...logical.values()];
+}
+
 export function materializeConversationVisibleHistory(rawState: ConversationActorRawState): ChatMessage[] {
-  return rawState.visibleHistoryGenerations.flatMap((generation) => committedHistoryRefsToMessages(generation.messages));
+  const entries = rawState.visibleHistoryGenerations.flatMap((generation, ordinal) =>
+    committedHistoryRefsToMessages(generation.messages).map((message, sequence) => ({
+      id: message.messageId ?? `legacy:${ordinal}:${sequence}`,
+      namespace: generation.messages[sequence]?.message?.messageId ? "message" as const : "record" as const,
+      order: [ordinal, sequence] as const, value: message,
+    })));
+  return projectVisibleHistoryIdentities(entries).map(entry => entry.value);
 }
 
 /**

@@ -13,6 +13,7 @@ import {
   buildVisibleGenerationOrder,
   resolvePromptTargetHistoryGenerationId,
 } from "./ConversationProjection";
+import { resolveConversationHistoryLineage } from "./ConversationHistoryLineage";
 
 function resolveActorKey(params: {
   session: ConversationSessionRawState;
@@ -95,16 +96,43 @@ export async function loadConversationActorRawState(params: {
       ? promptTargetHistoryGenerationId
       : declaredHistoryHeadGenerationId;
 
-  const visibleGenerationIds = historyHeadGenerationId
+  let visibleGenerationIds = historyHeadGenerationId
     ? buildVisibleGenerationOrder({
         historyIndex: session.historyIndex,
         actorKey,
         activeGenerationId: historyHeadGenerationId,
       })
     : [];
-  const visibleHistoryGenerations = (
+  let visibleHistoryGenerations = (
     await Promise.all(visibleGenerationIds.map((generationId) => params.repository.loadHistoryGeneration(generationId)))
   ).filter((generation): generation is ActorHistoryGenerationData => !!generation);
+  if (historyHeadGenerationId && visibleHistoryGenerations.length > 0) {
+    // The selected head may come from the established Prompt handoff rule.
+    // This is a read view; no persisted index or Session selection is changed.
+    const existingHead = session.historyIndex.heads[actorKey];
+    const lineage = resolveConversationHistoryLineage({
+      historyIndex: { ...session.historyIndex, heads: {
+        ...session.historyIndex.heads,
+        [actorKey]: {
+          ...(existingHead ?? {
+            version: session.historyIndex.version,
+            sessionId: session.historyIndex.sessionId,
+            actorKey,
+            actorId: actorBinding?.actorId ?? visibleHistoryGenerations[0]!.actorId,
+            visibleGenerationIds: [historyHeadGenerationId],
+            updatedAt: session.historyIndex.updatedAt,
+          }),
+          activeGenerationId: historyHeadGenerationId,
+        },
+      } },
+      actorKey, activeGenerationId: historyHeadGenerationId,
+      historyGenerations: visibleHistoryGenerations,
+    });
+    if (lineage.status === "rejected") throw new Error(`conversation_history_lineage_${lineage.reason}:${lineage.generationId}`);
+    visibleGenerationIds = lineage.generationIds;
+    const byId = new Map(visibleHistoryGenerations.map(generation => [generation.generationId, generation]));
+    visibleHistoryGenerations = visibleGenerationIds.map(id => byId.get(id)!);
+  }
   const activeHistoryGeneration = historyHeadGenerationId
     ? (visibleHistoryGenerations.find((generation) => generation.generationId === historyHeadGenerationId)
       ?? (historyHeadGenerationId === promptTargetHistoryGenerationId ? promptTargetHistoryGeneration : null)

@@ -21,8 +21,8 @@
     "@cell/ai-support": "workspace:*",
     "@cell/symbiont-contract": "workspace:*",
     "@cell/symbiont-logic": "workspace:*",
-    "ai-workflow-contract": "0.2.0",
-    "halfcode-compiler.xnl": "0.3.0",
+    "ai-workflow-contract": "0.2.1",
+    "halfcode-compiler.xnl": "0.3.1",
     "xnl-core": "^0.1.10",
     "xnl-vfs": "0.1.3"
   }

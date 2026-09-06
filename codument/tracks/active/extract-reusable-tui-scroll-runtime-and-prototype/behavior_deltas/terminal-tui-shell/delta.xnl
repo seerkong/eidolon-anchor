@@ -1,0 +1,81 @@
+<BehaviorPatch #track.extract-reusable-tui-scroll-runtime-and-prototype.behavior_patch.terminal-tui-shell apiVersion="codument.tech/v1alpha1" version="1" { capability = "terminal-tui-shell" } (
+  <Mutations [
+    <Upsert { selector = "behavior://terminal-tui-shell/requirements/virtualized-incremental-session-history/suites/scroll-control-consistency" } (
+      <Suite #scroll-control-consistency { name = "滚动、分页和实时尾部一致性" } (
+            <Cases [
+              <Case #all-native-scroll-paths-sync-window (
+                <Given ?>历史含长短混合卡片，已产生虚拟spacer</?>
+                <When ?>用户wheel、键盘或拖动scrollbar，或renderer自动clamp坐标</?>
+                <Then ?>TUI SHALL 将真实几何观测输入同一控制边界，挂载窗口覆盖可见数据区，MUST NOT 等待额外业务操作才能消除持续空白</?>
+              )>
+              <Case #dynamic-layout-preserves-anchor (
+                <Given ?>卡片尺寸受宽度、展开、流式内容或composer高度影响</?>
+                <When ?>布局或内容revision改变</?>
+                <Then ?>TUI SHALL 使旧测量失效并按稳定row锚点校正；follow和browse使用同一高度体系，完整边框与内容均可滚动抵达</?>
+              )>
+              <Case #submit-from-browse-reaches-live-tail (
+                <Given ?>用户上翻后较新页面被有界淘汰，实时消息仍在产生</?>
+                <When ?>用户按End或提交新消息</?>
+                <Then ?>TUI SHALL 重取最新页并合并live身份，再跟随尾部；新用户和assistant消息可见，MUST NOT 只滚旧缓存到底</?>
+              )>
+              <Case #browse-keeps-position-with-live (
+                <Given ?>用户正在阅读旧历史</?>
+                <When ?>live内容追加或更新</?>
+                <Then ?>TUI SHALL 保持阅读锚点并以有界状态登记最新变化，不以隐藏live集合代替未读管理</?>
+              )>
+              <Case #stale-page-can-recover-at-tail (
+                <Given ?>分页cursor过期，缓存可能包含也可能不包含最新页</?>
+                <When ?>用户触发End或显式刷新</?>
+                <Then ?>TUI SHALL 在两种状态下都能重建合法尾页，MUST NOT 把过期错误标成永久到达历史起点</?>
+              )>
+              <Case #async-page-does-not-overwrite-new-intent (
+                <Given ?>页面请求、布局回调或滚动effect尚未完成</?>
+                <When ?>用户再次滚动或切换session/actor</?>
+                <Then ?>TUI SHALL 以来源代际及意图revision处理结果，MUST NOT 拼入旧来源或用旧scrollTop抢回视口</?>
+              )>
+              <Case #page-errors-remain-actionable (
+                <Given ?>页面读取失败、超时、预算超限或返回无进展空页</?>
+                <When ?>结果到达滚动控制器</?>
+                <Then ?>TUI SHALL 显示可诊断的状态并收口loading，提供适用的重试/取消；MUST NOT 忙等、静默当exhausted或永久阻塞后续请求</?>
+              )>
+              <Case #bounded-cache-can-return-forward (
+                <Given ?>向上阅读已淘汰较新页且缓存达到上限</?>
+                <When ?>用户再向下浏览</?>
+                <Then ?>TUI SHALL 有界重取相邻页直至最新，不丢中间消息、不跳过未读区、不以保留全量正文代替分页</?>
+              )>
+              <Case #dispose-releases-scroll-resources (
+                <Given ?>列表反复恢复和切换来源</?>
+                <When ?>列表销毁或切换actor</?>
+                <Then ?>TUI SHALL 释放scroll/resize订阅，丢弃旧异步结果，页面/高度/诊断缓存保持有界</?>
+              )>
+            ]>
+          )>
+    )>
+    <Upsert { selector = "behavior://terminal-tui-shell/requirements/reusable-scroll-prototype-gate" } (
+      <Requirement #reusable-scroll-prototype-gate (
+        <Statement ?>TUI 滚动能力 SHALL 通过框架中立契约/逻辑与显式renderer effects形成可复用包；独立原型 MUST 使用同一包实现并通过真实交互验收后，才能接入Eidolon业务TUI。</?>
+        <Suites [
+          <Suite #prototype-integration-boundary { name = "原型与业务集成边界" } (
+            <Cases [
+              <Case #same-package-two-consumers (
+                <Given ?>通用日志及聊天形状原型已构建</?>
+                <When ?>分别独立启动并运行交互矩阵</?>
+                <Then ?>原型 SHALL 使用同一capsule公开面，MUST NOT 依赖AI runtime或复制滚动算法</?>
+              )>
+              <Case #prototype-failure-blocks-integration (
+                <Given ?>原型required case存在失败、跳过或环境阻塞</?>
+                <When ?>准备进入Eidolon业务集成阶段</?>
+                <Then ?>执行 SHALL 拒绝进入集成，直到可执行报告证明必需验收全部通过</?>
+              )>
+              <Case #library-does-not-own-conversation (
+                <Given ?>Eidolon通过宿主adapter注入页面与卡片</?>
+                <When ?>滚动、分页或恢复窗口</?>
+                <Then ?>通用包 MUST NOT 写入canonical Conversation、修改Prompt或拥有provider状态；原型和业务应用 MUST 保持private</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

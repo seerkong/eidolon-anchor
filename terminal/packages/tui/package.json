@@ -17,6 +17,9 @@
     "@types/yargs": "^17.0.32"
   },
   "dependencies": {
+    "depa-scroll-contract": "workspace:*",
+    "depa-scroll-logic": "workspace:*",
+    "depa-scroll-opentui-capsule": "workspace:*",
     "depa-data-graph-core": "^1.0.1",
     "depa-data-graph-solid": "^1.0.1",
     "@opentui/core": "0.1.96",

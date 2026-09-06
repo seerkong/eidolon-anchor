@@ -659,8 +659,9 @@ export function createTuiRuntimeClient(options?: {
   // to the single-source local-file impl so every existing no-arg /
   // {mode,directory} caller keeps working; production threads its own through
   // TerminalRuntime.
+  const projectionLifetime = new AbortController()
   const conversationProjectionReadPort =
-    options?.conversationProjectionReadPort ?? createLocalFileConversationProjectionReadPort()
+    options?.conversationProjectionReadPort ?? createLocalFileConversationProjectionReadPort({ signal: projectionLifetime.signal })
   configureTuiStreamDiagnostics({ workDir: directory })
   const catalog = createRuntimeCatalog(mode, directory)
 
@@ -1444,7 +1445,7 @@ export function createTuiRuntimeClient(options?: {
 
   async function loadSessionHistoryPageFromPersistence(
     state: SessionState,
-    input: { cursor?: string | null; limit?: number },
+    input: { cursor?: string | null; after?: string | null; limit?: number },
   ) {
     const sessionDir = getSessionDir(state.info.id)
     const sessionRawState = await conversationProjectionReadPort.loadSessionProjection({ sessionDir })
@@ -1462,38 +1463,26 @@ export function createTuiRuntimeClient(options?: {
           snapshotId: "empty",
           startCursor: null,
           hasPreviousPage: false,
+          endCursor: null,
+          hasNextPage: false,
           observedBytes: 0,
           sourceBytes: 0,
         },
       }
     }
 
-    const loaded = conversationProjectionReadPort.loadHistoryPageProjection
-      ? await conversationProjectionReadPort.loadHistoryPageProjection(
-          { sessionDir, actorKey: activeActorKey },
-          { limit: input.limit, before: input.cursor },
-        )
-      : await (async () => {
-          const full = await conversationProjectionReadPort.loadHistoryProjection({
-            sessionDir,
-            actorKey: activeActorKey,
-          })
-          const limit = Math.max(1, input.limit ?? 40)
-          return {
-            status: "ok" as const,
-            source: full.source,
-            messages: full.messages.slice(-limit),
-            pageInfo: {
-              snapshotId: `legacy:${state.info.id}:${full.messages.length}`,
-              startCursor: null,
-              hasPreviousPage: false,
-            },
-            historyGenerationId: full.historyGenerationId,
-            promptGenerationId: full.promptGenerationId,
-            observedBytes: 0,
-            sourceBytes: 0,
-          }
-        })()
+    if (!conversationProjectionReadPort.loadHistoryPageProjection) {
+      throw new Error("history_page_projection_unavailable")
+    }
+    const preparationStarted = performance.now()
+    const preparation = await conversationProjectionReadPort.loadHistoryPageIndexProjection?.(
+      { sessionDir, actorKey: activeActorKey },
+    )
+    const preparationMs = performance.now() - preparationStarted
+    const loaded = await conversationProjectionReadPort.loadHistoryPageProjection(
+      { sessionDir, actorKey: activeActorKey },
+      { limit: input.limit, before: input.cursor, after: input.after },
+    )
     const binding = sessionRawState.actorBindings[activeActorKey]
     const receipt = binding?.providerEpochReceiptV2
     const historical = buildHistorySessionMessages({
@@ -1505,14 +1494,21 @@ export function createTuiRuntimeClient(options?: {
         : undefined,
     })
     return {
-      data: historical.map((entry) => ({ info: clone(entry.info), parts: clone(entry.parts) })),
+      data: historical.map((entry) => ({
+        info: clone({ ...entry.info, historyOrder: loaded.messageOrder?.[entry.info.id] }),
+        parts: clone(entry.parts),
+      })),
       page: {
         status: loaded.status,
         snapshotId: loaded.pageInfo.snapshotId,
         startCursor: loaded.pageInfo.startCursor,
         hasPreviousPage: loaded.pageInfo.hasPreviousPage,
+        endCursor: loaded.pageInfo.endCursor,
+        hasNextPage: loaded.pageInfo.hasNextPage,
         observedBytes: loaded.observedBytes,
         sourceBytes: loaded.sourceBytes,
+        preparationObservedBytes: preparation?.observedBytes ?? 0,
+        preparationMs,
       },
     }
   }
@@ -1539,6 +1535,7 @@ export function createTuiRuntimeClient(options?: {
 
     const limit = Math.max(1, Math.min(MAX_USER_INPUT_HISTORY, Math.floor(requestedLimit)))
     if (conversationProjectionReadPort.loadHistoryPageProjection) {
+      await conversationProjectionReadPort.loadHistoryPageIndexProjection?.({ sessionDir, actorKey: activeActorKey })
       const entries: UserInputHistoryEntry[] = []
       const seenCursors = new Set<string>()
       let before: string | null | undefined
@@ -2406,14 +2403,16 @@ export function createTuiRuntimeClient(options?: {
       limit,
       page,
       cursor,
-    }: { sessionID?: string; limit?: number; page?: boolean; cursor?: string | null } = {}) {
+      after,
+    }: { sessionID?: string; limit?: number; page?: boolean; cursor?: string | null; after?: string | null } = {}) {
+      if (cursor != null && after != null) throw new Error("history_page_ambiguous_direction")
       const state = ensureSessionState(sessionID)
       if (mode === "local-runtime" && !state.materialized) {
         const persistedInfo = await loadPersistedSessionInfo(state.info.id).catch(() => null)
         if (persistedInfo) applySessionInfoToState(state, persistedInfo)
       }
       if (page && mode === "local-runtime") {
-        return await loadSessionHistoryPageFromPersistence(state, { cursor, limit })
+        return await loadSessionHistoryPageFromPersistence(state, { cursor, after, limit })
       }
       await hydrateSessionHistoryFromPersistence(state)
       await hydrateUserInputHistoryFromPersistence(state)
@@ -2431,6 +2430,8 @@ export function createTuiRuntimeClient(options?: {
             snapshotId: `memory:${state.info.id}:${state.messages.length}`,
             startCursor: null,
             hasPreviousPage: false,
+            endCursor: null,
+            hasNextPage: false,
             observedBytes: 0,
             sourceBytes: 0,
           },
@@ -3152,6 +3153,7 @@ export function createTuiRuntimeClient(options?: {
 
   const instance = {
     async dispose() {
+      projectionLifetime.abort()
       for (const sessionID of [...sessionOrder]) {
         const state = sessions.get(sessionID)
         if (!state) continue

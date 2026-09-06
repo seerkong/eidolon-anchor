@@ -2,24 +2,15 @@ import { describe, expect, it } from "bun:test"
 import fs from "fs"
 import os from "os"
 import path from "path"
-import { parseXnl } from "xnl-core"
-import { __setLlmAdapterFactoryForTest, configureTuiRuntime, getTuiRuntimeBridge } from "../src/runtime/bridge/TuiRuntime"
+import { projectInputContentText } from "@shared/composer"
+import { createLocalFileConversationProjectionReadPort } from "@cell/ai-support/conversation/LocalFileConversationProjectionReadPort"
+import { __setLlmAdapterFactoryForTest, configureTuiRuntime, disposeTuiRuntimeBridge, getTuiRuntimeBridge } from "../src/runtime/bridge/TuiRuntime"
 
 function makeTempWorkdir(): string {
   const dir = path.join(os.tmpdir(), `tui-runtime-history-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   fs.mkdirSync(path.join(dir, ".eidolon", "agents"), { recursive: true })
   fs.mkdirSync(path.join(dir, ".eidolon", "mcp"), { recursive: true })
   return dir
-}
-
-async function readTranscriptXnlText(filePath: string): Promise<string> {
-  const doc = parseXnl(fs.readFileSync(filePath, "utf8"))
-  return (doc.nodes ?? [])
-    .filter((record: any) => record?.kind === "DataElement" && record?.tag === "actor-transcript-record")
-    .flatMap((record: any) => (record.body ?? [])
-      .filter((item: any) => item?.kind === "TextElement" && item?.tag === "record")
-      .map((item: any) => String(item.text ?? "")))
-    .join("\n")
 }
 
 describe("TuiRuntime session history isolation", () => {
@@ -52,24 +43,31 @@ describe("TuiRuntime session history isolation", () => {
       await runtimeA!.turn("todo app")
       await runtimeB!.turn("你是谁")
 
-      const sessionsDir = path.join(workdir, ".eidolon", "sessions")
-      const sessionDirs = fs.readdirSync(sessionsDir).map((name) => path.join(sessionsDir, name))
-      const historyFiles = sessionDirs
-        .flatMap((dir) => {
-          const actorsDir = path.join(dir, "actors")
-          if (!fs.existsSync(actorsDir)) return [] as string[]
-          return fs.readdirSync(actorsDir)
-            .map((name) => path.join(actorsDir, name, "transcript.xnl"))
-            .filter((file) => fs.existsSync(file))
-        })
-      const histories = await Promise.all(historyFiles.map((file) => readTranscriptXnlText(file)))
+      const port = createLocalFileConversationProjectionReadPort()
+      const histories = await Promise.all(["session-a", "session-b"].map(async (sessionId) => {
+        const sessionDir = path.join(workdir, ".eidolon", "sessions", sessionId)
+        const session = await port.loadSessionProjection({ sessionDir })
+        expect(session.sessionId).toBe(sessionId)
+        expect(session.activeActorKey).toBeTruthy()
+        const history = await port.loadHistoryProjection({ sessionDir, actorKey: session.activeActorKey! })
+        expect(history.source).toBe("conversation")
+        return history.messages
+      }))
 
       expect(histories.length).toBe(2)
-      expect(histories.filter((text) => text.includes("todo app")).length).toBe(1)
-      expect(histories.filter((text) => text.includes("你是谁")).length).toBe(1)
-      expect(histories.some((text) => text.includes("todo app") && text.includes("你是谁"))).toBe(false)
+      expect(histories[0]!.filter((message) => message.role === "user").map((message) => projectInputContentText(message.content))).toEqual(["todo app"])
+      expect(histories[1]!.filter((message) => message.role === "user").map((message) => projectInputContentText(message.content))).toEqual(["你是谁"])
+      const texts = histories.map((messages) => JSON.stringify(messages))
+      expect(texts.filter((text) => text.includes("todo app")).length).toBe(1)
+      expect(texts.filter((text) => text.includes("你是谁")).length).toBe(1)
+      expect(texts.some((text) => text.includes("todo app") && text.includes("你是谁"))).toBe(false)
     } finally {
-      __setLlmAdapterFactoryForTest(null)
+      try {
+        await Promise.all(["session-a", "session-b"].map(disposeTuiRuntimeBridge))
+      } finally {
+        __setLlmAdapterFactoryForTest(null)
+        fs.rmSync(workdir, { recursive: true, force: true })
+      }
     }
   })
 })

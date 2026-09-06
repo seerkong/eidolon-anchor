@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test"
 import { RGBA } from "@opentui/core"
 import { testRender } from "@opentui/solid"
 import { MessageCards } from "../src/app/tui_a1/features/message/cards"
+import { TuiA1View } from "../src/app/tui_a1"
 import { sessionContext } from "../src/app/tui_a1/features/message/model/session-context"
 import { tuiA1Theme as theme } from "../src/app/tui_a1/theme"
 
@@ -87,7 +88,7 @@ describe("tui_a1 tool card render", () => {
     }
   })
 
-  it("mounts only the viewport/overscan message-card window", async () => {
+  it("mounts the viewport window through the host capsule, not the card renderer", async () => {
     const messages = Array.from({ length: 300 }, (_, index) => ({
       id: `virtual-${index}`,
       kind: "assistant" as const,
@@ -96,25 +97,24 @@ describe("tui_a1 tool card render", () => {
     }))
     const setup = await testRender(
       () => (
-        <box width="100%" height="100%">
-          <MessageCards
-            messages={messages}
-            viewport={{ scrollTop: () => 0, height: () => 20, width: () => 80 }}
-          />
-        </box>
+        <TuiA1View directory={process.cwd()} initialMessages={messages} />
       ),
       { width: 80, height: 20 },
     )
     try {
-      await setup.renderOnce()
+      for (let frame = 0; frame < 20; frame++) {
+        await new Promise(resolve => setTimeout(resolve, 0))
+        await setup.renderOnce()
+        if (setup.captureCharFrame().includes("virtual message 299")) break
+      }
       const text = setup.captureSpans().lines
         .map((line) => line.spans.map((span) => span.text).join(""))
         .join("\n")
       const rendered = text.match(/virtual message \d+/g) ?? []
       expect(rendered.length).toBeGreaterThan(0)
       expect(rendered.length).toBeLessThan(30)
-      expect(text).toContain("virtual message 0")
-      expect(text).not.toContain("virtual message 299")
+      expect(text).toContain("virtual message 299")
+      expect(text).not.toContain("virtual message 0")
       expect(setup.renderer.listenerCount("resize")).toBeLessThanOrEqual(1)
     } finally {
       setup.renderer.destroy()

@@ -31,6 +31,7 @@ import type {
   ConversationSessionIndexSnapshot,
 } from "@cell/ai-organ-contract";
 import { CONVERSATION_PERSISTENCE_SCHEMA_VERSION } from "@cell/ai-organ-contract";
+import { committedHistoryRefsToMessages } from "@cell/ai-persistence-logic/ConversationProjection";
 import {
   assertProviderContextTransitionSessionIdentity,
   canonicalConversationJson as canonicalJson,
@@ -810,7 +811,8 @@ function historyMessageRecordToMessage(
 
 /** Shared decoder for bounded projection readers; keeps XNL message semantics in one place. */
 export function historyMessageXnlRecordToChatMessage(record: XnlStreamRecord): ChatMessage | null {
-  return historyMessageRecordToMessage(record as XnlConversationRecord) as ChatMessage | null;
+  const committed = historyMessageRecordToCommittedMessage(record as XnlConversationRecord);
+  return committed ? committedHistoryRefsToMessages([committed])[0] ?? null : null;
 }
 
 function historyMessageRecordsToGeneration(
@@ -818,8 +820,7 @@ function historyMessageRecordsToGeneration(
   records: Awaited<ReturnType<typeof readXnlRecords>>,
 ): ActorHistoryGenerationData | null {
   const messageRecords = records
-    .filter((record) => record.tag === HISTORY_MESSAGE_RECORD_TAG && record.metadata.generationId === generationId)
-    .sort((left, right) => Number(left.metadata.sequence ?? 0) - Number(right.metadata.sequence ?? 0));
+    .filter((record) => record.tag === HISTORY_MESSAGE_RECORD_TAG && record.metadata.generationId === generationId);
   if (messageRecords.length === 0) return null;
   const dedupedByRecordId = new Map<string, XnlConversationRecord>();
   for (const record of messageRecords) {

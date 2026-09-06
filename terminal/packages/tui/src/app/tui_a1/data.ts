@@ -88,11 +88,12 @@ type TuiA1RuntimeToolMessage = {
   part: ToolPart
 }
 
-export type TuiA1Message =
+export type TuiA1Message = (
   | TuiA1TextMessage
   | TuiA1AssistantTextMessage
   | TuiA1SummaryToolMessage
   | TuiA1RuntimeToolMessage
+) & { historyOrder?: readonly number[]; sourceMessageID?: string }
 
 export function formatTuiA1AgentName(agent: string): string {
   return agent
@@ -231,6 +232,8 @@ export function runtimeMessagesToTuiA1Messages(
           completedAt: message.time.completed,
           text: displayableText,
           selection,
+          historyOrder: message.historyOrder ? [...message.historyOrder, 0] : undefined,
+          sourceMessageID: message.id,
         } satisfies TuiA1Message,
       ]
     }
@@ -303,7 +306,8 @@ export function runtimeMessagesToTuiA1Messages(
 
     flushAssistantText()
 
-    return items
+    return items.map((item, index) => ({ ...item, sourceMessageID: message.id,
+      historyOrder: message.historyOrder ? [...message.historyOrder, index] : undefined }))
   })
 }
 

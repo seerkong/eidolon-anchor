@@ -1108,6 +1108,59 @@ export type XnlRecordPageEntry = {
   readonly endOffset: number
 }
 
+/**
+ * Forward reads begin at a proven boundary, so every accepted record must be
+ * a complete prefix. Candidate line starts inside raw text are possible ends
+ * to try, never new starts from which to skip an unfinished outer record.
+ */
+function parseCompleteXnlRecordPrefixes(window: BoundedJournalTail): ParsedXnlRecordEntry[] {
+  const records: ParsedXnlRecordEntry[] = []
+  let start = xnlDocumentContentStart(window.bytes)
+  const ends = [...legacyJournalCandidateOffsets(window, []), window.bytes.length]
+  for (const end of ends) {
+    if (end <= start) continue
+    try {
+      const doc = parseXnl(window.bytes.subarray(start, end).toString("utf8"))
+      const nodes = Array.isArray(doc.nodes) ? doc.nodes : []
+      if (nodes.length !== 1) continue
+      const node = nodes[0] as any
+      if (node?.kind !== "DataElement" && node?.kind !== "TextElement") continue
+      records.push({
+        record: xnlTopLevelNodeToRecord(node),
+        startOffset: window.startOffset + start,
+        endOffset: window.startOffset + end,
+      })
+      start = end
+    } catch {
+      // Retain the same start until the whole outer record parses.
+    }
+  }
+  return records
+}
+
+/** Reverse windows end at a proven boundary; validate a whole suffix first. */
+function parseCompleteXnlRecordSuffixes(window: BoundedJournalTail): ParsedXnlRecordEntry[] {
+  for (const start of legacyJournalCandidateOffsets(window, [])) {
+    const bytes = window.bytes.subarray(start)
+    try {
+      const doc = parseXnl(bytes.toString("utf8"))
+      const nodes = Array.isArray(doc.nodes) ? doc.nodes : []
+      if (nodes.length === 0 || !nodes.every((node: any) => (
+        node?.kind === "DataElement" || node?.kind === "TextElement"
+      ))) continue
+      // A candidate inside raw text cannot parse through its enclosing text
+      // terminator and outer closure. Once the suffix parses, split it only
+      // through complete prefixes to preserve those same nesting boundaries.
+      return parseCompleteXnlRecordPrefixes({
+        ...window, startOffset: window.startOffset + start, bytes,
+      })
+    } catch {
+      // This candidate is a fragment; try the next possible complete suffix.
+    }
+  }
+  return []
+}
+
 export type XnlRecordPageProjection = {
   readonly exists: boolean
   readonly fileSize: number
@@ -1115,6 +1168,8 @@ export type XnlRecordPageProjection = {
   readonly records: ReadonlyArray<XnlRecordPageEntry>
   readonly previousOffset: number | null
   readonly hasPreviousPage: boolean
+  readonly nextOffset: number | null
+  readonly hasNextPage: boolean
   readonly oversizedRecord: boolean
 }
 
@@ -1122,19 +1177,22 @@ const DEFAULT_XNL_PAGE_LIMIT = 40
 const DEFAULT_XNL_PAGE_MAX_OBSERVED_BYTES = 4 * 1024 * 1024
 
 /**
- * Read one reverse page from an append-only XNL stream without materializing
- * the whole document. `beforeOffset` is an adapter-private, parser-proven
- * record boundary returned by a previous call. Records are returned in source
- * order even though the file is scanned backwards.
+ * Read a bounded page from an append-only XNL stream. Offsets are private,
+ * parser-proven boundaries: before a record's start or after its end. With no
+ * offset, read the tail. Both scan directions return records in source order.
  */
 export async function readXnlRecordPage(input: {
   filePath: string
   tags: string | readonly string[]
   beforeOffset?: number | null
+  afterOffset?: number | null
   limit?: number
   windowBytes?: number
   maxObservedBytes?: number
 }): Promise<XnlRecordPageProjection> {
+  if (input.beforeOffset != null && input.afterOffset != null) {
+    throw new Error("xnl_record_page_conflicting_offsets")
+  }
   const allowedTags = typeof input.tags === "string" ? [input.tags] : [...input.tags]
   const limit = Math.max(1, Math.floor(input.limit ?? DEFAULT_XNL_PAGE_LIMIT))
   const maxObservedBytes = Math.max(1, Math.floor(
@@ -1167,6 +1225,46 @@ export async function readXnlRecordPage(input: {
       return { exists: true, fileSize, startOffset, bytes: bytes.subarray(0, bytesRead) }
     }
 
+    if (input.afterOffset != null) {
+      let scanStart = Math.min(fileSize, Math.max(0, Math.floor(input.afterOffset)))
+      const records: ParsedXnlRecordEntry[] = []
+      while (scanStart < fileSize && records.length < limit && observedBytes < maxObservedBytes) {
+        let scanEnd = scanStart
+        let accumulated = Buffer.alloc(0)
+        let boundaries: ParsedXnlRecordEntry[] = []
+        while (scanEnd < fileSize && observedBytes < maxObservedBytes) {
+          const readLength = Math.min(windowBytes, fileSize - scanEnd, maxObservedBytes - observedBytes)
+          const chunk = await readRange(scanEnd, scanEnd + readLength)
+          if (chunk.bytes.length === 0) break
+          accumulated = Buffer.concat([accumulated, chunk.bytes])
+          scanEnd += chunk.bytes.length
+          boundaries = parseCompleteXnlRecordPrefixes({
+            exists: true, fileSize, startOffset: scanStart, bytes: accumulated,
+          })
+          if (boundaries.length > 0) break
+        }
+        if (boundaries.length === 0) {
+          // An incomplete record cannot become a continuation boundary.
+          oversizedRecord = scanEnd < fileSize || accumulated.toString("utf8").trim().length > 0
+          if (!oversizedRecord) scanStart = fileSize
+          break
+        }
+        for (const entry of boundaries) {
+          scanStart = entry.endOffset
+          if (allowedTags.includes(entry.record.tag)) records.push(entry)
+          if (records.length === limit) break
+        }
+      }
+      const nextOffset = oversizedRecord ? null : scanStart
+      return {
+        exists: true, fileSize, observedBytes, records, oversizedRecord,
+        previousOffset: records[0]?.startOffset ?? null,
+        hasPreviousPage: (records[0]?.startOffset ?? 0) > 0,
+        nextOffset,
+        hasNextPage: nextOffset !== null && nextOffset < fileSize,
+      }
+    }
+
     while (scanEnd > 0 && newestFirst.length < limit && observedBytes < maxObservedBytes) {
       let scanStart = scanEnd
       let accumulated = Buffer.alloc(0)
@@ -1183,7 +1281,7 @@ export async function readXnlRecordPage(input: {
           startOffset: scanStart,
           bytes: accumulated,
         }
-        const boundaryEntries = parseCompleteXnlRecordEntriesFromWindow(window, allowedTags, true)
+        const boundaryEntries = parseCompleteXnlRecordSuffixes(window)
         entries = boundaryEntries.filter((entry) => allowedTags.includes(entry.record.tag))
         if (boundaryEntries.length > 0 || scanStart === 0) {
           if (entries.length === 0) {
@@ -1225,6 +1323,8 @@ export async function readXnlRecordPage(input: {
       records,
       previousOffset,
       hasPreviousPage: previousOffset !== null && previousOffset > 0,
+      nextOffset: records.at(-1)?.endOffset ?? null,
+      hasNextPage: (records.at(-1)?.endOffset ?? fileSize) < fileSize,
       oversizedRecord,
     }
   } catch (error) {
@@ -1236,6 +1336,8 @@ export async function readXnlRecordPage(input: {
         records: [],
         previousOffset: null,
         hasPreviousPage: false,
+        nextOffset: null,
+        hasNextPage: false,
         oversizedRecord: false,
       }
     }

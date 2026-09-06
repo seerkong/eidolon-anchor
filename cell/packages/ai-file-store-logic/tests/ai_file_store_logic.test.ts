@@ -32,6 +32,91 @@ function makeTempDir(): string {
 }
 
 describe("AI file store logic", () => {
+  it("never treats XNL-looking text inside a partial record as top-level in either direction", async () => {
+    const sessionDir = makeTempDir()
+    const streamPath = path.join(sessionDir, "nested-looking.xnl")
+    const payload = `start\n<HistoryMessage { sequence = 999 }>\n<Other { sequence = 1000 }>\n${"中文正文".repeat(4000)}`
+    try {
+      await appendXnlRecord({ filePath: streamPath, tag: "HistoryMessage", metadata: { sequence: 0 } })
+      // Obtain a proven boundary before appending the long text-bearing record.
+      const head = await readXnlRecordPage({ filePath: streamPath, tags: "HistoryMessage", limit: 1 })
+      await appendXnlRecord({
+        filePath: streamPath, tag: "HistoryMessage", metadata: { sequence: 1 },
+        body: [{ kind: "text", tag: "Payload", text: payload }],
+      })
+      // Legacy XNL permits unindented raw text; expose its lookalike tags at
+      // line starts instead of relying on the current writer's indentation.
+      fs.writeFileSync(streamPath, fs.readFileSync(streamPath, "utf8").replaceAll("\n  ", "\n"))
+      await appendXnlRecord({ filePath: streamPath, tag: "HistoryMessage", metadata: { sequence: 2 } })
+      expect((await readXnlRecords({ filePath: streamPath, tag: "HistoryMessage" }))
+        .map((record) => record.metadata.sequence)).toEqual([0, 1, 2])
+      const first = await readXnlRecordPage({
+        filePath: streamPath, tags: "HistoryMessage", afterOffset: head.records[0]!.endOffset,
+        limit: 1, windowBytes: 1024,
+      })
+      expect(first.records.map((entry) => entry.record.metadata.sequence)).toEqual([1])
+      expect(first.records[0]!.record.body.find((block) => block.kind === "text")?.text).toBe(payload)
+      expect(first.oversizedRecord).toBe(false)
+      const second = await readXnlRecordPage({
+        filePath: streamPath, tags: "HistoryMessage", afterOffset: first.nextOffset,
+        limit: 1, windowBytes: 1024,
+      })
+      expect(second.records.map((entry) => entry.record.metadata.sequence)).toEqual([2])
+      const reverse = await readXnlRecordPage({
+        filePath: streamPath, tags: "HistoryMessage", beforeOffset: second.previousOffset,
+        limit: 1, windowBytes: 1024,
+      })
+      expect(reverse.records.map((entry) => entry.record.metadata.sequence)).toEqual([1])
+      expect(reverse.records[0]!.record.body.find((block) => block.kind === "text")?.text).toBe(payload)
+      for (const cursor of [
+        { afterOffset: head.records[0]!.endOffset },
+        { beforeOffset: second.previousOffset },
+      ]) {
+        const bounded = await readXnlRecordPage({
+          filePath: streamPath, tags: "HistoryMessage", ...cursor,
+          limit: 1, windowBytes: 1024, maxObservedBytes: 4096,
+        })
+        expect(bounded.records).toEqual([])
+        expect(bounded.oversizedRecord).toBe(true)
+        expect(bounded.observedBytes).toBe(4096)
+      }
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("reads forward across partial windows and filtered tags without losing boundaries", async () => {
+    const sessionDir = makeTempDir()
+    const streamPath = path.join(sessionDir, "forward.xnl")
+    try {
+      for (let sequence = 0; sequence < 5; sequence += 1) {
+        await appendXnlRecord({
+          filePath: streamPath, tag: sequence === 2 ? "Other" : "EventRecord", metadata: { sequence },
+          body: [{ kind: "text", tag: "Payload", text: `${sequence}:${"中文".repeat(12_000)}` }],
+        })
+      }
+      let afterOffset = 0
+      const sequences: unknown[] = []
+      for (let index = 0; index < 4; index += 1) {
+        const page = await readXnlRecordPage({
+          filePath: streamPath, tags: "EventRecord", afterOffset, limit: 1,
+          windowBytes: 8192, maxObservedBytes: 192 * 1024,
+        })
+        expect(page.oversizedRecord).toBe(false)
+        expect(page.observedBytes).toBeLessThanOrEqual(192 * 1024)
+        expect(page.nextOffset).toBeGreaterThan(afterOffset)
+        sequences.push(...page.records.map((entry) => entry.record.metadata.sequence))
+        afterOffset = page.nextOffset!
+      }
+      expect(sequences).toEqual([0, 1, 3, 4])
+      await expect(readXnlRecordPage({
+        filePath: streamPath, tags: "EventRecord", beforeOffset: 1, afterOffset: 0,
+      })).rejects.toThrow("xnl_record_page_conflicting_offsets")
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
   it("reads reverse XNL pages from parser-proven record boundaries", async () => {
     const sessionDir = makeTempDir()
     const streamPath = path.join(sessionDir, "logs", "paged.xnl")
@@ -57,6 +142,14 @@ describe("AI file store logic", () => {
       })
       expect(previous.records.map((entry) => entry.record.metadata.sequence)).toEqual([66, 67, 68, 69, 70, 71, 72])
       expect(previous.records.every((entry) => entry.startOffset < entry.endOffset)).toBe(true)
+
+      const revisited = await readXnlRecordPage({
+        filePath: streamPath, tags: "EventRecord", limit: 7,
+        afterOffset: previous.records.at(-1)!.endOffset,
+      })
+      expect(revisited.records.map((entry) => entry.record.metadata.sequence)).toEqual([73, 74, 75, 76, 77, 78, 79])
+      expect(revisited.hasNextPage).toBe(false)
+      expect(revisited.observedBytes).toBeLessThan(revisited.fileSize)
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true })
     }
@@ -83,6 +176,14 @@ describe("AI file store logic", () => {
       expect(page.oversizedRecord).toBe(true)
       expect(page.previousOffset).toBeNull()
       expect(page.observedBytes).toBe(32 * 1024)
+      const forward = await readXnlRecordPage({
+        filePath: streamPath, tags: "EventRecord", afterOffset: 0, limit: 1,
+        windowBytes: 8 * 1024, maxObservedBytes: 32 * 1024,
+      })
+      expect(forward.records).toEqual([])
+      expect(forward.oversizedRecord).toBe(true)
+      expect(forward.nextOffset).toBeNull()
+      expect(forward.observedBytes).toBe(32 * 1024)
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true })
     }
@@ -106,6 +207,11 @@ describe("AI file store logic", () => {
       })
       expect(previous.records.map((entry) => entry.record.metadata.sequence)).toEqual([1])
       expect(previous.oversizedRecord).toBe(false)
+      const forward = await readXnlRecordPage({
+        filePath: streamPath, tags: "HistoryMessage", limit: 1,
+        afterOffset: previous.records[0]!.endOffset,
+      })
+      expect(forward.records.map((entry) => entry.record.metadata.sequence)).toEqual([3])
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true })
     }

@@ -1,231 +1,275 @@
 <Behavior #cell-contract-logic-support-layering apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #cell-contract-support-logic (
-      <Statement ?01M05F1P1TTZVQR6AVN5GVN31R>
+      <Statement ?01M1VSMXDF5THTKZAE6ASB2YBT>
       系统应当（SHALL）将 `cell` 中的数据与接口定义收敛到 `*-contract`，将环境相关副作用实现收敛到 ownership 对应的 support 宿主包，并让其他纯逻辑保留在 `*-logic`。
-      </?01M05F1P1TTZVQR6AVN5GVN31R>
+      </?01M1VSMXDF5THTKZAE6ASB2YBT>
       <Suites [
         <Suite { name = "cell-contract-support-logic" } (
           <Cases [
             <Case #case-1 { name = "数据与接口定义不再留在逻辑层" } [
-              <Then ?01M05F1P1TTZVQR6AVN5GVN31S>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YBV>
               数据结构与接口定义应位于对应的 `*-contract`
-              </?01M05F1P1TTZVQR6AVN5GVN31S>
-              <Then ?01M05F1P1TTZVQR6AVN5GVN31T>
+              </?01M1VSMXDF5THTKZAE6ASB2YBV>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YBW>
               不应继续把正式接口定义留在 `ai-core-logic` 或 `ai-organ-logic`
-              </?01M05F1P1TTZVQR6AVN5GVN31T>
+              </?01M1VSMXDF5THTKZAE6ASB2YBW>
             ] (
-              <Given ?01M05F1P1TTZVQR6AVN5GVN31V>
+              <Given ?01M1VSMXDF5THTKZAE6ASB2YBX>
               某个 module 当前同时包含数据结构、接口定义与本地文件实现
-              </?01M05F1P1TTZVQR6AVN5GVN31V>
-              <When ?01M05F1P1TTZVQR6AVN5GVN31W>
+              </?01M1VSMXDF5THTKZAE6ASB2YBX>
+              <When ?01M1VSMXDF5THTKZAE6ASB2YBY>
               完成本次边界重构
-              </?01M05F1P1TTZVQR6AVN5GVN31W>
+              </?01M1VSMXDF5THTKZAE6ASB2YBY>
             )>
             <Case #case-2 { name = "环境实现不再直接留在逻辑层" } [
-              <Then ?01M05F1P1TTZVQR6AVN5GVN31X>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YBZ>
               该副作用的环境实现应位于 `ai-support` 或 `platform-support`
-              </?01M05F1P1TTZVQR6AVN5GVN31X>
-              <Then ?01M05F1P1TTZVQR6AVN5GVN31Y>
+              </?01M1VSMXDF5THTKZAE6ASB2YBZ>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YC0>
               `*-logic` 不应继续直接持有该环境 backend 的正式实现
-              </?01M05F1P1TTZVQR6AVN5GVN31Y>
+              </?01M1VSMXDF5THTKZAE6ASB2YC0>
             ] (
-              <Given ?01M05F1P1TTZVQR6AVN5GVN31Z>
+              <Given ?01M1VSMXDF5THTKZAE6ASB2YC1>
               某个副作用当前直接依赖本地文件、home 配置目录或 session 目录布局
-              </?01M05F1P1TTZVQR6AVN5GVN31Z>
-              <When ?01M05F1P1TTZVQR6AVN5GVN320>
+              </?01M1VSMXDF5THTKZAE6ASB2YC1>
+              <When ?01M1VSMXDF5THTKZAE6ASB2YC2>
               完成本次边界重构
-              </?01M05F1P1TTZVQR6AVN5GVN320>
+              </?01M1VSMXDF5THTKZAE6ASB2YC2>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #ai-core-logic-ai-core-contract (
-      <Statement ?01M05F1P1TTZVQR6AVN5GVN321>
+      <Statement ?01M1VSMXDF5THTKZAE6ASB2YC3>
       系统应当（SHALL）将 `ai-core-logic` 所依赖的副作用接口先定义到 `ai-core-contract`，再由 ownership 对应的 support 宿主提供具体实现。
-      </?01M05F1P1TTZVQR6AVN5GVN321>
+      </?01M1VSMXDF5THTKZAE6ASB2YC3>
       <Suites [
         <Suite { name = "ai-core-logic-ai-core-contract" } (
           <Cases [
             <Case #core-runtime-persistence-effects-ai-core-contract { name = "core runtime persistence effects 经由 ai-core-contract 暴露" } [
-              <Then ?01M05F1P1TTZVQR6AVN5GVN322>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YC4>
               这些副作用接口应先由 `ai-core-contract` 定义
-              </?01M05F1P1TTZVQR6AVN5GVN322>
-              <Then ?01M05F1P1TTZVQR6AVN5GVN323>
+              </?01M1VSMXDF5THTKZAE6ASB2YC4>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YC5>
               `ai-core-logic` 应通过这些 contract 使用持久化能力，而不是直接依赖本地文件实现
-              </?01M05F1P1TTZVQR6AVN5GVN323>
+              </?01M1VSMXDF5THTKZAE6ASB2YC5>
             ] (
-              <Given ?01M05F1P1TTZVQR6AVN5GVN324>
+              <Given ?01M1VSMXDF5THTKZAE6ASB2YC6>
               `ai-core-logic` 需要消息历史、编排历史、actor transcript 或 runtime snapshot 的持久化能力
-              </?01M05F1P1TTZVQR6AVN5GVN324>
-              <When ?01M05F1P1TTZVQR6AVN5GVN325>
+              </?01M1VSMXDF5THTKZAE6ASB2YC6>
+              <When ?01M1VSMXDF5THTKZAE6ASB2YC7>
               完成本次重构
-              </?01M05F1P1TTZVQR6AVN5GVN325>
+              </?01M1VSMXDF5THTKZAE6ASB2YC7>
             )>
             <Case #core-ai-core-contract { name = "core 配置加载经由 ai-core-contract 暴露" } [
-              <Then ?01M05F1P1TTZVQR6AVN5GVN326>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YC8>
               相关副作用接口应位于 `ai-core-contract`
-              </?01M05F1P1TTZVQR6AVN5GVN326>
-              <Then ?01M05F1P1TTZVQR6AVN5GVN327>
+              </?01M1VSMXDF5THTKZAE6ASB2YC8>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YC9>
               文件系统扫描与 home 目录读取实现应由 `ai-support` 或 `platform-support` 提供
-              </?01M05F1P1TTZVQR6AVN5GVN327>
+              </?01M1VSMXDF5THTKZAE6ASB2YC9>
             ] (
-              <Given ?01M05F1P1TTZVQR6AVN5GVN328>
+              <Given ?01M1VSMXDF5THTKZAE6ASB2YCA>
               `ai-core-logic` 需要读取模型配置、skill 目录或其他环境来源配置
-              </?01M05F1P1TTZVQR6AVN5GVN328>
-              <When ?01M05F1P1TTZVQR6AVN5GVN329>
+              </?01M1VSMXDF5THTKZAE6ASB2YCA>
+              <When ?01M1VSMXDF5THTKZAE6ASB2YCB>
               完成本次重构
-              </?01M05F1P1TTZVQR6AVN5GVN329>
+              </?01M1VSMXDF5THTKZAE6ASB2YCB>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #ai-organ-logic-ai-organ-contract (
-      <Statement ?01M05F1P1TTZVQR6AVN5GVN32A>
+      <Statement ?01M1VSMXDF5THTKZAE6ASB2YCC>
       系统应当（SHALL）将 `ai-organ-logic` 专属的副作用接口定义到 `ai-organ-contract`，并由 `ai-support` 承载当前环境下的正式实现。
-      </?01M05F1P1TTZVQR6AVN5GVN32A>
+      </?01M1VSMXDF5THTKZAE6ASB2YCC>
       <Suites [
         <Suite { name = "ai-organ-logic-ai-organ-contract" } (
           <Cases [
             <Case #ai-organ-contract { name = "本地权限配置读写边界进入 ai-organ-contract" } [
-              <Then ?01M05F1P1TTZVQR6AVN5GVN32B>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YCD>
               这些配置接口与数据定义应位于 `ai-organ-contract`
-              </?01M05F1P1TTZVQR6AVN5GVN32B>
-              <Then ?01M05F1P1TTZVQR6AVN5GVN32C>
+              </?01M1VSMXDF5THTKZAE6ASB2YCD>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YCE>
               `~/.eidolon` 本地文件实现应位于 `ai-support`
-              </?01M05F1P1TTZVQR6AVN5GVN32C>
+              </?01M1VSMXDF5THTKZAE6ASB2YCE>
             ] (
-              <Given ?01M05F1P1TTZVQR6AVN5GVN32D>
+              <Given ?01M1VSMXDF5THTKZAE6ASB2YCF>
               `ai-organ-logic` 需要读取和写回权限配置与 workspace access 配置
-              </?01M05F1P1TTZVQR6AVN5GVN32D>
-              <When ?01M05F1P1TTZVQR6AVN5GVN32E>
+              </?01M1VSMXDF5THTKZAE6ASB2YCF>
+              <When ?01M1VSMXDF5THTKZAE6ASB2YCG>
               完成本次重构
-              </?01M05F1P1TTZVQR6AVN5GVN32E>
+              </?01M1VSMXDF5THTKZAE6ASB2YCG>
             )>
             <Case #agent-loader-ai-organ-contract { name = "agent loader 等组织层环境读取进入 ai-organ-contract" } [
-              <Then ?01M05F1P1TTZVQR6AVN5GVN32F>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YCH>
               这些读取接口应位于 `ai-organ-contract`
-              </?01M05F1P1TTZVQR6AVN5GVN32F>
-              <Then ?01M05F1P1TTZVQR6AVN5GVN32G>
+              </?01M1VSMXDF5THTKZAE6ASB2YCH>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YCJ>
               目录扫描与文件读取实现应位于 `ai-support`
-              </?01M05F1P1TTZVQR6AVN5GVN32G>
+              </?01M1VSMXDF5THTKZAE6ASB2YCJ>
             ] (
-              <Given ?01M05F1P1TTZVQR6AVN5GVN32H>
+              <Given ?01M1VSMXDF5THTKZAE6ASB2YCK>
               `ai-organ-logic` 需要从目录中加载 agent config 或其他组织层环境资源
-              </?01M05F1P1TTZVQR6AVN5GVN32H>
-              <When ?01M05F1P1TTZVQR6AVN5GVN32J>
+              </?01M1VSMXDF5THTKZAE6ASB2YCK>
+              <When ?01M1VSMXDF5THTKZAE6ASB2YCM>
               完成本次重构
-              </?01M05F1P1TTZVQR6AVN5GVN32J>
+              </?01M1VSMXDF5THTKZAE6ASB2YCM>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #requirement-4 (
-      <Statement ?01M05F1P1TTZVQR6AVN5GVN32K>
+      <Statement ?01M1VSMXDF5THTKZAE6ASB2YCN>
       系统应当（SHALL）只将第一批高确定性、边界清晰的副作用实现纳入本次重构，而不是一刀切处理所有带副作用的模块。
-      </?01M05F1P1TTZVQR6AVN5GVN32K>
+      </?01M1VSMXDF5THTKZAE6ASB2YCN>
       <Suites [
         <Suite { name = "requirement-4" } (
           <Cases [
             <Case #case-7 { name = "第一批迁移项以范围文件为准" } [
-              <Then ?01M05F1P1TTZVQR6AVN5GVN32M>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YCP>
               消息历史、编排历史、actor transcript、runtime snapshot、权限配置、agent/skill/config loader 的副作用边界应优先纳入
-              </?01M05F1P1TTZVQR6AVN5GVN32M>
-              <Then ?01M05F1P1TTZVQR6AVN5GVN32N>
+              </?01M1VSMXDF5THTKZAE6ASB2YCP>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YCQ>
               范围锁定应以 `in-scope-organ-support-migrations.md` 为正式清单
-              </?01M05F1P1TTZVQR6AVN5GVN32N>
+              </?01M1VSMXDF5THTKZAE6ASB2YCQ>
             ] (
-              <Given ?01M05F1P1TTZVQR6AVN5GVN32P>
+              <Given ?01M1VSMXDF5THTKZAE6ASB2YCR>
               当前 track 已声明第一批高确定性迁移项
-              </?01M05F1P1TTZVQR6AVN5GVN32P>
-              <When ?01M05F1P1TTZVQR6AVN5GVN32Q>
+              </?01M1VSMXDF5THTKZAE6ASB2YCR>
+              <When ?01M1VSMXDF5THTKZAE6ASB2YCS>
               团队推进本次重构
-              </?01M05F1P1TTZVQR6AVN5GVN32Q>
+              </?01M1VSMXDF5THTKZAE6ASB2YCS>
             )>
             <Case #mixed-module { name = "mixed module 允许按职责拆分" } [
-              <Then ?01M05F1P1TTZVQR6AVN5GVN32R>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YCT>
               系统可以按职责拆分 contract / support / logic
-              </?01M05F1P1TTZVQR6AVN5GVN32R>
-              <Then ?01M05F1P1TTZVQR6AVN5GVN32S>
+              </?01M1VSMXDF5THTKZAE6ASB2YCT>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YCV>
               不要求整文件机械平移到某一个 support 包
-              </?01M05F1P1TTZVQR6AVN5GVN32S>
+              </?01M1VSMXDF5THTKZAE6ASB2YCV>
             ] (
-              <Given ?01M05F1P1TTZVQR6AVN5GVN32T>
+              <Given ?01M1VSMXDF5THTKZAE6ASB2YCW>
               某个文件同时包含副作用实现与纯逻辑
-              </?01M05F1P1TTZVQR6AVN5GVN32T>
-              <When ?01M05F1P1TTZVQR6AVN5GVN32V>
+              </?01M1VSMXDF5THTKZAE6ASB2YCW>
+              <When ?01M1VSMXDF5THTKZAE6ASB2YCX>
               该文件被纳入第一批迁移
-              </?01M05F1P1TTZVQR6AVN5GVN32V>
+              </?01M1VSMXDF5THTKZAE6ASB2YCX>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #requirement-5 (
-      <Statement ?01M05F1P1VXD02NDRM79F7W7AF>
+      <Statement ?01M1VSMXDF5THTKZAE6ASB2YCY>
       系统应当（SHALL）在本次 track 中保持明确的非范围约束，避免把更大规模的环境 backend 重构混入第一批 contract/support layering 改造。
-      </?01M05F1P1VXD02NDRM79F7W7AF>
+      </?01M1VSMXDF5THTKZAE6ASB2YCY>
       <Suites [
         <Suite { name = "requirement-5" } (
           <Cases [
             <Case #llm-http-adapter { name = "LLM HTTP adapter 不在本次改造范围" } [
-              <Then ?01M05F1P1VXD02NDRM79F7W7AG>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YCZ>
               系统不得要求本轮同时迁移这些 adapter
-              </?01M05F1P1VXD02NDRM79F7W7AG>
-              <Then ?01M05F1P1VXD02NDRM79F7W7AH>
+              </?01M1VSMXDF5THTKZAE6ASB2YCZ>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YD0>
               这些模块应保持在后续独立 track 中再处理
-              </?01M05F1P1VXD02NDRM79F7W7AH>
+              </?01M1VSMXDF5THTKZAE6ASB2YD0>
             ] (
-              <Given ?01M05F1P1VXD02NDRM79F7W7AJ>
+              <Given ?01M1VSMXDF5THTKZAE6ASB2YD1>
               `ai-organ-logic/src/llm/*` 中存在基于 `fetch` 的 provider adapter
-              </?01M05F1P1VXD02NDRM79F7W7AJ>
-              <When ?01M05F1P1VXD02NDRM79F7W7AK>
+              </?01M1VSMXDF5THTKZAE6ASB2YD1>
+              <When ?01M1VSMXDF5THTKZAE6ASB2YD2>
               推进本次 track
-              </?01M05F1P1VXD02NDRM79F7W7AK>
+              </?01M1VSMXDF5THTKZAE6ASB2YD2>
             )>
             <Case #case-10 { name = "本地文件与进程工具实现不在本次改造范围" } [
-              <Then ?01M05F1P1VXD02NDRM79F7W7AM>
+              <Then ?01M1VSMXDF5THTKZAE6ASB2YD3>
               系统不得要求本轮同时迁移这些工具实现
-              </?01M05F1P1VXD02NDRM79F7W7AM>
-              <Then ?01M05F1P1VXD02NDRM79F7W7AN>
+              </?01M1VSMXDF5THTKZAE6ASB2YD3>
+              <Then ?01M1VSMXDG97WV3Y08YNTE0Y33>
               本轮应保持范围只覆盖已锁定的高确定性副作用实现
-              </?01M05F1P1VXD02NDRM79F7W7AN>
+              </?01M1VSMXDG97WV3Y08YNTE0Y33>
             ] (
-              <Given ?01M05F1P1VXD02NDRM79F7W7AP>
+              <Given ?01M1VSMXDG97WV3Y08YNTE0Y34>
               `Read`、`Write`、`Edit`、`Bash` 等工具当前直接操作 `fs` 或 `child_process`
-              </?01M05F1P1VXD02NDRM79F7W7AP>
-              <When ?01M05F1P1VXD02NDRM79F7W7AQ>
+              </?01M1VSMXDG97WV3Y08YNTE0Y34>
+              <When ?01M1VSMXDG97WV3Y08YNTE0Y35>
               推进本次 track
-              </?01M05F1P1VXD02NDRM79F7W7AQ>
+              </?01M1VSMXDG97WV3Y08YNTE0Y35>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #runtime-entry-support (
-      <Statement ?01M05F1P1VXD02NDRM79F7W7AR>
+      <Statement ?01M1VSMXDG97WV3Y08YNTE0Y36>
       系统应当（SHALL）让 runtime entry 通过显式装配正式 support 宿主来获得环境能力，而不是继续从逻辑层直接拿本地文件默认实现。
-      </?01M05F1P1VXD02NDRM79F7W7AR>
+      </?01M1VSMXDG97WV3Y08YNTE0Y36>
       <Suites [
         <Suite { name = "runtime-entry-support" } (
           <Cases [
             <Case #terminal-runtime { name = "terminal runtime 不再直接依赖逻辑层本地文件实现" } [
-              <Then ?01M05F1P1VXD02NDRM79F7W7AS>
+              <Then ?01M1VSMXDG97WV3Y08YNTE0Y37>
               runtime entry 应显式装配来自 `ai-support` 或 `platform-support` 的实现
-              </?01M05F1P1VXD02NDRM79F7W7AS>
-              <Then ?01M05F1P1VXD02NDRM79F7W7AT>
+              </?01M1VSMXDG97WV3Y08YNTE0Y37>
+              <Then ?01M1VSMXDG97WV3Y08YNTE0Y38>
               不应继续把逻辑层中的本地实现作为默认正式 backend
-              </?01M05F1P1VXD02NDRM79F7W7AT>
+              </?01M1VSMXDG97WV3Y08YNTE0Y38>
             ] (
-              <Given ?01M05F1P1VXD02NDRM79F7W7AV>
+              <Given ?01M1VSMXDG97WV3Y08YNTE0Y39>
               `TerminalRuntime` 当前直接消费 `createLocalFileMessageHistoryEffects`、`createLocalFileOrchestrationHistoryEffects`、`AgentLoader` 或等价本地实现
-              </?01M05F1P1VXD02NDRM79F7W7AV>
-              <When ?01M05F1P1VXD02NDRM79F7W7AW>
+              </?01M1VSMXDG97WV3Y08YNTE0Y39>
+              <When ?01M1VSMXDG97WV3Y08YNTE0Y3A>
               完成本次重构
-              </?01M05F1P1VXD02NDRM79F7W7AW>
+              </?01M1VSMXDG97WV3Y08YNTE0Y3A>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #holon-task-runtime-explicit-effects (
+      <Statement ?01M1VSMXDG97WV3Y08YNTE0Y3B>
+      The Holon task runtime SHALL keep closed data and effect ports in ai-organ-contract, pure/async Processors in ai-organ-logic, and environment implementations outside logic, with dependencies supplied through an explicit data-only runtime.
+      </?01M1VSMXDG97WV3Y08YNTE0Y3B>
+      <Suites [
+        <Suite #holon-task-runtime-layering { name = "Holon task runtime DEPA layering" } (
+          <Cases [
+            <Case #explicit-runtime (
+              <Given ?01M1VSMXDG97WV3Y08YNTE0Y3C>
+              Holon task logic needs TaskSpace, deployment, journal, clock, scheduler or actor effects
+              </?01M1VSMXDG97WV3Y08YNTE0Y3C>
+              <When ?01M1VSMXDG97WV3Y08YNTE0Y3D>
+              the Processor executes
+              </?01M1VSMXDG97WV3Y08YNTE0Y3D>
+              <Then ?01M1VSMXDG97WV3Y08YNTE0Y3E>
+              all capabilities SHALL be visible in its runtime contract and SHALL NOT be read from a module global, service locator or config callback
+              </?01M1VSMXDG97WV3Y08YNTE0Y3E>
+            )>
+            <Case #no-file-construction-in-logic (
+              <Given ?01M1VSMXDG97WV3Y08YNTE0Y3F>
+              a local-file environment composes the Holon task runtime
+              </?01M1VSMXDG97WV3Y08YNTE0Y3F>
+              <When ?01M1VSMXDG97WV3Y08YNTE0Y3G>
+              ai-organ-logic is inspected
+              </?01M1VSMXDG97WV3Y08YNTE0Y3G>
+              <Then ?01M1VSMXDG97WV3Y08YNTE0Y3H>
+              new core logic SHALL NOT construct file support and local file implementations SHALL be supplied by the environment composition boundary
+              </?01M1VSMXDG97WV3Y08YNTE0Y3H>
+            )>
+            <Case #thin-service-port (
+              <Given ?01M1VSMXDG97WV3Y08YNTE0Y3J>
+              the product exposes a HolonTaskRuntimeService object
+              </?01M1VSMXDG97WV3Y08YNTE0Y3J>
+              <When ?01M1VSMXDG97WV3Y08YNTE0Y3K>
+              its implementation is reviewed
+              </?01M1VSMXDG97WV3Y08YNTE0Y3K>
+              <Then ?01M1VSMXDG97WV3Y08YNTE0Y3M>
+              the object SHALL be a thin port over explicit Processors and a data-only runtime rather than a mutable business-logic owner; admission registration SHALL be an explicit catalog state transition or port
+              </?01M1VSMXDG97WV3Y08YNTE0Y3M>
             )>
           ]>
         )>

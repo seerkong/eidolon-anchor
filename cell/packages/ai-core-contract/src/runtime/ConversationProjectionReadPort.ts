@@ -70,18 +70,33 @@ export type ConversationHistoryPageCursor = string;
 export type ConversationHistoryPageQuery = {
   readonly limit?: number;
   readonly before?: ConversationHistoryPageCursor | null;
+  /** Mutually exclusive with before; return the adjacent newer page. */
+  readonly after?: ConversationHistoryPageCursor | null;
+};
+
+/** Explicit cold preparation, separate from the bounded body-page budget.
+ * Only disposable record locators are retained; the source is never rewritten. */
+export type ConversationHistoryPageIndexProjection = {
+  readonly observedBytes: number;
+  readonly sourceBytes: number;
+  readonly recordCount: number;
+  readonly cacheHit: boolean;
 };
 
 export type ConversationHistoryPageInfo = {
   readonly snapshotId: string;
   readonly startCursor: ConversationHistoryPageCursor | null;
   readonly hasPreviousPage: boolean;
+  readonly endCursor: ConversationHistoryPageCursor | null;
+  readonly hasNextPage: boolean;
 };
 
 export type ConversationHistoryPageProjection = {
   readonly status: "ok" | "stale_cursor";
   readonly source: "conversation" | "empty";
   readonly messages: ReadonlyArray<ChatMessage>;
+  /** Snapshot-local generation order and canonical message sequence, never file offsets. */
+  readonly messageOrder?: Readonly<Record<string, readonly [number, number]>>;
   readonly pageInfo: ConversationHistoryPageInfo;
   readonly historyGenerationId?: string | null;
   readonly promptGenerationId?: string | null;
@@ -137,6 +152,9 @@ export type ConversationSessionProjectionTarget = {
  * tests.
  */
 export interface ConversationProjectionReadPort {
+  loadHistoryPageIndexProjection?(
+    target: ConversationProjectionTarget,
+  ): Promise<ConversationHistoryPageIndexProjection>;
   /**
    * Load the visible history projection for one actor (the materialized
    * messages a surface renders). Single source: the conversation files.
@@ -145,7 +163,7 @@ export interface ConversationProjectionReadPort {
     target: ConversationProjectionTarget,
   ): Promise<ConversationHistoryProjection>;
 
-  /** Load the latest or preceding bounded visible-history page. */
+  /** Load the latest, preceding, or following bounded visible-history page. */
   loadHistoryPageProjection?(
     target: ConversationProjectionTarget,
     query?: ConversationHistoryPageQuery,

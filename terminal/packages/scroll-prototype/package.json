@@ -1,0 +1,21 @@
+{
+  "name": "scroll-prototype",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --preload ./src/preload.ts src/main.tsx",
+    "test": "bun test --preload ./src/preload.ts tests fixtures",
+    "benchmark": "bun --preload ./src/preload.ts tests/benchmark.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.0"
+  },
+  "dependencies": {
+    "@opentui/core": "0.1.96",
+    "@opentui/solid": "0.1.96",
+    "solid-js": "1.9.11",
+    "depa-scroll-contract": "workspace:*",
+    "depa-scroll-opentui-capsule": "workspace:*"
+  }
+}

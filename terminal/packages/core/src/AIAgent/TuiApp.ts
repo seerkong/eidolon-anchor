@@ -317,6 +317,7 @@ export type MessageError = {
 
 export type BaseMessage = {
   id: string
+  historyOrder?: readonly [number, number]
   sessionID: string
   role: "user" | "assistant" | string
   time: {
@@ -453,7 +454,11 @@ export type SessionHistoryPageMetadata = {
   snapshotId: string
   startCursor: string | null
   hasPreviousPage: boolean
+  endCursor: string | null
+  hasNextPage: boolean
   observedBytes: number
+  preparationObservedBytes?: number
+  preparationMs?: number
   sourceBytes: number
 }
 
@@ -541,7 +546,7 @@ export type TuiRuntimeClient = {
     create(input?: Record<string, unknown>, options?: Record<string, unknown>): ClientResult<Session>
     get(input?: { sessionID?: string }, options?: Record<string, unknown>): ClientResult<Session>
     messages(
-      input?: { sessionID?: string; limit?: number; page?: boolean; cursor?: string | null },
+      input?: { sessionID?: string; limit?: number; page?: boolean; cursor?: string | null; after?: string | null },
       options?: Record<string, unknown>,
     ): SessionHistoryPageResult
     userInputs(input?: { sessionID?: string; limit?: number }, options?: Record<string, unknown>): ClientResult<UserInputHistoryEntry[]>

@@ -1,5 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 import { createMemo, createSignal, type Component, For, Match, Show, Switch } from "solid-js"
+import { useMessageExpansion } from "./presentation"
 import path from "path"
 import { Locale } from "../../../../../support/util/locale"
 import { TodoItem } from "../../../../../ui/primitives/todo-item"
@@ -87,7 +88,7 @@ export function GenericTool(props: ToolCardProps<any>) {
 }
 
 function useExpandableTextPreview(raw: () => string, options?: { maxLines?: number; maxChars?: number }) {
-  const [expanded, setExpanded] = createSignal(false)
+  const { expanded, setExpanded } = useMessageExpansion()
   const maxLines = options?.maxLines ?? TOOL_TEXT_PREVIEW_LINES
   const maxChars = options?.maxChars ?? TOOL_TEXT_PREVIEW_CHARS
   const preview = createMemo(() => {
@@ -111,7 +112,7 @@ function useExpandableTextPreview(raw: () => string, options?: { maxLines?: numb
 
   return {
     preview,
-    toggle: () => setExpanded((prev) => !prev),
+    toggle: () => setExpanded(!expanded()),
   }
 }
 
@@ -146,12 +147,12 @@ function BashCard(props: ToolCardProps<any>) {
         <BlockTool
           title={title()}
           part={props.part}
-          onClick={output.preview().truncated ? output.toggle : undefined}
+          onClick={output.preview().truncated || output.preview().expanded ? output.toggle : undefined}
         >
           <box gap={1}>
             <text fg={theme.text}>$ {props.input.command}</text>
             <text fg={theme.text}>{output.preview().text}</text>
-            <Show when={output.preview().truncated}>
+            <Show when={output.preview().truncated || output.preview().expanded}>
               <text fg={theme.textMuted}>{output.preview().expanded ? "Click to collapse" : "Click to expand"}</text>
             </Show>
           </box>
@@ -179,7 +180,7 @@ function WriteCard(props: ToolCardProps<any>) {
         <BlockTool
           title={`# Wrote ${normalizePath(props.input.filePath!)}`}
           part={props.part}
-          onClick={contentPreview.preview().truncated ? contentPreview.toggle : undefined}
+          onClick={contentPreview.preview().truncated || contentPreview.preview().expanded ? contentPreview.toggle : undefined}
         >
           <line_number fg={theme.textMuted} minWidth={3} paddingRight={1}>
             <code
@@ -190,7 +191,7 @@ function WriteCard(props: ToolCardProps<any>) {
               content={contentPreview.preview().text}
             />
           </line_number>
-          <Show when={contentPreview.preview().truncated}>
+          <Show when={contentPreview.preview().truncated || contentPreview.preview().expanded}>
             <text fg={theme.textMuted}>{contentPreview.preview().expanded ? "Click to collapse" : "Click to expand"}</text>
           </Show>
           <Show when={diagnostics().length}>
@@ -262,14 +263,14 @@ function ReadCard(props: ToolCardProps<any>) {
         <BlockTool
           title={`CONTEXT ${resourceTitleLabel()}`}
           part={props.part}
-          onClick={body.preview().truncated ? body.toggle : undefined}
+          onClick={body.preview().truncated || body.preview().expanded ? body.toggle : undefined}
           borderColor={resource()?.status === "already-visible" ? theme.textMuted : theme.info}
         >
           <text fg={theme.textMuted}>{resourceSummary()}</text>
           <Show when={body.preview().text}>
             <text fg={theme.text}>{body.preview().text}</text>
           </Show>
-          <Show when={body.preview().truncated}>
+          <Show when={body.preview().truncated || body.preview().expanded}>
             <text fg={theme.textMuted}>{body.preview().expanded ? "Click to collapse" : "Click to expand"}</text>
           </Show>
         </BlockTool>
@@ -396,7 +397,7 @@ function EditCard(props: ToolCardProps<any>) {
         <BlockTool
           title={`← Edit ${normalizePath(props.input.filePath!)}`}
           part={props.part}
-          onClick={diffContent.preview().truncated ? diffContent.toggle : undefined}
+          onClick={diffContent.preview().truncated || diffContent.preview().expanded ? diffContent.toggle : undefined}
         >
           <box paddingLeft={1}>
             <diff
@@ -419,7 +420,7 @@ function EditCard(props: ToolCardProps<any>) {
               removedLineNumberBg={theme.diffRemovedLineNumberBg}
             />
           </box>
-          <Show when={diffContent.preview().truncated}>
+          <Show when={diffContent.preview().truncated || diffContent.preview().expanded}>
             <text fg={theme.textMuted}>{diffContent.preview().expanded ? "Click to collapse" : "Click to expand"}</text>
           </Show>
           <Show when={diagnostics().length}>

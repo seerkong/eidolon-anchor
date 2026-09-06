@@ -46,7 +46,7 @@ function readClientSource(): string {
 
 type PortCall =
   | { method: "loadHistoryProjection"; sessionDir: string; actorKey: string }
-  | { method: "loadHistoryPageProjection"; sessionDir: string; actorKey: string; before?: string | null }
+  | { method: "loadHistoryPageProjection"; sessionDir: string; actorKey: string; before?: string | null; after?: string | null }
   | { method: "loadHistorySummaryProjection"; sessionDir: string; actorKey: string }
   | { method: "loadSessionProjection"; sessionDir: string }
   | { method: "loadActorProjection"; sessionDir: string; actorKey: string }
@@ -93,6 +93,7 @@ function createRecordingPort(overrides?: {
         sessionDir: target.sessionDir,
         actorKey: target.actorKey,
         before: query?.before,
+        after: query?.after,
       })
       return overrides?.page ?? {
         status: "ok",
@@ -102,6 +103,8 @@ function createRecordingPort(overrides?: {
           snapshotId: "snapshot",
           startCursor: null,
           hasPreviousPage: false,
+          endCursor: null,
+          hasNextPage: false,
         },
         observedBytes: 0,
         sourceBytes: 0,
@@ -336,6 +339,8 @@ describe("TuiRuntimeClient projection-read-port hydration", () => {
           snapshotId: "snapshot-1",
           startCursor: "cursor-before",
           hasPreviousPage: true,
+          endCursor: "cursor-after",
+          hasNextPage: false,
         },
         historyGenerationId: "history-1",
         promptGenerationId: "prompt-1",
@@ -351,10 +356,57 @@ describe("TuiRuntimeClient projection-read-port hydration", () => {
       snapshotId: "snapshot-1",
       startCursor: "cursor-before",
       hasPreviousPage: true,
+      endCursor: "cursor-after",
+      hasNextPage: false,
       observedBytes: 4096,
     })
     expect(result.data).toHaveLength(1)
     expect(calls.some((call) => call.method === "loadHistoryPageProjection")).toBe(true)
+    expect(calls.some((call) => call.method === "loadHistoryProjection")).toBe(false)
+  })
+
+  it("passes opaque forward boundaries through the read port without full hydration", async () => {
+    const { directory, sessionID } = makeMaterializedSession()
+    tmpDirs.push(directory)
+    const { port, calls } = createRecordingPort({
+      page: {
+        status: "ok", source: "conversation",
+        messages: [{ messageId: "ordered-message", role: "assistant", content: "adjacent newer page", startAt: 0 } as ChatMessage],
+        messageOrder: { "ordered-message": [3, 800] },
+        pageInfo: {
+          snapshotId: "snapshot-1", startCursor: "before-newer", endCursor: "after-newer",
+          hasPreviousPage: true, hasNextPage: true,
+        },
+        observedBytes: 4096, sourceBytes: 56_000_000,
+      },
+    })
+    const sdk = createTuiRuntimeClient({ mode: "local-runtime", directory, conversationProjectionReadPort: port })
+    const result = await sdk.client.session.messages({ sessionID, page: true, after: "opaque-after", limit: 40 })
+    expect(calls.find((call) => call.method === "loadHistoryPageProjection")).toMatchObject({ after: "opaque-after" })
+    expect(result.page).toMatchObject({ endCursor: "after-newer", hasNextPage: true })
+    expect(calls.some((call) => call.method === "loadHistoryProjection")).toBe(false)
+    expect(result.data?.[0]?.parts[0]).toMatchObject({ text: "adjacent newer page" })
+    expect(result.data?.[0]?.info.historyOrder).toEqual([3, 800])
+  })
+
+  it("rejects ambiguous page directions before reading the projection", async () => {
+    const { directory, sessionID } = makeMaterializedSession()
+    tmpDirs.push(directory)
+    const { port, calls } = createRecordingPort()
+    const sdk = createTuiRuntimeClient({ mode: "local-runtime", directory, conversationProjectionReadPort: port })
+    await expect(sdk.client.session.messages({ sessionID, page: true, cursor: "before", after: "after" }))
+      .rejects.toThrow("history_page_ambiguous_direction")
+    expect(calls).toHaveLength(0)
+  })
+
+  it("does not silently read the whole history when the bounded port is unavailable", async () => {
+    const { directory, sessionID } = makeMaterializedSession()
+    tmpDirs.push(directory)
+    const { port, calls } = createRecordingPort()
+    delete port.loadHistoryPageProjection
+    const sdk = createTuiRuntimeClient({ mode: "local-runtime", directory, conversationProjectionReadPort: port })
+    await expect(sdk.client.session.messages({ sessionID, page: true, limit: 40 }))
+      .rejects.toThrow("history_page_projection_unavailable")
     expect(calls.some((call) => call.method === "loadHistoryProjection")).toBe(false)
   })
 
@@ -380,7 +432,7 @@ describe("TuiRuntimeClient projection-read-port hydration", () => {
             { role: "assistant", content: "latest answer" } as ChatMessage,
             { role: "user", content: "newer input", startAt: 20 } as ChatMessage,
           ],
-          pageInfo: { snapshotId: "snapshot-1", startCursor: "older", hasPreviousPage: true },
+          pageInfo: { snapshotId: "snapshot-1", startCursor: "older", hasPreviousPage: true, endCursor: "tail", hasNextPage: false },
           observedBytes: 4096,
           sourceBytes: 56_000_000,
         }
@@ -389,7 +441,7 @@ describe("TuiRuntimeClient projection-read-port hydration", () => {
         status: "ok",
         source: "conversation",
         messages: [{ role: "user", content: "older input", startAt: 10 } as ChatMessage],
-        pageInfo: { snapshotId: "snapshot-1", startCursor: null, hasPreviousPage: false },
+        pageInfo: { snapshotId: "snapshot-1", startCursor: null, hasPreviousPage: false, endCursor: "middle", hasNextPage: true },
         observedBytes: 4096,
         sourceBytes: 56_000_000,
       }

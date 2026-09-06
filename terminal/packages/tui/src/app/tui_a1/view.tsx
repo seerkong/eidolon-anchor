@@ -1,7 +1,10 @@
 /** @jsxImportSource @opentui/solid */
 import { InputRenderable, RGBA, TextAttributes, type ScrollBoxRenderable, type TextareaRenderable } from "@opentui/core"
 import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, untrack, type Accessor } from "solid-js"
+import { createOpenTuiScrollRuntime } from "depa-scroll-opentui-capsule"
+import { ScrollWindowContent } from "depa-scroll-opentui-capsule/solid"
+import type { PageFailure, PageRequest, ScrollPage } from "depa-scroll-contract"
 import { useGraphSignal } from "depa-data-graph-solid"
 import {
   makeMessageId,
@@ -24,7 +27,10 @@ import type {
 } from "@cell/ai-core-contract/runtime/ActorSurface"
 import { useExit } from "../../providers/exit"
 import { useKeybind } from "../../providers/keybind"
-import { MessageCards, frameLine } from "./features/message/cards"
+import { MessageCard, frameLine } from "./features/message/cards"
+import { createMessagePresentationStore, MessagePresentationContext } from "./features/message/model/presentation"
+import { createHistoryRowAdapter, mergeHistoryMessages, pageHistorySnapshot, type HistoryMessageGroup } from "./perf/history-source-adapter"
+import { loadCompositeHistoryPage } from "./perf/composite-history-source"
 import { sessionContext } from "./features/message/model/session-context"
 import { BottomBar } from "./bottom-bar"
 import { Composer } from "./features/composer/composer"
@@ -44,13 +50,10 @@ import { type TuiA1ProjectionSnapshot, type TuiA1QuestionnaireCenter, TuiA1State
 import { tuiA1Theme as theme } from "./theme"
 import {
   handleHistoryWheelScroll,
-  isNearHistoryBottom,
   scrollByLine,
   scrollByViewport,
-  scrollToBottom,
   scrollToEdge,
 } from "./perf/scroll-history"
-import { estimateHistoryMessageHeight, prependScrollAnchor } from "./perf/virtual-history-window"
 import { DialogHeader, useDialog } from "../../ui/dialog/context"
 import { DialogSelect, type DialogSelectOption } from "../../ui/dialog/select"
 import { copyRendererSelection } from "../../ui/selection/copy"
@@ -94,8 +97,6 @@ export type TuiA1ViewProps = {
 
 type TimerHandle = ReturnType<typeof setTimeout> | ReturnType<typeof setInterval>
 type TuiA1FocusRegion = "composer" | "history"
-const SESSION_HISTORY_PAGE_SIZE = 40
-const MAX_SESSION_HISTORY_PAGE_MESSAGES = 160
 
 function safeUseDialog() {
   try {
@@ -632,29 +633,30 @@ export function TuiA1View(props: TuiA1ViewProps) {
   const questionnaireCenter = useGraphSignal<TuiA1QuestionnaireCenter, undefined>(stateGraph.graph, "questionnaireCenter")
   const actorSurface = useGraphSignal<ActorSurfaceProjectionData | null, undefined>(stateGraph.graph, "actorSurface")
   const selectionLabel = useGraphSignal<string, undefined>(stateGraph.graph, "selectionLabel")
-  const [sessionLoadLabel, setSessionLoadLabel] = createSignal<string | undefined>()
   const [runtimeStatusLabel, setRuntimeStatusLabel] = createSignal<string | undefined>()
-  const [historyViewport, setHistoryViewport] = createSignal({ scrollTop: 0, height: 1 })
-  const [pagedHistory, setPagedHistory] = createSignal<{
-    sessionID: string
-    snapshotId: string
-    cursor: string | null
-    hasPreviousPage: boolean
-    atLatest: boolean
-    messages: TuiA1Message[]
-  } | null>(null)
-  let historyPageLoadInFlight = false
-  const pendingPrependAnchorMeasurements = new Set<string>()
+  type HistorySource = { key: string; epoch: number; sessionID?: string; actor?: { laneID?: string; actorID?: string } }
+  const [historySource, setHistorySource] = createSignal<HistorySource>({ key: "local", epoch: 0 })
+  const [historyRuntime, setHistoryRuntime] = createSignal<ReturnType<typeof createOpenTuiScrollRuntime<HistoryMessageGroup>>>()
+  const sessionLoadLabel = createMemo(() => {
+    const source = historySource()
+    if (!props.runtime || !source.sessionID) return undefined
+    const state = historyRuntime()?.state()
+    const initialPagePending = !state || state.identity.sourceEpoch !== source.epoch
+      || (state.pages.length === 0 && state.pendingRequest !== null)
+    return initialPagePending ? "正在加载会话..." : undefined
+  })
+  const presentation = createMessagePresentationStore()
+  const rowAdapter = createHistoryRowAdapter({ width: () => scrollbox?.viewport.width ?? dimensions().width,
+    presentationRevision: presentation.revision, diagnostic: code => {
+      // Compatibility evidence is diagnostic, never a claim of canonical sequence.
+      if (process.env.EIDOLON_SCROLL_DIAGNOSTICS) console.info(code)
+    } })
+  const liveMessageIDs = new Set<string>()
+  let observedRevisions = new Map<string, string>()
   const messages = createMemo(() => {
-    const paged = pagedHistory()
-    if (!paged || paged.sessionID !== sessionID()) return graphMessages()
-    const candidates = paged.atLatest ? [...paged.messages, ...graphMessages()] : paged.messages
-    const byId = new Map<string, TuiA1Message>()
-    for (const message of candidates) {
-      if (message.id === "runtime-connecting" || message.id === "runtime-ready") continue
-      byId.set(message.id, message)
-    }
-    return [...byId.values()].sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id))
+    const state = historyRuntime()?.state()
+    if (!state) return graphMessages()
+    return mergeHistoryMessages(state.pages.flatMap(page => page.rows.flatMap(row => row.payload.messages)), state.liveRows.flatMap(row => row.payload.messages))
   })
   let sessionLoadToken = 0
   const composerBlockLabel = createMemo(() => {
@@ -666,7 +668,6 @@ export function TuiA1View(props: TuiA1ViewProps) {
   const activePermissionCallID = createMemo(() => activePermission()?.tool?.callID)
   let textarea: TextareaRenderable | undefined
   let scrollbox: ScrollBoxRenderable | undefined
-  const [autoFollowHistory, setAutoFollowHistory] = createSignal(true)
   const [focusRegion, setFocusRegion] = createSignal<TuiA1FocusRegion>("composer")
   const [now, setNow] = createSignal(Date.now())
   const [activeRoundStartedAt, setActiveRoundStartedAt] = createSignal<number | undefined>()
@@ -677,8 +678,6 @@ export function TuiA1View(props: TuiA1ViewProps) {
   let initialRuntimePromptSubmitted = false
   let runtimeUnsub: (() => void) | undefined
   let disposed = false
-  let pendingScrollToBottom = false
-  let pendingForcedScrollToBottom = false
   let actorRoundInFlight = false
   let lastSessionInterruptAt = 0
   let sessionInterruptInFlight = false
@@ -697,7 +696,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
     timers.delete(timer)
   }
 
-  const hasActiveSelection = () => Boolean(renderer.getSelection())
+  const hasActiveSelection = () => Boolean(renderer.getSelection()?.getSelectedText())
   const composerHasDraft = () => (textarea?.plainText ?? "").length > 0
   const historyFocused = () => focusRegion() === "history"
   const composerFocused = () => focusRegion() === "composer"
@@ -832,13 +831,8 @@ export function TuiA1View(props: TuiA1ViewProps) {
     }
     return Boolean(target.laneId && target.laneId !== "lane:primary")
   }
-  const syncScrollboxStickyState = (value = autoFollowHistory()) => {
-    if (scrollbox) scrollbox.stickyScroll = value
-  }
-
   const disableAutoFollowHistory = () => {
-    setAutoFollowHistory(false)
-    syncScrollboxStickyState(false)
+    if (scrollbox) historyRuntime()?.dispatch({ type: "user-scroll", scrollTop: scrollbox.scrollTop })
   }
 
   const focusComposer = () => {
@@ -875,23 +869,12 @@ export function TuiA1View(props: TuiA1ViewProps) {
     })
   })
 
-  const syncAutoFollowHistory = () => {
-    const nextValue = isNearHistoryBottom(scrollbox)
-    setAutoFollowHistory(nextValue)
-    syncScrollboxStickyState(nextValue)
-  }
-
-  const scheduleAutoFollowSync = () => {
+  const scheduleAutoFollowSync = (direction: "earlier" | "later" = "earlier") => {
+    const epoch = historySource().epoch
     queueMicrotask(() => {
-      syncAutoFollowHistory()
-      syncHistoryViewport()
-      void loadPreviousHistoryPageIfNeeded()
+      if (!scrollbox || historySource().epoch !== epoch) return
+      historyRuntime()?.dispatch({ type: "user-scroll", scrollTop: scrollbox.scrollTop, direction })
     })
-  }
-
-  const syncHistoryViewport = () => {
-    if (!scrollbox) return
-    setHistoryViewport({ scrollTop: scrollbox.scrollTop, height: Math.max(1, scrollbox.height) })
   }
 
   const projectHistoryPage = (entries: MessageWithParts[]): TuiA1Message[] => runtimeMessagesToTuiA1Messages(
@@ -899,88 +882,114 @@ export function TuiA1View(props: TuiA1ViewProps) {
     Object.fromEntries(entries.map((entry) => [entry.info.id, entry.parts ?? []])),
   )
 
-  const loadPreviousHistoryPageIfNeeded = async (force = false) => {
-    const current = pagedHistory()
-    const activeSessionID = sessionID()
-    if (!props.runtime || !scrollbox || !current || current.sessionID !== activeSessionID) return
-    if (!current.hasPreviousPage || !current.cursor || historyPageLoadInFlight) return
-    if (!force && scrollbox.scrollTop > Math.max(4, scrollbox.height / 3)) return
-
-    historyPageLoadInFlight = true
-    const loadToken = sessionLoadToken
-    const previousScrollTop = scrollbox.scrollTop
-    try {
-      const result = await props.runtime.client.session.messages({
-        sessionID: activeSessionID,
-        page: true,
-        limit: SESSION_HISTORY_PAGE_SIZE,
-        cursor: current.cursor,
-      })
-      if (disposed || loadToken !== sessionLoadToken || sessionID() !== activeSessionID) return
-      if (result.page?.status === "stale_cursor") {
-        setPagedHistory({ ...current, cursor: null, hasPreviousPage: false })
-        toast.show({
-          message: "会话历史已变化；当前位置已保留，按 End 可刷新到最新历史",
-          variant: "warning",
-        })
-        return
-      }
-      const older = projectHistoryPage(result.data ?? [])
-      const currentIds = new Set(current.messages.map((message) => message.id))
-      const insertedHeight = older
-        .filter((message) => !currentIds.has(message.id))
-        .reduce((sum, message) => sum + estimateHistoryMessageHeight(message, dimensions().width), 0)
-      pendingPrependAnchorMeasurements.clear()
-      for (const message of older) {
-        if (!currentIds.has(message.id)) pendingPrependAnchorMeasurements.add(message.id)
-      }
-      const byId = new Map<string, TuiA1Message>()
-      for (const message of [...older, ...current.messages]) byId.set(message.id, message)
-      const merged = [...byId.values()].sort(
-        (left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id),
-      )
-      const retained = merged.length > MAX_SESSION_HISTORY_PAGE_MESSAGES
-        ? merged.slice(0, MAX_SESSION_HISTORY_PAGE_MESSAGES)
-        : merged
-      setPagedHistory({
-        sessionID: activeSessionID!,
-        snapshotId: result.page?.snapshotId ?? current.snapshotId,
-        cursor: result.page?.startCursor ?? null,
-        hasPreviousPage: result.page?.hasPreviousPage ?? false,
-        atLatest: current.atLatest && retained.length === merged.length,
-        messages: retained,
-      })
-      queueMicrotask(() => {
-        if (!scrollbox || sessionID() !== activeSessionID) return
-        const nextTop = prependScrollAnchor({
-          insertedHeight,
-          scrollTop: previousScrollTop,
-        })
-        scrollbox.scrollTo({ x: 0, y: nextTop })
-        syncHistoryViewport()
-      })
-    } finally {
-      historyPageLoadInFlight = false
-    }
-  }
-
   const maybeScrollToBottom = (force = false) => {
-    if (!scrollbox) return
-    pendingForcedScrollToBottom = pendingForcedScrollToBottom || force
-    if (pendingScrollToBottom) return
-    pendingScrollToBottom = true
-    queueMicrotask(() => {
-      pendingScrollToBottom = false
-      const shouldForce = pendingForcedScrollToBottom
-      pendingForcedScrollToBottom = false
-      if (!scrollbox) return
-      if (!shouldForce && (!autoFollowHistory() || hasActiveSelection())) return
-      setAutoFollowHistory(true)
-      syncScrollboxStickyState(true)
-      scrollToBottom(scrollbox)
-      queueMicrotask(syncHistoryViewport)
-    })
+    if (force) historyRuntime()?.dispatch({ type: "jump-to-latest" })
+    else if (hasActiveSelection()) disableAutoFollowHistory()
   }
+
+  const sourceIdentity = (source: HistorySource) => ({ sourceId: source.sessionID ?? "local",
+    actorId: source.key, sourceEpoch: source.epoch, generation: source.epoch })
+
+  const liveProjection = () => {
+    if (!props.runtime) return graphMessages()
+    const current = stateGraph.snapshot()
+    const projected = runtimeMessagesToTuiA1Messages(Object.values(current.runtimeMessages).filter(message => liveMessageIDs.has(message.id)), current.runtimeParts)
+    const source = historySource()
+    const summaries = !source.actor && source.sessionID === current.sessionID
+      ? current.historyMessages[current.sessionID!] ?? [] : []
+    return mergeHistoryMessages(projected, summaries)
+  }
+
+  const startHistorySource = (next: Omit<HistorySource, "epoch">) => {
+    const source = { ...next, epoch: historySource().epoch + 1 }
+    liveMessageIDs.clear()
+    observedRevisions.clear()
+    rowAdapter.clear()
+    presentation.clear()
+    setHistorySource(source)
+    historyRuntime()?.dispatch({ type: "switch-source", identity: sourceIdentity(source) })
+    return source
+  }
+
+  const readDurableHistoryPage = async (request: PageRequest, signal: AbortSignal): Promise<ScrollPage<HistoryMessageGroup> & { observedBytes?: number }> => {
+    const source = historySource()
+    const assertCurrentSource = () => {
+      signal.throwIfAborted()
+      const identity = sourceIdentity(historySource())
+      if (disposed || identity.sourceEpoch !== request.token.sourceEpoch
+        || identity.sourceId !== request.token.sourceId || identity.actorId !== request.token.actorId
+        || identity.generation !== request.token.generation) throw new Error("History source changed")
+    }
+    assertCurrentSource()
+    if (!props.runtime || !source.sessionID) {
+      const local = props.runtime ? [] : graphMessages()
+      const boundary = request.cursor ? Number(request.cursor.slice("local:".length)) : local.length
+      const start = request.direction === "later" ? boundary : Math.max(0, boundary - request.limit)
+      const end = request.direction === "later" ? Math.min(local.length, start + request.limit) : boundary
+      return { rows: rowAdapter.rows(local.slice(start, end), request.direction), snapshot: `local:${source.epoch}`,
+        before: start > 0 ? `local:${start}` : null, after: end > 0 ? `local:${end}` : null,
+        hasEarlier: start > 0, hasLater: end < local.length }
+    }
+    const result: Awaited<ReturnType<TuiRuntimeSdk["client"]["session"]["messages"]>> = source.actor
+      ? await props.runtime.client.actor!.messages!({ sessionID: source.sessionID, ...source.actor, limit: 100 })
+      : await props.runtime.client.session.messages({ sessionID: source.sessionID, page: true, limit: request.limit,
+        ...(request.direction === "earlier" ? { cursor: request.cursor } : {}),
+        ...(request.direction === "later" ? { after: request.cursor } : {}) })
+    assertCurrentSource()
+    const page = result.page
+    if (page?.status === "stale_cursor") throw Object.assign(new Error("会话历史已变化，按 End 刷新，或重试读取"), { code: "stale_cursor" })
+    const entries = result.data ?? []
+    const projected = projectHistoryPage(entries)
+    if (request.direction === "latest") {
+      const current = stateGraph.snapshot()
+      const combined = new Map(entries.map(entry => [entry.info.id, entry]))
+      for (const id of liveMessageIDs) {
+        const info = current.runtimeMessages[id]
+        if (info) combined.set(id, { info: { ...info, historyOrder: info.historyOrder ?? combined.get(id)?.info.historyOrder },
+          parts: current.runtimeParts[id] ?? [] })
+      }
+      const merged = [...combined.values()].slice(-200)
+      const hydration = { sessionID: source.sessionID, messages: merged.map(entry => entry.info),
+        partsByMessage: Object.fromEntries(merged.map(entry => [entry.info.id, entry.parts])) }
+      if (source.actor) stateGraph.hydrateActorHistory({ ...hydration, transcriptKey: source.key })
+      else stateGraph.hydrateRuntimeSession({ ...hydration, busy: current.busy })
+    }
+    const rows = rowAdapter.rows(projected, request.direction)
+    if (source.actor) return pageHistorySnapshot(rows, request,
+      `actor:${source.key}:${source.epoch}:${Bun.hash(JSON.stringify(entries))}`)
+    return { rows,
+      snapshot: page?.snapshotId ?? `compat:${source.key}:${source.epoch}`,
+      before: page?.startCursor ?? null, after: page?.endCursor ?? null,
+      hasEarlier: page?.hasPreviousPage ?? false, hasLater: page?.hasNextPage ?? false,
+      observedBytes: page?.observedBytes }
+  }
+
+  const loadHistoryPage = (request: PageRequest, signal: AbortSignal) => loadCompositeHistoryPage(request, signal,
+    { readDurable: readDurableHistoryPage, readLive: () => rowAdapter.rows(liveProjection()) })
+
+  createEffect(() => {
+    const controller = historyRuntime()
+    const projected = graphMessages()
+    presentation.epoch()
+    if (!controller) return
+    untrack(() => {
+      const state = controller.state()
+      if (state.identity.sourceEpoch !== historySource().epoch) return
+      if (hasActiveSelection()) disableAutoFollowHistory()
+      const current = props.runtime ? liveProjection() : projected
+      const retained = state.pages.flatMap(page => page.rows.flatMap(row => row.payload.messages))
+      const rows = rowAdapter.rows(mergeHistoryMessages(retained, current))
+      const accepted = new Map([...state.pages.flatMap(page => page.rows), ...state.liveRows].map(row => [row.id, row.contentRevision]))
+      const sourceRevisions = new Map(rows.map(row => [row.id, Bun.hash(JSON.stringify(row.payload.messages)).toString(16)]))
+      // Rebased compatibility order refreshes retained rows, but is not a new
+      // source event that should reinsert an evicted historical body as live.
+      const changes = rows.filter(row => accepted.has(row.id)
+        ? accepted.get(row.id) !== row.contentRevision
+        : observedRevisions.get(row.id) !== sourceRevisions.get(row.id))
+      observedRevisions = sourceRevisions
+      if (changes.length) controller.dispatch({ type: "live", identity: state.identity, rows: changes })
+    })
+  })
 
   const handleManualHistoryWheel = (event: {
     scroll?: { direction?: string }
@@ -995,7 +1004,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
     }
     disableAutoFollowHistory()
     handleHistoryWheelScroll(scrollbox, event)
-    scheduleAutoFollowSync()
+    scheduleAutoFollowSync(event.scroll?.direction === "down" ? "later" : "earlier")
   }
 
   const handleHistorySurfaceWheel = (event: {
@@ -1011,7 +1020,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
     focusHistory()
     disableAutoFollowHistory()
     event.stopPropagation()
-    scheduleAutoFollowSync()
+    scheduleAutoFollowSync(event.scroll?.direction === "down" ? "later" : "earlier")
   }
 
   const handleGlobalWheel = (event: {
@@ -1050,63 +1059,35 @@ export function TuiA1View(props: TuiA1ViewProps) {
   const loadRuntimeSession = async (sessionID: string) => {
     if (!props.runtime || disposed) return
     const loadToken = ++sessionLoadToken
-    pendingPrependAnchorMeasurements.clear()
-    setSessionLoadLabel("正在加载会话...")
-    try {
-      const [messagesResult, statusResult] = await Promise.all([
-        props.runtime.client.session.messages({
-          sessionID,
-          page: true,
-          limit: SESSION_HISTORY_PAGE_SIZE,
-        }),
-        props.runtime.client.session.status(),
-      ])
+    stateGraph.hydrateRuntimeSession({ sessionID, busy: false, messages: [], partsByMessage: {} })
+    startHistorySource({ key: `session:${sessionID}`, sessionID })
+    const statusResult = await props.runtime.client.session.status()
+    if (disposed || loadToken !== sessionLoadToken) return
+    stateGraph.setBusy(statusResult.data?.[sessionID]?.type === "busy")
+    const statusMessage = statusResult.data?.[sessionID]?.message
+    const normalizedStatusMessage = typeof statusMessage === "string" ? statusMessage.trim() : ""
+    setRuntimeStatusLabel(normalizedStatusMessage || undefined)
+    void props.runtime.client.session.userInputs({ sessionID, limit: 20 }).then((userInputsResult) => {
       if (disposed || loadToken !== sessionLoadToken) return
-
-      const pageEntries = messagesResult.data ?? []
-      stateGraph.hydrateRuntimeSession({
-        sessionID,
-        busy: statusResult.data?.[sessionID]?.type === "busy",
-        messages: pageEntries.map((item) => item.info),
-        partsByMessage: Object.fromEntries(pageEntries.map((item) => [item.info.id, item.parts ?? []])),
-      })
-      setPagedHistory({
-        sessionID,
-        snapshotId: messagesResult.page?.snapshotId ?? `compat:${sessionID}`,
-        cursor: messagesResult.page?.startCursor ?? null,
-        hasPreviousPage: messagesResult.page?.hasPreviousPage ?? false,
-        atLatest: true,
-        messages: projectHistoryPage(pageEntries),
-      })
-      const statusMessage = statusResult.data?.[sessionID]?.message
-      const normalizedStatusMessage = typeof statusMessage === "string" ? statusMessage.trim() : ""
-      setRuntimeStatusLabel(normalizedStatusMessage || undefined)
-      maybeScrollToBottom(true)
-      queueMicrotask(syncHistoryViewport)
-      void props.runtime.client.session.userInputs({ sessionID, limit: 20 }).then((userInputsResult) => {
-        if (disposed || loadToken !== sessionLoadToken) return
-        stateGraph.setUserInputHistory(sessionID, userInputsResult.data ?? [])
-      }).catch(() => {})
-      if (!normalizedStatusMessage) showRuntimePreparingStatus()
-      void refreshActorSurface().finally(() => {
-        if (!actorRoundInFlight) clearLocalRuntimeStatus()
-      })
-    } finally {
-      if (!disposed && loadToken === sessionLoadToken) {
-        setSessionLoadLabel(undefined)
-      }
-    }
+      stateGraph.setUserInputHistory(sessionID, userInputsResult.data ?? [])
+    }).catch(() => {})
+    if (!normalizedStatusMessage) showRuntimePreparingStatus()
+    void refreshActorSurface().finally(() => {
+      if (!actorRoundInFlight) clearLocalRuntimeStatus()
+    })
   }
 
   const refreshActorSurface = async () => {
     if (disposed) return
+    const activeSessionID = sessionID()
+    const sourceEpoch = historySource().epoch
     if (!props.runtime?.client.actor?.surface) {
       stateGraph.setActorSurface(null)
       updateActorRoundFromSurface(null)
       return
     }
-    const state = await props.runtime.client.actor.surface({ sessionID: sessionID() }).catch(() => ({ data: null }))
-    if (disposed) return
+    const state = await props.runtime.client.actor.surface({ sessionID: activeSessionID }).catch(() => ({ data: null }))
+    if (disposed || sessionID() !== activeSessionID || historySource().epoch !== sourceEpoch) return
     const surface = state.data ?? null
     stateGraph.setActorSurface(surface)
     updateActorRoundFromSurface(surface)
@@ -1172,23 +1153,15 @@ export function TuiA1View(props: TuiA1ViewProps) {
   ): Promise<boolean> => {
     const activeSessionID = sessionID()
     if (!activeSessionID || !surface || !props.runtime?.client.actor?.messages) return false
-    const result = await props.runtime.client.actor.messages({
-      sessionID: activeSessionID,
-      laneID: target.laneID,
-      actorID: target.actorID,
-      limit: 100,
-    }).catch((error) => {
-      toast.error(error)
-      return null
-    })
-    if (!result) return false
+    ++sessionLoadToken
+    const key = actorHistoryViewKey(surface, target)
     stateGraph.hydrateActorHistory({
       sessionID: activeSessionID,
-      transcriptKey: actorHistoryViewKey(surface, target),
-      messages: (result.data ?? []).map((item) => item.info),
-      partsByMessage: Object.fromEntries((result.data ?? []).map((item) => [item.info.id, item.parts ?? []])),
+      transcriptKey: key,
+      messages: [],
+      partsByMessage: {},
     })
-    maybeScrollToBottom(true)
+    startHistorySource({ key, sessionID: activeSessionID, actor: { laneID: target.laneID, actorID: target.actorID } })
     return true
   }
 
@@ -1225,14 +1198,18 @@ export function TuiA1View(props: TuiA1ViewProps) {
         }
         case "message.updated": {
           const info = event.properties?.info as Message | undefined
-          if (!info || info.sessionID !== sessionID()) return
+          if (!info || info.sessionID !== sessionID() || historySource().actor) return
+          liveMessageIDs.add(info.id)
+          while (liveMessageIDs.size > 200) liveMessageIDs.delete(liveMessageIDs.values().next().value!)
           stateGraph.applyRuntimeMessageUpdated(info)
           maybeScrollToBottom()
           break
         }
         case "message.part.updated": {
           const part = event.properties?.part as Part | undefined
-          if (!part || part.sessionID !== sessionID()) return
+          if (!part || part.sessionID !== sessionID() || historySource().actor) return
+          liveMessageIDs.add(part.messageID)
+          while (liveMessageIDs.size > 200) liveMessageIDs.delete(liveMessageIDs.values().next().value!)
           stateGraph.applyRuntimePartUpdated(part)
           maybeScrollToBottom()
           break
@@ -1264,7 +1241,10 @@ export function TuiA1View(props: TuiA1ViewProps) {
           const payload = event.properties as { sessionID?: string; messageID?: string } | undefined
           if (!payload?.sessionID || !payload.messageID || payload.sessionID !== sessionID()) return
           stateGraph.applyRuntimeMessageRemoved(payload.sessionID, payload.messageID)
-          maybeScrollToBottom()
+          if (historySource().actor) break
+          // A source removal invalidates cached pages rather than leaving a
+          // deleted row in a second UI-owned history cache.
+          void loadRuntimeSession(payload.sessionID)
           break
         }
         case "permission.asked": {
@@ -1857,7 +1837,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
       focusHistory()
       disableAutoFollowHistory()
       scrollByLine(scrollbox, "down")
-      scheduleAutoFollowSync()
+      scheduleAutoFollowSync("later")
       event.preventDefault()
       return
     }
@@ -1873,7 +1853,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
       focusHistory()
       disableAutoFollowHistory()
       scrollByViewport(scrollbox, "down")
-      scheduleAutoFollowSync()
+      scheduleAutoFollowSync("later")
       event.preventDefault()
       return
     }
@@ -1881,21 +1861,15 @@ export function TuiA1View(props: TuiA1ViewProps) {
       focusHistory()
       disableAutoFollowHistory()
       scrollToEdge(scrollbox, "top")
-      syncHistoryViewport()
-      void loadPreviousHistoryPageIfNeeded(true)
+      scheduleAutoFollowSync("earlier")
       event.preventDefault()
       return
     }
     if (event.name === "end" && (historyFocused() || !composerHasDraft() || event.ctrl)) {
       focusHistory()
-      const page = pagedHistory()
-      if (props.runtime && page && !page.atLatest && sessionID()) {
+      if (props.runtime && historyRuntime()?.state().status === "stale" && sessionID() && !historySource().actor) {
         void loadRuntimeSession(sessionID()!)
-      }
-      scrollToEdge(scrollbox, "bottom")
-      setAutoFollowHistory(true)
-      syncScrollboxStickyState(true)
-      syncHistoryViewport()
+      } else historyRuntime()?.dispatch({ type: "jump-to-latest" })
       event.preventDefault()
     }
   })
@@ -1932,6 +1906,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
   onCleanup(() => {
     disposed = true
     runtimeUnsub?.()
+    historyRuntime()?.dispose()
     for (const timer of timers) {
       clearTimeout(timer)
       clearInterval(timer)
@@ -1968,8 +1943,8 @@ export function TuiA1View(props: TuiA1ViewProps) {
         <scrollbox
           ref={(value: ScrollBoxRenderable) => {
             scrollbox = value
-            syncScrollboxStickyState()
-            syncHistoryViewport()
+            setHistoryRuntime(createOpenTuiScrollRuntime({ renderer, scrollbox: value, loadPage: loadHistoryPage },
+              { identity: sourceIdentity(historySource()) }))
             props.onScrollboxReady?.(value)
           }}
           style={{
@@ -2004,8 +1979,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
           focused={historyFocused()}
           scrollX={false}
           scrollY={true}
-          stickyScroll={autoFollowHistory()}
-          stickyStart="bottom"
+          stickyScroll={false}
           paddingTop={0}
           paddingBottom={0}
           onMouseUp={() => {
@@ -2039,31 +2013,27 @@ export function TuiA1View(props: TuiA1ViewProps) {
                 agentColor: createTuiA1AgentColor,
               }}
             >
-              <MessageCards
-                messages={messages()}
-                onHeightCorrection={(messageID, delta) => {
-                  if (!pendingPrependAnchorMeasurements.delete(messageID) || !scrollbox || autoFollowHistory()) return
-                  scrollbox.scrollTo({ x: 0, y: Math.max(0, scrollbox.scrollTop + delta) })
-                  syncHistoryViewport()
-                }}
-                onGeometryChange={() => {
-                  if (autoFollowHistory()) maybeScrollToBottom(true)
-                  else syncHistoryViewport()
-                }}
-                viewport={props.runtime ? {
-                  scrollTop: () => autoFollowHistory() ? Number.MAX_SAFE_INTEGER : historyViewport().scrollTop,
-                  // The ScrollBox ref is delivered before its first layout pass,
-                  // so its reported height can temporarily be 0/1.  Using only
-                  // that value makes the initial virtual window mount a single
-                  // tail card and leaves no geometry that can grow the window.
-                  height: () => Math.max(historyViewport().height, dimensions().height),
-                  width: () => dimensions().width,
-                  followTail: autoFollowHistory,
-                } : undefined}
-              />
+              <Show when={historyRuntime()}>{(controller: Accessor<NonNullable<ReturnType<typeof historyRuntime>>>) =>
+                <ScrollWindowContent<HistoryMessageGroup> runtime={controller()} rowPaddingTop={1}>{row =>
+                  <For each={row().payload.messages.map(message => message.id)}>{(id, index) => {
+                    const message = createMemo<TuiA1Message | undefined>(previous => row().payload.messages.find(message => message.id === id) ?? previous)
+                    return <box paddingTop={index() === 0 ? 0 : 1} flexShrink={0}>
+                      <MessagePresentationContext.Provider value={{ expanded: () => presentation.get(id),
+                        setExpanded: value => presentation.set(id, value) }}>
+                        <MessageCard message={() => message()!} fallbackWidth={() => scrollbox?.viewport.width ?? dimensions().width} />
+                      </MessagePresentationContext.Provider>
+                    </box>
+                  }}</For>
+                }</ScrollWindowContent>
+              }</Show>
             </sessionContext.Provider>
           </box>
         </scrollbox>
+        <Show when={historyRuntime()?.state().error}>{(error: Accessor<PageFailure>) =>
+          <box flexShrink={0} onMouseDown={() => historyRuntime()?.dispatch({ type: "retry" })}>
+            <text fg={theme.textMuted}>{`${error().message} [重试] [End 最新]`}</text>
+          </box>
+        }</Show>
         <box width="100%">
           <text fg={historyIndicatorColor()} wrapMode="char" onMouseScroll={handleManualHistoryWheel}>
             {historyIndicatorText()}

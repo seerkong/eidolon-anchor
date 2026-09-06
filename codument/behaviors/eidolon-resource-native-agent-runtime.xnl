@@ -1,308 +1,341 @@
 <Behavior #eidolon-resource-native-agent-runtime apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #resource-agent-runtime-bridge (
-      <Statement ?01M0QPDG12SJ8B35Y14WSY9SMT>
+      <Statement ?01M1VSNXXH6CB7Z3M0XPQTNTJ1>
       Eidolon SHALL execute canonical AIAgentDefinition resources through its existing AgentRegistry and actor runtime, freezing exact depa task/resource evidence before workflow dispatch and without creating workflow-specific actor, session, history or compaction authority.
-      </?01M0QPDG12SJ8B35Y14WSY9SMT>
+      </?01M1VSNXXH6CB7Z3M0XPQTNTJ1>
       <Suites [
         <Suite #agent-plan { name = "Resource Agent execution plan" } (
           <Cases [
             <Case #exact-message-and-tool-materialization [
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SMV>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTJ2>
               message content SHALL come from the exact referenced resource's fixed Halfcode `Content` TextElement subdomain in authored order
-              </?01M0QPDG12SJ8B35Y14WSY9SMV>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SMW>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJ2>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTJ3>
               tool keys SHALL equal the exact referenced resource identities and MUST NOT use aliases, suffixes or text inference
-              </?01M0QPDG12SJ8B35Y14WSY9SMW>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJ3>
             ] (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SMX>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTJ4>
               an effective AIAgentDefinition has ordered typed Message and Tool references
-              </?01M0QPDG12SJ8B35Y14WSY9SMX>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SMY>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJ4>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTJ5>
               Eidolon materializes an execution plan
-              </?01M0QPDG12SJ8B35Y14WSY9SMY>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJ5>
             )>
             <Case #unsupported-contract-fails-closed (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SMZ>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTJ6>
               an Agent definition declares a schema, effect policy or other contract the generic actor runtime cannot enforce
-              </?01M0QPDG12SJ8B35Y14WSY9SMZ>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SN0>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJ6>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTJ7>
               an execution plan is requested
-              </?01M0QPDG12SJ8B35Y14WSY9SN0>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SN1>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJ7>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTJ8>
               Eidolon SHALL return a stable unsupported-profile diagnostic and MUST NOT silently omit the contract
-              </?01M0QPDG12SJ8B35Y14WSY9SN1>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJ8>
             )>
           ]>
         )>
         <Suite #generic-runtime { name = "Existing actor runtime reuse" } (
           <Cases [
             <Case #standalone-resource-agent (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SN2>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTJ9>
               a standalone Agent resource has no Material ports and all exact tools are installed
-              </?01M0QPDG12SJ8B35Y14WSY9SN2>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SN3>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJ9>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTJA>
               Terminal runtime composition completes
-              </?01M0QPDG12SJ8B35Y14WSY9SN3>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SN4>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJA>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTJB>
               the Agent SHALL be registered under its full resource ref and execute through the ordinary delegate actor
-              </?01M0QPDG12SJ8B35Y14WSY9SN4>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJB>
             )>
             <Case #no-parallel-agent-runtime [
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SN5>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTJC>
               the same generic Eidolon actor and Conversation Domain mechanisms SHALL own those facts
-              </?01M0QPDG12SJ8B35Y14WSY9SN5>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SN6>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJC>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTJD>
               workflow code MUST NOT create a second actor, session, history or compaction store
-              </?01M0QPDG12SJ8B35Y14WSY9SN6>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJD>
             ] (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SN7>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTJE>
               a resource Agent starts or completes
-              </?01M0QPDG12SJ8B35Y14WSY9SN7>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SN8>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJE>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTJF>
               provider, tool, history, compaction or session facts are observed
-              </?01M0QPDG12SJ8B35Y14WSY9SN8>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJF>
             )>
           ]>
         )>
         <Suite #workflow-freeze { name = "Workflow Agent resource freeze" } (
           <Cases [
             <Case #freeze-before-dispatch [
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SN9>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTJG>
               Eidolon SHALL call depa run-resource freeze with the exact workflow kind, ref, node id, Agent ref, Material bindings and Halfcode content identities
-              </?01M0QPDG12SJ8B35Y14WSY9SN9>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SNA>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJG>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTJH>
               the immutable execution plan and receipt SHALL be persisted before the existing delegate actor is dispatched
-              </?01M0QPDG12SJ8B35Y14WSY9SNA>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJH>
             ] (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SNB>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTJJ>
               a resource-backed Ctrl or Data workflow invokes ai.agent with an exact agentDefinitionRef
-              </?01M0QPDG12SJ8B35Y14WSY9SNB>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SNC>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJJ>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTJK>
               the effect is admitted
-              </?01M0QPDG12SJ8B35Y14WSY9SNC>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJK>
             )>
             <Case #recover-frozen-plan (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SND>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTJM>
               an Agent execution fact was persisted and the live ResourcePackage later changes or disappears
-              </?01M0QPDG12SJ8B35Y14WSY9SND>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SNE>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJM>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTJN>
               the same run generation and effect resumes
-              </?01M0QPDG12SJ8B35Y14WSY9SNE>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SNF>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJN>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTJP>
               Eidolon SHALL reuse the persisted Agent config and receipt without rereading mutable resource content
-              </?01M0QPDG12SJ8B35Y14WSY9SNF>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJP>
             )>
             <Case #legacy-vfs-agent-type-only [
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SNG>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTJQ>
               Eidolon MAY use the existing registry path for compatibility
-              </?01M0QPDG12SJ8B35Y14WSY9SNG>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SNH>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJQ>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTJR>
               a resource-backed workflow MUST NOT use that fallback or default to the code Agent
-              </?01M0QPDG12SJ8B35Y14WSY9SNH>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJR>
             ] (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SNJ>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTJS>
               an explicit legacy vfs workflow invokes ai.agent
-              </?01M0QPDG12SJ8B35Y14WSY9SNJ>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SNK>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJS>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTJT>
               it supplies agentType instead of a resource Agent ref
-              </?01M0QPDG12SJ8B35Y14WSY9SNK>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJT>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #complete-agent-definition-execution (
-      <Statement ?01M0QPDG12SJ8B35Y14WSY9SNM>
+      <Statement ?01M1VSNXXH6CB7Z3M0XPQTNTJV>
       Eidolon SHALL execute the complete depa AIAgentDefinition projection through the generic actor runtime, including schemas, exact effect policy, ordered Material values, durable recovery and validated output.
-      </?01M0QPDG12SJ8B35Y14WSY9SNM>
+      </?01M1VSNXXH6CB7Z3M0XPQTNTJV>
       <Suites [
         <Suite #generic-contract { name = "Generic durable execution contract" } (
           <Cases [
             <Case #persist-complete-contract (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SNN>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTJW>
               an admitted Agent execution plan contains payload, schema, policy and ordered Material facts
-              </?01M0QPDG12SJ8B35Y14WSY9SNN>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SNP>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJW>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTJX>
               the child actor is created or restored
-              </?01M0QPDG12SJ8B35Y14WSY9SNP>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SNQ>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJX>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTJY>
               the same closed contract SHALL be present in generic actor state and file snapshots without reconstructing it from conversation history
-              </?01M0QPDG12SJ8B35Y14WSY9SNQ>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJY>
             )>
             <Case #pre-provider-validation (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SNR>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTJZ>
               a resource message, payload or Material value violates its exact schema
-              </?01M0QPDG12SJ8B35Y14WSY9SNR>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SNS>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTJZ>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTK0>
               execution is prepared
-              </?01M0QPDG12SJ8B35Y14WSY9SNS>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SNT>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTK0>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTK1>
               Eidolon SHALL reject before provider or tool dispatch and SHALL emit only bounded typed diagnostics
-              </?01M0QPDG12SJ8B35Y14WSY9SNT>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTK1>
             )>
           ]>
         )>
         <Suite #exact-effect-policy { name = "Exact effect policy" } (
           <Cases [
             <Case #declared-only (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SNV>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTK2>
               EffectPolicy is declared-only
-              </?01M0QPDG12SJ8B35Y14WSY9SNV>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SNW>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTK2>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTK3>
               the child toolset is built
-              </?01M0QPDG12SJ8B35Y14WSY9SNW>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SNX>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTK3>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTK4>
               only exact ToolRefs present in the registered tool set SHALL be exposed
-              </?01M0QPDG12SJ8B35Y14WSY9SNX>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTK4>
             )>
             <Case #none (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SNY>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTK5>
               EffectPolicy is none
-              </?01M0QPDG12SJ8B35Y14WSY9SNY>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SNZ>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTK5>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTK6>
               the definition also has no ToolRefs
-              </?01M0QPDG12SJ8B35Y14WSY9SNZ>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SP0>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTK6>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTK7>
               the child SHALL receive no tools; a nonempty ToolRefs conflict SHALL fail closed
-              </?01M0QPDG12SJ8B35Y14WSY9SP0>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTK7>
             )>
           ]>
         )>
         <Suite #validated-result { name = "Validated result delivery" } (
           <Cases [
             <Case #common-output-seam (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SP1>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTK8>
               a child completes in immediate, orchestrated or resumed mode
-              </?01M0QPDG12SJ8B35Y14WSY9SP1>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SP2>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTK8>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTK9>
               an output schema exists
-              </?01M0QPDG12SJ8B35Y14WSY9SP2>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SP3>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTK9>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTKA>
               the shared completion seam SHALL validate the raw string or one parsed JSON value before any parent result, workflow completion event or success fact is written
-              </?01M0QPDG12SJ8B35Y14WSY9SP3>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKA>
             )>
           ]>
         )>
         <Suite #ctrl-data-integration { name = "Ctrl and Data integration" } (
           <Cases [
             <Case #shared-agent-effect (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SP4>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTKB>
               an AICtrlWorkflow Run and an AIDataWorkflow TransformNode reference the same Agent definition
-              </?01M0QPDG12SJ8B35Y14WSY9SP4>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SP5>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKB>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTKC>
               each node invokes the explicit ai.agent effect
-              </?01M0QPDG12SJ8B35Y14WSY9SP5>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SP6>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKC>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTKD>
               both SHALL use the same adapter, frozen fact, generic actor, exact tools and result validator while preserving their own substrate lifecycle
-              </?01M0QPDG12SJ8B35Y14WSY9SP6>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKD>
             )>
             <Case #no-fuzzy-routing (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SP7>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTKE>
               resource names or descriptions contain arbitrary ordinary-language text
-              </?01M0QPDG12SJ8B35Y14WSY9SP7>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SP8>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKE>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTKF>
               the host selects Agent, Tool, Port, Material or policy semantics
-              </?01M0QPDG12SJ8B35Y14WSY9SP8>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SP9>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKF>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTKG>
               selection SHALL depend only on exact typed refs and closed fields, never regex, keyword, substring, alias or ordered text rules
-              </?01M0QPDG12SJ8B35Y14WSY9SP9>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKG>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #typed-agent-effect-bridge (
-      <Statement ?01M0QPDG12SJ8B35Y14WSY9SPA>
+      <Statement ?01M1VSNXXH6CB7Z3M0XPQTNTKH>
       Eidolon SHALL bind depa typed Agent Processors to the generic resource Agent lifecycle without creating a workflow-specific actor, session, history or result authority.
-      </?01M0QPDG12SJ8B35Y14WSY9SPA>
+      </?01M1VSNXXH6CB7Z3M0XPQTNTKH>
       <Suites [
         <Suite #frozen-task-binding { name = "Frozen task and checkpoint binding" } (
           <Cases [
             <Case #authentic-proof (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SPB>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTKJ>
               a Ctrl or Data node is admitted from a frozen complete ResourcePackage closure
-              </?01M0QPDG12SJ8B35Y14WSY9SPB>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SPC>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKJ>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTKK>
               the typed Agent facade is bound in a fresh process
-              </?01M0QPDG12SJ8B35Y14WSY9SPC>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SPD>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKK>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTKM>
               it SHALL rebuild Halfcode/depa projections and an authentic task proof from immutable instance bytes plus the canonical profile.ai owner; live registry bytes and structural lookalikes SHALL not be accepted
-              </?01M0QPDG12SJ8B35Y14WSY9SPD>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKM>
             )>
             <Case #opaque-runtime-facts (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SPE>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTKN>
               an Agent call transitions pending or completed
-              </?01M0QPDG12SJ8B35Y14WSY9SPE>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SPF>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKN>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTKP>
               profile.ai is persisted
-              </?01M0QPDG12SJ8B35Y14WSY9SPF>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SPG>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKP>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTKQ>
               only stable instance/name/session references and exact receipts SHALL enter the checkpoint, never conversation history, provider transcript, compaction or actor state
-              </?01M0QPDG12SJ8B35Y14WSY9SPG>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKQ>
             )>
           ]>
         )>
         <Suite #durable-convergence { name = "Pending and completed convergence" } (
           <Cases [
             <Case #pending-reconstruction (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SPH>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTKR>
               one Agent child is still pending
-              </?01M0QPDG12SJ8B35Y14WSY9SPH>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SPJ>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKR>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTKS>
               a second call arrives through a reconstructed provider or service
-              </?01M0QPDG12SJ8B35Y14WSY9SPJ>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SPK>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKS>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTKT>
               both calls SHALL converge on the same generic lifecycle result and no second child SHALL be created
-              </?01M0QPDG12SJ8B35Y14WSY9SPK>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKT>
             )>
             <Case #completed-repetition (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SPM>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTKV>
               a matching Agent call already has a completed checkpoint receipt and generic runtime result
-              </?01M0QPDG12SJ8B35Y14WSY9SPM>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SPN>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKV>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTKW>
               the call is repeated after fresh reconstruction
-              </?01M0QPDG12SJ8B35Y14WSY9SPN>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SPP>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKW>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTKX>
               the same instance and output SHALL be returned without another provider dispatch
-              </?01M0QPDG12SJ8B35Y14WSY9SPP>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKX>
             )>
             <Case #semantic-drift (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SPQ>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTKY>
               task, selector, input, config, Material refs, policy or invocation metadata differs from the durable pending or completed fact
-              </?01M0QPDG12SJ8B35Y14WSY9SPQ>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SPR>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKY>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTKZ>
               recovery is attempted
-              </?01M0QPDG12SJ8B35Y14WSY9SPR>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SPS>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTKZ>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTM0>
               the mismatch SHALL fail before host dispatch and SHALL not overwrite accepted facts
-              </?01M0QPDG12SJ8B35Y14WSY9SPS>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTM0>
             )>
             <Case #addressed-continuity (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SPT>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTM1>
               two different invocation keys target the same run-local Agent instance by name or id
-              </?01M0QPDG12SJ8B35Y14WSY9SPT>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SPV>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTM1>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTM2>
               the second call occurs in-process or after reconstruction
-              </?01M0QPDG12SJ8B35Y14WSY9SPV>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SPW>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTM2>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTM3>
               the generic runtime SHALL invoke or resume the same actor/session identity and SHALL not create a replacement child
-              </?01M0QPDG12SJ8B35Y14WSY9SPW>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTM3>
             )>
           ]>
         )>
         <Suite #typed-only-boundary { name = "Typed public boundary" } (
           <Cases [
             <Case #internal-dispatcher-only (
-              <Given ?01M0QPDG12SJ8B35Y14WSY9SPX>
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTM4>
               Eidolon retains a generic effect dispatcher internally
-              </?01M0QPDG12SJ8B35Y14WSY9SPX>
-              <When ?01M0QPDG12SJ8B35Y14WSY9SPY>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTM4>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTM5>
               authored runtime types and generated code are projected
-              </?01M0QPDG12SJ8B35Y14WSY9SPY>
-              <Then ?01M0QPDG12SJ8B35Y14WSY9SPZ>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTM5>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTM6>
               Agent execution SHALL expose only runAgent and runTargetedAgent; generic invoke SHALL not be an authored Agent capability
-              </?01M0QPDG12SJ8B35Y14WSY9SPZ>
+              </?01M1VSNXXH6CB7Z3M0XPQTNTM6>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #holon-frozen-execution-closure (
+      <Statement ?01M1VSNXXH6CB7Z3M0XPQTNTM7>
+      Holon task 的 Agent 执行 SHALL 使用其已采用的冻结资源、代码、实际前缀与真实输入；独立入口不得因 live registry 改变而漂移或伪造 Workflow admission。
+      </?01M1VSNXXH6CB7Z3M0XPQTNTM7>
+      <Suites [
+        <Suite #frozen-product { name = "冻结产品执行" } (
+          <Cases [
+            <Case #standalone-old-task (
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTM8>
+              旧任务的部署已被冻结，live Agent/Context 随后改变。
+              </?01M1VSNXXH6CB7Z3M0XPQTNTM8>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTM9>
+              旧任务执行或新 OS 进程恢复。
+              </?01M1VSNXXH6CB7Z3M0XPQTNTM9>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTMA>
+              实际 addressed actor SHALL 收到原冻结配置和原输入，原 task lineage 保持；新 assign 可采用新版本而不混淆旧 route。
+              </?01M1VSNXXH6CB7Z3M0XPQTNTMA>
+            )>
+            <Case #effective-vfs-and-bytes (
+              <Given ?01M1VSNXXH6CB7Z3M0XPQTNTMB>
+              admission 源自物理或 Effective VFS，闭包含代码或二进制资源。
+              </?01M1VSNXXH6CB7Z3M0XPQTNTMB>
+              <When ?01M1VSNXXH6CB7Z3M0XPQTNTMC>
+              部署保存后重新读取。
+              </?01M1VSNXXH6CB7Z3M0XPQTNTMC>
+              <Then ?01M1VSNXXH6CB7Z3M0XPQTNTMD>
+              native reader/编译链 SHALL 验证并使用相同内容；缺失或冲突 SHALL 在 effect 前拒绝。
+              </?01M1VSNXXH6CB7Z3M0XPQTNTMD>
             )>
           ]>
         )>

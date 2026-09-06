@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test"
 import fs from "fs"
 import os from "os"
 import path from "path"
+import { appendXnlRecord, readXnlRecords } from "@cell/ai-file-store-logic"
 
 import { CONVERSATION_PERSISTENCE_SCHEMA_VERSION } from "@cell/ai-organ-contract"
 import type { ActorHistoryGenerationData, ActorPromptGenerationData, ConversationPersistenceRepository } from "@cell/ai-organ-contract"
@@ -40,6 +41,96 @@ function makeTempSessionDir(): string {
   return dir
 }
 
+it("paged messages use the same committed-message conversion as full history", async () => {
+  const sessionDir = makeTempSessionDir()
+  try {
+    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
+    await writeConversationHistoryFixture({ sessionId: "codec", actorKey: "main", actorId: "actor",
+      repository, messages: [
+        { role: "assistant", content: "answer", reasoning_content: "reason", messageId: "a",
+          toolCalls: [{ id: "call", name: "read", input: { path: "fixture" } }] },
+        { role: "tool", content: "result", tool_call_id: "call", messageId: "t" },
+      ] })
+    const port = createLocalFileConversationProjectionReadPort()
+    const target = { sessionDir, actorKey: "main" }
+    expect((await port.loadHistoryPageProjection(target)).messages)
+      .toEqual((await port.loadHistoryProjection(target)).messages)
+  } finally { fs.rmSync(sessionDir, { recursive: true, force: true }) }
+})
+
+it("logical pages select successor values without repeating retained compaction messages", async () => {
+  const sessionDir = makeTempSessionDir()
+  try {
+    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
+    await writeConversationHistoryFixture({ sessionId: path.basename(sessionDir), actorKey: "main", actorId: "actor",
+      repository, messages: ["a", "b", "c"].map(id => ({ role: "user", messageId: id, content: id })) })
+    const original = (await repository.loadHistoryGeneration("main__active"))!
+    const successor = { ...original, generationId: "next", parentGenerationId: original.generationId,
+      predecessorGenerationIds: [original.generationId], createdReason: "compaction" as const,
+      messages: chatMessagesToCommittedHistoryRefs({ actorKey: "main", actorId: "actor", recordIdPrefix: "next",
+        messages: [ { role: "user", messageId: "b", content: "b-new" },
+          { role: "user", messageId: "c", content: "c" }, { role: "user", messageId: "d", content: "d" } ] }) }
+    await repository.writeHistoryGeneration(successor)
+    const history = await repository.loadHistoryIndex()
+    history.heads.main.activeGenerationId = "next"
+    history.heads.main.visibleGenerationIds = ["next", "main__active"]
+    // Legacy indexes omit lineage while committed envelopes still prove ancestry.
+    history.lineages = {}
+    await repository.writeHistoryIndex(history)
+    const session = await repository.loadSessionIndex()
+    session.session.actorBindings.main.historyHeadGenerationId = "next"
+    await repository.writeSessionIndex(session)
+    const port = createLocalFileConversationProjectionReadPort()
+    const target = { sessionDir, actorKey: "main" }
+    const expected = [["a", "a"], ["b", "b-new"], ["c", "c"], ["d", "d"]]
+    await port.loadHistoryPageIndexProjection(target)
+    let page = await port.loadHistoryPageProjection(target, { limit: 1 })
+    const backward = page.messages.map(row => [row.messageId, row.content])
+    while (page.pageInfo.hasPreviousPage) {
+      page = await port.loadHistoryPageProjection(target, { limit: 1, before: page.pageInfo.startCursor })
+      backward.unshift(...page.messages.map(row => [row.messageId, row.content]))
+    }
+    expect(backward).toEqual(expected)
+    const forward = page.messages.map(row => [row.messageId, row.content])
+    while (page.pageInfo.hasNextPage) {
+      page = await port.loadHistoryPageProjection(target, { limit: 1, after: page.pageInfo.endCursor })
+      forward.push(...page.messages.map(row => [row.messageId, row.content]))
+    }
+    expect(forward).toEqual(expected)
+    expect((await port.loadHistoryProjection(target)).messages.map(row => [row.messageId, row.content])).toEqual(expected)
+    history.lineages.next = { version: 1, sessionId: history.sessionId, actorKey: "main", actorId: "actor",
+      generationId: "next", predecessorGenerationIds: [], successorGenerationIds: [], forkGenerationIds: [], updatedAt: history.updatedAt }
+    await repository.writeHistoryIndex(history)
+    await expect(port.loadHistoryPageProjection(target)).rejects.toThrow("conversation_history_page_lineage_lineage_conflict")
+    history.lineages = {}
+    history.heads.main.visibleGenerationIds.push("missing-envelope")
+    await repository.writeHistoryIndex(history)
+    await expect(port.loadHistoryPageProjection(target)).rejects.toThrow("conversation_history_page_lineage_missing_generation")
+  } finally { fs.rmSync(sessionDir, { recursive: true, force: true }) }
+})
+
+it("last physical revision wins within a generation before canonical sequence ordering", async () => {
+  const sessionDir = makeTempSessionDir()
+  try {
+    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
+    await writeConversationHistoryFixture({ sessionId: path.basename(sessionDir), actorKey: "main", actorId: "actor",
+      repository, messages: [ { role: "user", messageId: "a", content: "old" },
+        { role: "user", messageId: "b", content: "b" } ] })
+    const filePath = path.join(sessionDir, "conversation/history.xnl")
+    const records = await readXnlRecords({ filePath, tag: "HistoryMessage" })
+    // A higher sequence version physically precedes the final sequence correction.
+    await appendXnlRecord({ filePath, ...records[0]!, metadata: { ...records[0]!.metadata, sequence: 5 } })
+    await appendXnlRecord({ filePath, ...records[0]!, metadata: { ...records[0]!.metadata, sequence: 0 },
+      body: [{ kind: "text", tag: "Content", text: "new" }] })
+    const port = createLocalFileConversationProjectionReadPort()
+    const target = { sessionDir, actorKey: "main" }
+    const expected = [["a", "new"], ["b", "b"]]
+    expect((await port.loadHistoryProjection(target)).messages.map(row => [row.messageId, row.content])).toEqual(expected)
+    await port.loadHistoryPageIndexProjection(target)
+    expect((await port.loadHistoryPageProjection(target)).messages.map(row => [row.messageId, row.content])).toEqual(expected)
+  } finally { fs.rmSync(sessionDir, { recursive: true, force: true }) }
+})
+
 async function writeConversationHistoryFixture(params: {
   sessionId: string
   actorKey: string
@@ -74,6 +165,7 @@ async function writeConversationHistoryFixture(params: {
   })
 
   const historyIndex = await params.repository.loadHistoryIndex()
+  historyIndex.sessionId = params.sessionId
   historyIndex.heads[params.actorKey] = {
     version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
     sessionId: params.sessionId,
@@ -95,6 +187,8 @@ async function writeConversationHistoryFixture(params: {
   await params.repository.writeHistoryIndex(historyIndex)
 
   const sessionIndex = await params.repository.loadSessionIndex()
+  sessionIndex.sessionId = params.sessionId
+  sessionIndex.session.sessionId = params.sessionId
   sessionIndex.session.activeActorKey = params.actorKey
   sessionIndex.session.actorBindings[params.actorKey] = {
     actorKey: params.actorKey,
@@ -267,6 +361,8 @@ describe("LocalFileConversationProjectionReadPort: single-source reads", () => {
       })
 
       const port = createLocalFileConversationProjectionReadPort()
+      const preparation = await port.loadHistoryPageIndexProjection({ sessionDir, actorKey: "main" })
+      expect(preparation.observedBytes).toBeGreaterThan(0)
       const latest = await port.loadHistoryPageProjection(
         { sessionDir, actorKey: "main" },
         { limit: 10 },
@@ -278,16 +374,51 @@ describe("LocalFileConversationProjectionReadPort: single-source reads", () => {
       expect(latest.pageInfo.hasPreviousPage).toBe(true)
       expect(latest.pageInfo.startCursor).toBeTruthy()
       expect(latest.observedBytes).toBeLessThan(latest.sourceBytes)
+      expect(latest.messages.map((message) => latest.messageOrder?.[message.messageId!])).toEqual(
+        Array.from({ length: 10 }, (_, index) => [0, 110 + index]),
+      )
 
       const previous = await port.loadHistoryPageProjection(
         { sessionDir, actorKey: "main" },
         { limit: 10, before: latest.pageInfo.startCursor },
       )
       expect(previous.status).toBe("ok")
+      expect(previous.messages.map((message) => previous.messageOrder?.[message.messageId!])).toEqual(
+        Array.from({ length: 10 }, (_, index) => [0, 100 + index]),
+      )
       expect(previous.messages.map((message) => String(message.content).slice(0, 11))).toEqual(
         messages.slice(-20, -10).map((message) => message.content.slice(0, 11)),
       )
       expect(new Set([...previous.messages, ...latest.messages].map((message) => message.messageId)).size).toBe(20)
+
+      // Drop every newer page, then recover adjacent pages without retaining bodies.
+      let oldest = previous
+      for (let index = 0; index < 5; index += 1) {
+        oldest = await port.loadHistoryPageProjection(
+          { sessionDir, actorKey: "main" }, { limit: 10, before: oldest.pageInfo.startCursor },
+        )
+      }
+      const recovered = [...oldest.messages]
+      while (oldest.pageInfo.hasNextPage) {
+        const next = await port.loadHistoryPageProjection(
+          { sessionDir, actorKey: "main" }, { limit: 10, after: oldest.pageInfo.endCursor },
+        )
+        expect(next.status).toBe("ok")
+        expect(next.messages.length).toBeGreaterThan(0)
+        expect(next.observedBytes).toBeLessThan(next.sourceBytes)
+        expect(next.pageInfo.endCursor).not.toBe(oldest.pageInfo.endCursor)
+        recovered.push(...next.messages)
+        oldest = next
+        expect(recovered.length).toBeLessThanOrEqual(70)
+      }
+      expect(recovered.map((message) => String(message.content).slice(0, 11))).toEqual(
+        messages.slice(-70).map((message) => message.content.slice(0, 11)),
+      )
+      expect(new Set(recovered.map((message) => message.messageId)).size).toBe(70)
+      expect(latest.pageInfo.hasNextPage).toBe(false)
+      await expect(port.loadHistoryPageProjection({ sessionDir, actorKey: "main" }, {
+        before: previous.pageInfo.startCursor, after: previous.pageInfo.endCursor,
+      })).rejects.toThrow("conversation_history_page_conflicting_cursors")
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true })
     }
@@ -329,15 +460,42 @@ describe("LocalFileConversationProjectionReadPort: single-source reads", () => {
         updatedAt: new Date().toISOString(),
       })
 
-      const page = await createLocalFileConversationProjectionReadPort().loadHistoryPageProjection(
+      const port = createLocalFileConversationProjectionReadPort()
+      await expect(port.loadHistoryPageProjection({ sessionDir, actorKey: "main" }))
+        .rejects.toThrow("conversation_history_page_index_prepare_required")
+      const preparation = await port.loadHistoryPageIndexProjection({ sessionDir, actorKey: "main" })
+      expect(preparation.observedBytes).toBeGreaterThan(8 * 1024 * 1024)
+      const page = await port.loadHistoryPageProjection(
         { sessionDir, actorKey: "main" },
         { limit: 4 },
       )
-      expect(page.messages).toEqual([])
+      expect(page.messages.map(message => message.content)).toEqual(["visible-4", "visible-5", "visible-6", "visible-7"])
       expect(page.pageInfo.hasPreviousPage).toBe(true)
       expect(page.pageInfo.startCursor).toBeTruthy()
       expect(page.observedBytes).toBeLessThanOrEqual(8 * 1024 * 1024)
       expect(page.sourceBytes).toBeGreaterThan(page.observedBytes)
+      const visible = await port.loadHistoryPageProjection(
+        { sessionDir, actorKey: "main" }, { limit: 4, before: page.pageInfo.startCursor },
+      )
+      expect(visible.messages.map((message) => message.content)).toEqual(["visible-0", "visible-1", "visible-2", "visible-3"])
+      expect(visible.pageInfo.hasPreviousPage).toBe(false)
+      const filtered = await port.loadHistoryPageProjection(
+        { sessionDir, actorKey: "main" }, { limit: 4, after: visible.pageInfo.endCursor },
+      )
+      expect(filtered.messages.map(message => message.content)).toEqual(["visible-4", "visible-5", "visible-6", "visible-7"])
+      expect(filtered.observedBytes).toBeLessThanOrEqual(8 * 1024 * 1024)
+      expect(filtered.pageInfo.hasNextPage).toBe(false)
+      expect(filtered.pageInfo.endCursor).not.toBe(visible.pageInfo.endCursor)
+      const exhausted = await port.loadHistoryPageProjection(
+        { sessionDir, actorKey: "main" }, { limit: 4, after: filtered.pageInfo.endCursor },
+      )
+      expect(exhausted.messages).toEqual([])
+      expect(exhausted.pageInfo.hasNextPage).toBe(false)
+      const wrongActor = await port.loadHistoryPageProjection(
+        { sessionDir, actorKey: "other" }, { after: visible.pageInfo.endCursor },
+      )
+      expect(wrongActor.status).toBe("stale_cursor")
+      expect(wrongActor.messages).toEqual([])
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true })
     }
@@ -361,9 +519,9 @@ describe("LocalFileConversationProjectionReadPort: single-source reads", () => {
         predecessorGenerationIds: [],
         createdReason: "append",
         sealed: false,
-        messageCount: 1,
+        messageCount: 2,
         messages: chatMessagesToCommittedHistoryRefs({
-          messages: [{ role: "assistant", content }],
+          messages: [{ role: "assistant", content }, { role: "assistant", content: `${content}-second` }],
           actorKey: "main",
           actorId: "actor-main",
           recordIdPrefix: generationId,
@@ -373,8 +531,10 @@ describe("LocalFileConversationProjectionReadPort: single-source reads", () => {
       })
       await repository.writeHistoryGeneration(generation(targetGenerationId, "prompt-target-visible"))
       await repository.writeHistoryGeneration(generation(declaredGenerationId, "declared-tail-hidden"))
+      await repository.writeHistoryGeneration(generation("main__hidden_branch", "hidden-branch"))
 
       const historyIndex = await repository.loadHistoryIndex()
+      historyIndex.sessionId = sessionId
       historyIndex.heads.main = {
         version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
         sessionId,
@@ -430,6 +590,7 @@ describe("LocalFileConversationProjectionReadPort: single-source reads", () => {
       }
       await repository.writePromptGeneration(promptGeneration)
       const promptIndex = await repository.loadPromptIndex()
+      promptIndex.sessionId = sessionId
       promptIndex.heads.main = {
         version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
         sessionId,
@@ -450,6 +611,8 @@ describe("LocalFileConversationProjectionReadPort: single-source reads", () => {
       await repository.writePromptIndex(promptIndex)
 
       const sessionIndex = await repository.loadSessionIndex()
+      sessionIndex.sessionId = sessionId
+      sessionIndex.session.sessionId = sessionId
       sessionIndex.session.activeActorKey = "main"
       sessionIndex.session.actorBindings.main = {
         actorKey: "main",
@@ -469,6 +632,16 @@ describe("LocalFileConversationProjectionReadPort: single-source reads", () => {
       expect(page.messages.map((message) => [message.role, message.content])).toEqual(
         full.messages.map((message) => [message.role, message.content]),
       )
+      const tail = await port.loadHistoryPageProjection({ sessionDir, actorKey: "main" }, { limit: 1 })
+      const previous = await port.loadHistoryPageProjection(
+        { sessionDir, actorKey: "main" }, { limit: 1, before: tail.pageInfo.startCursor },
+      )
+      const forward = await port.loadHistoryPageProjection(
+        { sessionDir, actorKey: "main" }, { limit: 1, after: previous.pageInfo.endCursor },
+      )
+      expect(forward.messages.map((message) => message.content)).toEqual(["declared-tail-hidden-second"])
+      expect(forward.pageInfo.hasNextPage).toBe(false)
+      expect(forward.historyGenerationId).toBe(targetGenerationId)
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true })
     }
@@ -501,6 +674,11 @@ describe("LocalFileConversationProjectionReadPort: single-source reads", () => {
       )
       expect(stale.status).toBe("stale_cursor")
       expect(stale.messages).toEqual([])
+      const staleForward = await port.loadHistoryPageProjection(
+        { sessionDir, actorKey: "main" }, { limit: 4, after: page.pageInfo.endCursor },
+      )
+      expect(staleForward.status).toBe("stale_cursor")
+      expect(staleForward.messages).toEqual([])
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true })
     }
@@ -533,6 +711,10 @@ describe("LocalFileConversationProjectionReadPort: single-source reads", () => {
       )
       expect(crossSession.status).toBe("stale_cursor")
       expect(crossSession.messages).toEqual([])
+      const crossSessionForward = await port.loadHistoryPageProjection(
+        { sessionDir: secondSessionDir, actorKey: "main" }, { after: firstPage.pageInfo.endCursor },
+      )
+      expect(crossSessionForward.status).toBe("stale_cursor")
     } finally {
       fs.rmSync(firstSessionDir, { recursive: true, force: true })
       fs.rmSync(secondSessionDir, { recursive: true, force: true })

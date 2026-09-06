@@ -1,503 +1,591 @@
 <Behavior #eidolon-resource-native-app-registry apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #halfcode-backed-app-registry (
-      <Statement ?01M1H6565KSDCARFEFWHG9G5JP>
+      <Statement ?01M1VSP32FBG98XTVP1VX2XAA2>
       Eidolon SHALL expose one host-bound App resource registry derived from canonical Halfcode ResourcePackages and depa-flows domain projectors, while deterministic host code MUST NOT implement parallel resource discovery or infer semantic relations from text.
-      </?01M1H6565KSDCARFEFWHG9G5JP>
+      </?01M1VSP32FBG98XTVP1VX2XAA2>
       <Suites [
         <Suite #root-and-layer-authority { name = "Root and layer authority" } (
           <Cases [
             <Case #invalid-existing-root-fails-closed (
-              <Given ?01M1H6565KSDCARFEFWHG9G5JQ>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAA3>
               a configured resource root exists but its ResourcePackage is invalid
-              </?01M1H6565KSDCARFEFWHG9G5JQ>
-              <When ?01M1H6565KSDCARFEFWHG9G5JR>
+              </?01M1VSP32FBG98XTVP1VX2XAA3>
+              <When ?01M1VSP32FBG98XTVP1VX2XAA4>
               the App registry is requested
-              </?01M1H6565KSDCARFEFWHG9G5JR>
-              <Then ?01M1H6565KSDCARFEFWHG9G5JS>
+              </?01M1VSP32FBG98XTVP1VX2XAA4>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAA5>
               the operation SHALL return structured Halfcode diagnostics and MUST NOT fall back to host discovery
-              </?01M1H6565KSDCARFEFWHG9G5JS>
+              </?01M1VSP32FBG98XTVP1VX2XAA5>
             )>
           ]>
         )>
         <Suite #domain-projection { name = "Domain projection" } (
           <Cases [
             <Case #exact-app-projection (
-              <Given ?01M1H6565KSDCARFEFWHG9G5JT>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAA6>
               the effective registry contains AIWorkflowAppBundle records
-              </?01M1H6565KSDCARFEFWHG9G5JT>
-              <When ?01M1H6565KSDCARFEFWHG9G5JV>
+              </?01M1VSP32FBG98XTVP1VX2XAA6>
+              <When ?01M1VSP32FBG98XTVP1VX2XAA7>
               Apps are listed or one App is read
-              </?01M1H6565KSDCARFEFWHG9G5JV>
-              <Then ?01M1H6565KSDCARFEFWHG9G5JW>
+              </?01M1VSP32FBG98XTVP1VX2XAA7>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAA8>
               Eidolon SHALL use depa-flows projection and preserve exact identities, ordered bindings and entrypoints
-              </?01M1H6565KSDCARFEFWHG9G5JW>
+              </?01M1VSP32FBG98XTVP1VX2XAA8>
             )>
             <Case #unregistered-content-is-invisible (
-              <Given ?01M1H6565KSDCARFEFWHG9G5JX>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAA9>
               a resource root or authoring root contains an unregistered manifest or ordinary text with resource-like content
-              </?01M1H6565KSDCARFEFWHG9G5JX>
-              <When ?01M1H6565KSDCARFEFWHG9G5JY>
+              </?01M1VSP32FBG98XTVP1VX2XAA9>
+              <When ?01M1VSP32FBG98XTVP1VX2XAAA>
               Apps and workflow Types are listed
-              </?01M1H6565KSDCARFEFWHG9G5JY>
-              <Then ?01M1H6565KSDCARFEFWHG9G5JZ>
+              </?01M1VSP32FBG98XTVP1VX2XAAA>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAAB>
               that content MUST NOT appear unless Halfcode registered an exact typed ResourceRecord
-              </?01M1H6565KSDCARFEFWHG9G5JZ>
+              </?01M1VSP32FBG98XTVP1VX2XAAB>
             )>
             <Case #no-host-semantic-routing (
-              <Given ?01M1H6565KSDCARFEFWHG9G5K0>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAAC>
               resource descriptions, prompts or identifiers contain business or lifecycle language
-              </?01M1H6565KSDCARFEFWHG9G5K0>
-              <When ?01M1H6565KSDCARFEFWHG9G5K1>
+              </?01M1VSP32FBG98XTVP1VX2XAAC>
+              <When ?01M1VSP32FBG98XTVP1VX2XAAD>
               Eidolon projects or resolves resources
-              </?01M1H6565KSDCARFEFWHG9G5K1>
-              <Then ?01M1H6565KSDCARFEFWHG9G5K2>
+              </?01M1VSP32FBG98XTVP1VX2XAAD>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAAE>
               host code MUST NOT use regex, keywords, substrings, fuzzy matching or ordered heuristics to choose App, workflow, Agent, policy or relation
-              </?01M1H6565KSDCARFEFWHG9G5K2>
+              </?01M1VSP32FBG98XTVP1VX2XAAE>
             )>
           ]>
         )>
         <Suite #shared-surfaces { name = "Shared product surfaces" } (
           <Cases [
             <Case #component-owned-registry (
-              <Given ?01M1H6565KSDCARFEFWHG9G5K3>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAAF>
               native tools execute in one Eidolon VM
-              </?01M1H6565KSDCARFEFWHG9G5K3>
-              <When ?01M1H6565KSDCARFEFWHG9G5K4>
+              </?01M1VSP32FBG98XTVP1VX2XAAF>
+              <When ?01M1VSP32FBG98XTVP1VX2XAAG>
               they list Apps or workflow Types
-              </?01M1H6565KSDCARFEFWHG9G5K4>
-              <Then ?01M1H6565KSDCARFEFWHG9G5K5>
+              </?01M1VSP32FBG98XTVP1VX2XAAG>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAAH>
               they SHALL query the registry adapter owned by the shared WorkflowComponent
-              </?01M1H6565KSDCARFEFWHG9G5K5>
+              </?01M1VSP32FBG98XTVP1VX2XAAH>
             )>
             <Case #cli-and-tui-share-native-tools (
-              <Given ?01M1H6565KSDCARFEFWHG9G5K6>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAAJ>
               a user lists Apps from the unified CLI or an Eidolon TUI conversation
-              </?01M1H6565KSDCARFEFWHG9G5K6>
-              <When ?01M1H6565KSDCARFEFWHG9G5K7>
+              </?01M1VSP32FBG98XTVP1VX2XAAJ>
+              <When ?01M1VSP32FBG98XTVP1VX2XAAK>
               the request executes
-              </?01M1H6565KSDCARFEFWHG9G5K7>
-              <Then ?01M1H6565KSDCARFEFWHG9G5K8>
+              </?01M1VSP32FBG98XTVP1VX2XAAK>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAAM>
               both surfaces SHALL use the same native App query tools without a surface-local scanner or catalog
-              </?01M1H6565KSDCARFEFWHG9G5K8>
+              </?01M1VSP32FBG98XTVP1VX2XAAM>
             )>
           ]>
         )>
         <Suite #definition-freeze { name = "Resource-backed workflow freeze" } (
           <Cases [
             <Case #resource-ref-exact-resolution [
-              <Then ?01M1H6565KSDCARFEFWHG9G5K9>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAAN>
               it SHALL select the exact effective AICtrlWorkflow or AIDataWorkflow record and read only its registered origin
-              </?01M1H6565KSDCARFEFWHG9G5K9>
-              <Then ?01M1H6565KSDCARFEFWHG9G5KA>
+              </?01M1VSP32FBG98XTVP1VX2XAAN>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAAP>
               it MUST NOT enumerate authoring manifests to find a matching FQN
-              </?01M1H6565KSDCARFEFWHG9G5KA>
+              </?01M1VSP32FBG98XTVP1VX2XAAP>
             ] (
-              <Given ?01M1H6565KSDCARFEFWHG9G5KB>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAAQ>
               a workflow `resource://` ref is captured
-              </?01M1H6565KSDCARFEFWHG9G5KB>
-              <When ?01M1H6565KSDCARFEFWHG9G5KC>
+              </?01M1VSP32FBG98XTVP1VX2XAAQ>
+              <When ?01M1VSP32FBG98XTVP1VX2XAAR>
               the definition repository resolves it
-              </?01M1H6565KSDCARFEFWHG9G5KC>
+              </?01M1VSP32FBG98XTVP1VX2XAAR>
             )>
             <Case #freeze-binds-resource-receipt (
-              <Given ?01M1H6565KSDCARFEFWHG9G5KD>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAAS>
               a resource-backed workflow definition is captured for an Instance
-              </?01M1H6565KSDCARFEFWHG9G5KD>
-              <When ?01M1H6565KSDCARFEFWHG9G5KE>
+              </?01M1VSP32FBG98XTVP1VX2XAAS>
+              <When ?01M1VSP32FBG98XTVP1VX2XAAT>
               the frozen definition revision is persisted
-              </?01M1H6565KSDCARFEFWHG9G5KE>
-              <Then ?01M1H6565KSDCARFEFWHG9G5KF>
+              </?01M1VSP32FBG98XTVP1VX2XAAT>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAAV>
               it SHALL bind resource id, kind, package, layer, registry revision and Halfcode content digest alongside the frozen source
-              </?01M1H6565KSDCARFEFWHG9G5KF>
+              </?01M1VSP32FBG98XTVP1VX2XAAV>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #holon-execution-binding-resource (
-      <Statement ?01M1H6565KSDCARFEFWHG9G5KG>
+      <Statement ?01M1VSP32FBG98XTVP1VX2XAAW>
       The shared App registry SHALL verify issuer-owned HolonEffectiveSnapshot Resource/receipt bytes and load/freeze canonical HolonExecutionBinding resources with exact organization and AI/human/service/hybrid adapter closure proofs, without adding a parallel scanner or registry.
-      </?01M1H6565KSDCARFEFWHG9G5KG>
+      </?01M1VSP32FBG98XTVP1VX2XAAW>
       <Suites [
         <Suite #binding-cases { name = "Execution binding" } (
           <Cases [
             <Case #candidate-readback (
-              <Given ?01M1H6565KSDCARFEFWHG9G5KH>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAAX>
               A ResourcePackage candidate contains a Holon execution binding.
-              </?01M1H6565KSDCARFEFWHG9G5KH>
-              <When ?01M1H6565KSDCARFEFWHG9G5KJ>
+              </?01M1VSP32FBG98XTVP1VX2XAAX>
+              <When ?01M1VSP32FBG98XTVP1VX2XAAY>
               Publication proof runs.
-              </?01M1H6565KSDCARFEFWHG9G5KJ>
-              <Then ?01M1H6565KSDCARFEFWHG9G5KK>
+              </?01M1VSP32FBG98XTVP1VX2XAAY>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAAZ>
               The admitted snapshot SHALL exactly contain the claimed Holon targets, adapter refs and content identities before success.
-              </?01M1H6565KSDCARFEFWHG9G5KK>
+              </?01M1VSP32FBG98XTVP1VX2XAAZ>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #autonomous-agent-resource-authoring (
-      <Statement ?01M1H6565KSDCARFEFWHG9G5KM>
+      <Statement ?01M1VSP32FBG98XTVP1VX2XAB0>
       Eidolon SHALL author a new workspace AIAgentDefinition as durable overlay intent and SHALL expose it only after one complete Effective VFS candidate、Halfcode readback、receipt reconciliation and final CAS admission.
-      </?01M1H6565KSDCARFEFWHG9G5KM>
+      </?01M1VSP32FBG98XTVP1VX2XAB0>
       <Suites [
         <Suite #vfs-authoring-transaction { name = "VFS authoring transaction" } (
           <Cases [
             <Case #candidate-before-publish (
-              <Given ?01M1H6565KSDCARFEFWHG9G5KN>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAB1>
               Halfcode admits an exact create proposal against current registry revision
-              </?01M1H6565KSDCARFEFWHG9G5KN>
-              <When ?01M1H6565KSDCARFEFWHG9G5KP>
+              </?01M1VSP32FBG98XTVP1VX2XAB1>
+              <When ?01M1VSP32FBG98XTVP1VX2XAB2>
               the host prepares workspace authoring
-              </?01M1H6565KSDCARFEFWHG9G5KP>
-              <Then ?01M1H6565KSDCARFEFWHG9G5KQ>
+              </?01M1VSP32FBG98XTVP1VX2XAB2>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAB3>
               it SHALL build a non-authoritative candidate VFS and complete Agent/registry readback before publishing any new runtime revision
-              </?01M1H6565KSDCARFEFWHG9G5KQ>
+              </?01M1VSP32FBG98XTVP1VX2XAB3>
             )>
             <Case #failure-keeps-current (
-              <Given ?01M1H6565KSDCARFEFWHG9G5KR>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAB4>
               candidate validation、receipt reconciliation or CAS fails
-              </?01M1H6565KSDCARFEFWHG9G5KR>
-              <When ?01M1H6565KSDCARFEFWHG9G5KS>
+              </?01M1VSP32FBG98XTVP1VX2XAB4>
+              <When ?01M1VSP32FBG98XTVP1VX2XAB5>
               the transaction rolls back or is resumed
-              </?01M1H6565KSDCARFEFWHG9G5KS>
-              <Then ?01M1H6565KSDCARFEFWHG9G5KT>
+              </?01M1VSP32FBG98XTVP1VX2XAB5>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAB6>
               the prior Effective VFS、registry and frozen parent closure SHALL remain authoritative and no executable task proof SHALL exist
-              </?01M1H6565KSDCARFEFWHG9G5KT>
+              </?01M1VSP32FBG98XTVP1VX2XAB6>
             )>
             <Case #admit-and-freeze (
-              <Given ?01M1H6565KSDCARFEFWHG9G5KV>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAB7>
               candidate readback and final CAS both succeed
-              </?01M1H6565KSDCARFEFWHG9G5KV>
-              <When ?01M1H6565KSDCARFEFWHG9G5KW>
+              </?01M1VSP32FBG98XTVP1VX2XAB7>
+              <When ?01M1VSP32FBG98XTVP1VX2XAB8>
               authoring commits
-              </?01M1H6565KSDCARFEFWHG9G5KW>
-              <Then ?01M1H6565KSDCARFEFWHG9G5KX>
+              </?01M1VSP32FBG98XTVP1VX2XAB8>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAB9>
               the durable receipt SHALL bind workspace intent、Effective VFS revision、registry revision and exact Agent content before a new task proof is frozen
-              </?01M1H6565KSDCARFEFWHG9G5KX>
+              </?01M1VSP32FBG98XTVP1VX2XAB9>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #effective-eidolon-vfs-authority (
-      <Statement ?01M1H6565KSDCARFEFWHG9G5KY>
+      <Statement ?01M1VSP32FBG98XTVP1VX2XABA>
       Eidolon SHALL materialize Builtin、home 与 workspace overlay inputs into one revisioned Effective Eidolon VFS before RuntimeConfig, Halfcode, Agent or Workflow consumption; this admitted VFS SHALL be the only runtime file authority.
-      </?01M1H6565KSDCARFEFWHG9G5KY>
+      </?01M1VSP32FBG98XTVP1VX2XABA>
       <Suites [
         <Suite #authority-topology { name = "Authority topology" } (
           <Cases [
             <Case #ordered-overlay-before-consumption (
-              <Given ?01M1H6565KSDCARFEFWHG9G5KZ>
+              <Given ?01M1VSP32FBG98XTVP1VX2XABB>
               Builtin VFS base、home overlay 与 workspace overlay inputs exist
-              </?01M1H6565KSDCARFEFWHG9G5KZ>
-              <When ?01M1H6565KSDCARFEFWHG9G5M0>
+              </?01M1VSP32FBG98XTVP1VX2XABB>
+              <When ?01M1VSP32FBG98XTVP1VX2XABC>
               Eidolon prepares runtime resources
-              </?01M1H6565KSDCARFEFWHG9G5M0>
-              <Then ?01M1H6565KSDCARFEFWHG9G5M1>
+              </?01M1VSP32FBG98XTVP1VX2XABC>
+              <Then ?01M1VSP32FBG98XTVP1VX2XABD>
               it SHALL apply overlays in Builtin → home → workspace order, validate the complete candidate and atomically publish one Effective VFS revision before any consumer reads it
-              </?01M1H6565KSDCARFEFWHG9G5M1>
+              </?01M1VSP32FBG98XTVP1VX2XABD>
             )>
             <Case #consumers-read-effective-only (
-              <Given ?01M1H6565KSDCARFEFWHG9G5M2>
+              <Given ?01M1VSP32FBG98XTVP1VX2XABE>
               an admitted Effective VFS revision exists
-              </?01M1H6565KSDCARFEFWHG9G5M2>
-              <When ?01M1H6565KSDCARFEFWHG9G5M3>
+              </?01M1VSP32FBG98XTVP1VX2XABE>
+              <When ?01M1VSP32FBG98XTVP1VX2XABF>
               RuntimeConfig, Halfcode, AIAgentDefinition or Workflow runtime reads resources
-              </?01M1H6565KSDCARFEFWHG9G5M3>
-              <Then ?01M1H6565KSDCARFEFWHG9G5M4>
+              </?01M1VSP32FBG98XTVP1VX2XABF>
+              <Then ?01M1VSP32FBG98XTVP1VX2XABG>
               each consumer MUST read through a port bound to that revision and MUST NOT independently read or merge Builtin、home or workspace inputs
-              </?01M1H6565KSDCARFEFWHG9G5M4>
+              </?01M1VSP32FBG98XTVP1VX2XABG>
             )>
             <Case #failure-preserves-last-admitted (
-              <Given ?01M1H6565KSDCARFEFWHG9G5M5>
+              <Given ?01M1VSP32FBG98XTVP1VX2XABH>
               an overlay has stale identity/precondition, an invalid mutation, duplicate final FQN or invalid Halfcode resource closure
-              </?01M1H6565KSDCARFEFWHG9G5M5>
-              <When ?01M1H6565KSDCARFEFWHG9G5M6>
+              </?01M1VSP32FBG98XTVP1VX2XABH>
+              <When ?01M1VSP32FBG98XTVP1VX2XABJ>
               materialization or final readback runs
-              </?01M1H6565KSDCARFEFWHG9G5M6>
-              <Then ?01M1H6565KSDCARFEFWHG9G5M7>
+              </?01M1VSP32FBG98XTVP1VX2XABJ>
+              <Then ?01M1VSP32FBG98XTVP1VX2XABK>
               the candidate SHALL be rejected with structured diagnostics and the last admitted Effective VFS MUST remain current without partial visibility
-              </?01M1H6565KSDCARFEFWHG9G5M7>
+              </?01M1VSP32FBG98XTVP1VX2XABK>
             )>
           ]>
         )>
         <Suite #identity-and-overlay-semantics { name = "Identity and overlay semantics" } (
           <Cases [
             <Case #four-identity-layers (
-              <Given ?01M1H6565KSDCARFEFWHG9G5M8>
+              <Given ?01M1VSP32FBG98XTVP1VX2XABM>
               an overlay customizes an XNL resource file
-              </?01M1H6565KSDCARFEFWHG9G5M8>
-              <When ?01M1H6565KSDCARFEFWHG9G5M9>
+              </?01M1VSP32FBG98XTVP1VX2XABM>
+              <When ?01M1VSP32FBG98XTVP1VX2XABN>
               the candidate is materialized and compiled
-              </?01M1H6565KSDCARFEFWHG9G5M9>
-              <Then ?01M1H6565KSDCARFEFWHG9G5MA>
+              </?01M1VSP32FBG98XTVP1VX2XABN>
+              <Then ?01M1VSP32FBG98XTVP1VX2XABP>
               VFS path SHALL locate the file, VFS node id SHALL preserve file move/rename identity, XNL #id SHALL align internal mutations, and Halfcode FQN SHALL identify only the final semantic resource
-              </?01M1H6565KSDCARFEFWHG9G5MA>
+              </?01M1VSP32FBG98XTVP1VX2XABP>
             )>
             <Case #absence-versus-delete (
-              <Given ?01M1H6565KSDCARFEFWHG9G5MB>
+              <Given ?01M1VSP32FBG98XTVP1VX2XABQ>
               a Builtin file was previously replaced by an overlay
-              </?01M1H6565KSDCARFEFWHG9G5MB>
-              <When ?01M1H6565KSDCARFEFWHG9G5MC>
+              </?01M1VSP32FBG98XTVP1VX2XABQ>
+              <When ?01M1VSP32FBG98XTVP1VX2XABR>
               the replacement disappears or an explicit FILE_DELETE mutation is applied
-              </?01M1H6565KSDCARFEFWHG9G5MC>
-              <Then ?01M1H6565KSDCARFEFWHG9G5MD>
+              </?01M1VSP32FBG98XTVP1VX2XABR>
+              <Then ?01M1VSP32FBG98XTVP1VX2XABS>
               replacement absence SHALL fall back to the base file while FILE_DELETE SHALL remove it from the final VFS
-              </?01M1H6565KSDCARFEFWHG9G5MD>
+              </?01M1VSP32FBG98XTVP1VX2XABS>
             )>
             <Case #fqn-is-not-overlay-key (
-              <Given ?01M1H6565KSDCARFEFWHG9G5ME>
+              <Given ?01M1VSP32FBG98XTVP1VX2XABT>
               the final Effective VFS contains two files declaring the same Halfcode FQN
-              </?01M1H6565KSDCARFEFWHG9G5ME>
-              <When ?01M1H6565KSDCARFEFWHG9G5MF>
+              </?01M1VSP32FBG98XTVP1VX2XABT>
+              <When ?01M1VSP32FBG98XTVP1VX2XABV>
               Halfcode projects the semantic registry
-              </?01M1H6565KSDCARFEFWHG9G5MF>
-              <Then ?01M1H6565KSDCARFEFWHG9G5MG>
+              </?01M1VSP32FBG98XTVP1VX2XABV>
+              <Then ?01M1VSP32FBG98XTVP1VX2XABW>
               the projection MUST fail closed and MUST NOT choose a winner by global/workspace origin
-              </?01M1H6565KSDCARFEFWHG9G5MG>
+              </?01M1VSP32FBG98XTVP1VX2XABW>
             )>
           ]>
         )>
         <Suite #revision-and-freeze { name = "Revision and freeze" } (
           <Cases [
             <Case #frozen-consumer-closure (
-              <Given ?01M1H6565KSDCARFEFWHG9G5MH>
+              <Given ?01M1VSP32FBG98XTVP1VX2XABX>
               an Agent or Workflow run has frozen an Effective VFS revision and resource dependency closure
-              </?01M1H6565KSDCARFEFWHG9G5MH>
-              <When ?01M1H6565KSDCARFEFWHG9G5MJ>
+              </?01M1VSP32FBG98XTVP1VX2XABX>
+              <When ?01M1VSP32FBG98XTVP1VX2XABY>
               physical overlays later produce a new admitted revision
-              </?01M1H6565KSDCARFEFWHG9G5MJ>
-              <Then ?01M1H6565KSDCARFEFWHG9G5MK>
+              </?01M1VSP32FBG98XTVP1VX2XABY>
+              <Then ?01M1VSP32FBG98XTVP1VX2XABZ>
               the existing run MUST retain its frozen bytes and provider-visible prefix; only a new run or explicit resource epoch MAY select the new revision
-              </?01M1H6565KSDCARFEFWHG9G5MK>
+              </?01M1VSP32FBG98XTVP1VX2XABZ>
             )>
             <Case #legacy-map-is-projection-only (
-              <Given ?01M1H6565KSDCARFEFWHG9G5MM>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAC0>
               a legacy consumer still accepts ResourceVfs path-to-text data
-              </?01M1H6565KSDCARFEFWHG9G5MM>
-              <When ?01M1H6565KSDCARFEFWHG9G5MN>
+              </?01M1VSP32FBG98XTVP1VX2XAC0>
+              <When ?01M1VSP32FBG98XTVP1VX2XAC1>
               compatibility data is supplied
-              </?01M1H6565KSDCARFEFWHG9G5MN>
-              <Then ?01M1H6565KSDCARFEFWHG9G5MP>
+              </?01M1VSP32FBG98XTVP1VX2XAC1>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAC2>
               it SHALL be derived read-only from one Effective VFS revision and MUST NOT become a second merge or write authority
-              </?01M1H6565KSDCARFEFWHG9G5MP>
+              </?01M1VSP32FBG98XTVP1VX2XAC2>
             )>
           ]>
         )>
         <Suite #builtin-base-transport { name = "Builtin base ownership and transport" } (
           <Cases [
             <Case #versioned-builtin-base (
-              <Given ?01M1H6565KSDCARFEFWHG9G5MQ>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAC3>
               version-controlled Eidolon resources owned by their product modules
-              </?01M1H6565KSDCARFEFWHG9G5MQ>
-              <When ?01M1H6565KSDCARFEFWHG9G5MR>
+              </?01M1VSP32FBG98XTVP1VX2XAC3>
+              <When ?01M1VSP32FBG98XTVP1VX2XAC4>
               the Builtin Eidolon VFS asset is generated
-              </?01M1H6565KSDCARFEFWHG9G5MR>
-              <Then ?01M1H6565KSDCARFEFWHG9G5MS>
+              </?01M1VSP32FBG98XTVP1VX2XAC4>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAC5>
               a deterministic full VFS snapshot SHALL preserve stable path-bound node identities and exact file bytes, and startup MUST NOT allocate random identities
-              </?01M1H6565KSDCARFEFWHG9G5MS>
+              </?01M1VSP32FBG98XTVP1VX2XAC5>
             )>
             <Case #source-compiled-builtin-parity (
-              <Given ?01M1H6565KSDCARFEFWHG9G5MT>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAC6>
               source runtime and a compiled Bun binary contain the same generated Builtin snapshot
-              </?01M1H6565KSDCARFEFWHG9G5MT>
-              <When ?01M1H6565KSDCARFEFWHG9G5MV>
+              </?01M1VSP32FBG98XTVP1VX2XAC6>
+              <When ?01M1VSP32FBG98XTVP1VX2XAC7>
               each prepares the Builtin VFS base
-              </?01M1H6565KSDCARFEFWHG9G5MV>
-              <Then ?01M1H6565KSDCARFEFWHG9G5MW>
+              </?01M1VSP32FBG98XTVP1VX2XAC7>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAC8>
               both SHALL expose identical snapshot bytes, node ids, tree/content digests and Halfcode resource closure
-              </?01M1H6565KSDCARFEFWHG9G5MW>
+              </?01M1VSP32FBG98XTVP1VX2XAC8>
             )>
             <Case #bunfs-is-transport-only (
-              <Given ?01M1H6565KSDCARFEFWHG9G5MX>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAC9>
               the final Bun compile embeds the Builtin snapshot as a file asset
-              </?01M1H6565KSDCARFEFWHG9G5MX>
-              <When ?01M1H6565KSDCARFEFWHG9G5MY>
+              </?01M1VSP32FBG98XTVP1VX2XAC9>
+              <When ?01M1VSP32FBG98XTVP1VX2XACA>
               runtime loads Builtin resources
-              </?01M1H6565KSDCARFEFWHG9G5MY>
-              <Then ?01M1H6565KSDCARFEFWHG9G5MZ>
+              </?01M1VSP32FBG98XTVP1VX2XACA>
+              <Then ?01M1VSP32FBG98XTVP1VX2XACB>
               BunFS SHALL only provide canonical snapshot bytes and MUST NOT become an overlay, registry or current Effective VFS authority
-              </?01M1H6565KSDCARFEFWHG9G5MZ>
+              </?01M1VSP32FBG98XTVP1VX2XACB>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #effective-vfs-materialization-transaction (
-      <Statement ?01M1H6565KSDCARFEFWHG9G5N0>
+      <Statement ?01M1VSP32FBG98XTVP1VX2XACC>
       Eidolon SHALL rebuild one complete candidate from immutable Builtin plus current ordered home/workspace directory and mutation intent, validate it, and atomically publish or preserve the last admitted Effective VFS.
-      </?01M1H6565KSDCARFEFWHG9G5N0>
+      </?01M1VSP32FBG98XTVP1VX2XACC>
       <Suites [
         <Suite #overlay-input-semantics { name = "Overlay input semantics" } (
           <Cases [
             <Case #physical-tree-is-sparse-intent (
-              <Given ?01M1H6565KSDCARFEFWHG9G5N1>
+              <Given ?01M1VSP32FBG98XTVP1VX2XACD>
               a home or workspace physical .eidolon directory is absent or contains only a subset of Builtin paths
-              </?01M1H6565KSDCARFEFWHG9G5N1>
-              <When ?01M1H6565KSDCARFEFWHG9G5N2>
+              </?01M1VSP32FBG98XTVP1VX2XACD>
+              <When ?01M1VSP32FBG98XTVP1VX2XACE>
               it is projected as directory overlay intent
-              </?01M1H6565KSDCARFEFWHG9G5N2>
-              <Then ?01M1H6565KSDCARFEFWHG9G5N3>
+              </?01M1VSP32FBG98XTVP1VX2XACE>
+              <Then ?01M1VSP32FBG98XTVP1VX2XACF>
               absence SHALL express no opinion, present files SHALL add or replace by logical path, and every projected node SHALL have deterministic content-independent identity
-              </?01M1H6565KSDCARFEFWHG9G5N3>
+              </?01M1VSP32FBG98XTVP1VX2XACF>
             )>
             <Case #replacement-removal-falls-back (
-              <Given ?01M1H6565KSDCARFEFWHG9G5N4>
+              <Given ?01M1VSP32FBG98XTVP1VX2XACG>
               a prior materialization replaced a Builtin file from workspace
-              </?01M1H6565KSDCARFEFWHG9G5N4>
-              <When ?01M1H6565KSDCARFEFWHG9G5N5>
+              </?01M1VSP32FBG98XTVP1VX2XACG>
+              <When ?01M1VSP32FBG98XTVP1VX2XACH>
               the replacement is removed and the current overlays are rebuilt
-              </?01M1H6565KSDCARFEFWHG9G5N5>
-              <Then ?01M1H6565KSDCARFEFWHG9G5N6>
+              </?01M1VSP32FBG98XTVP1VX2XACH>
+              <Then ?01M1VSP32FBG98XTVP1VX2XACJ>
               the new candidate SHALL contain the Builtin file while a declared FILE_DELETE mutation SHALL instead remove it
-              </?01M1H6565KSDCARFEFWHG9G5N6>
+              </?01M1VSP32FBG98XTVP1VX2XACJ>
             )>
             <Case #ordered-home-workspace-mutations (
-              <Given ?01M1H6565KSDCARFEFWHG9G5N7>
+              <Given ?01M1VSP32FBG98XTVP1VX2XACK>
               home and workspace directory or explicit mutation intents are present
-              </?01M1H6565KSDCARFEFWHG9G5N7>
-              <When ?01M1H6565KSDCARFEFWHG9G5N8>
+              </?01M1VSP32FBG98XTVP1VX2XACK>
+              <When ?01M1VSP32FBG98XTVP1VX2XACM>
               the overlay stack is planned
-              </?01M1H6565KSDCARFEFWHG9G5N8>
-              <Then ?01M1H6565KSDCARFEFWHG9G5N9>
+              </?01M1VSP32FBG98XTVP1VX2XACM>
+              <Then ?01M1VSP32FBG98XTVP1VX2XACN>
               declared contiguous order SHALL be authoritative, workspace later opinions SHALL win by path, and expectedId/valueBefore failures SHALL reject the entire candidate
-              </?01M1H6565KSDCARFEFWHG9G5N9>
+              </?01M1VSP32FBG98XTVP1VX2XACN>
             )>
           ]>
         )>
         <Suite #atomic-admission { name = "Atomic admission" } (
           <Cases [
             <Case #all-validators-before-cas (
-              <Given ?01M1H6565KSDCARFEFWHG9G5NA>
+              <Given ?01M1VSP32FBG98XTVP1VX2XACP>
               a complete candidate has been planned
-              </?01M1H6565KSDCARFEFWHG9G5NA>
-              <When ?01M1H6565KSDCARFEFWHG9G5NB>
+              </?01M1VSP32FBG98XTVP1VX2XACP>
+              <When ?01M1VSP32FBG98XTVP1VX2XACQ>
               any structural or injected semantic validator returns a diagnostic
-              </?01M1H6565KSDCARFEFWHG9G5NB>
-              <Then ?01M1H6565KSDCARFEFWHG9G5NC>
+              </?01M1VSP32FBG98XTVP1VX2XACQ>
+              <Then ?01M1VSP32FBG98XTVP1VX2XACR>
               no CAS SHALL run, a rejected receipt SHALL retain the current revision, and no candidate bytes SHALL become visible
-              </?01M1H6565KSDCARFEFWHG9G5NC>
+              </?01M1VSP32FBG98XTVP1VX2XACR>
             )>
             <Case #stale-or-failed-publish-preserves-current (
-              <Given ?01M1H6565KSDCARFEFWHG9G5ND>
+              <Given ?01M1VSP32FBG98XTVP1VX2XACS>
               another transition wins the revision race or persistence/readback fails
-              </?01M1H6565KSDCARFEFWHG9G5ND>
-              <When ?01M1H6565KSDCARFEFWHG9G5NE>
+              </?01M1VSP32FBG98XTVP1VX2XACS>
+              <When ?01M1VSP32FBG98XTVP1VX2XACT>
               publication is attempted
-              </?01M1H6565KSDCARFEFWHG9G5NE>
-              <Then ?01M1H6565KSDCARFEFWHG9G5NF>
+              </?01M1VSP32FBG98XTVP1VX2XACT>
+              <Then ?01M1VSP32FBG98XTVP1VX2XACV>
               the result SHALL be rejected with structured evidence and every existing revision-bound reader SHALL continue to observe its original snapshot
-              </?01M1H6565KSDCARFEFWHG9G5NF>
+              </?01M1VSP32FBG98XTVP1VX2XACV>
             )>
             <Case #admitted-read-port-and-legacy-view (
-              <Given ?01M1H6565KSDCARFEFWHG9G5NG>
+              <Given ?01M1VSP32FBG98XTVP1VX2XACW>
               candidate validation and CAS succeed
-              </?01M1H6565KSDCARFEFWHG9G5NG>
-              <When ?01M1H6565KSDCARFEFWHG9G5NH>
+              </?01M1VSP32FBG98XTVP1VX2XACW>
+              <When ?01M1VSP32FBG98XTVP1VX2XACX>
               runtime receives the admitted Effective VFS
-              </?01M1H6565KSDCARFEFWHG9G5NH>
-              <Then ?01M1H6565KSDCARFEFWHG9G5NJ>
+              </?01M1VSP32FBG98XTVP1VX2XACX>
+              <Then ?01M1VSP32FBG98XTVP1VX2XACY>
               its read port SHALL be immutable and revision-bound, and any legacy ResourceVfs SHALL be a read-only projection from that same revision
-              </?01M1H6565KSDCARFEFWHG9G5NJ>
+              </?01M1VSP32FBG98XTVP1VX2XACY>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #effective-vfs-registry-projection (
-      <Statement ?01M1H6565KSDCARFEFWHG9G5NK>
+      <Statement ?01M1VSP32FBG98XTVP1VX2XACZ>
       Eidolon SHALL derive every runtime Halfcode registry snapshot from one admitted Effective Eidolon VFS revision and SHALL NOT compose Builtin、home or workspace physical layers as competing registry authorities.
-      </?01M1H6565KSDCARFEFWHG9G5NK>
+      </?01M1VSP32FBG98XTVP1VX2XACZ>
       <Suites [
         <Suite #single-revision-projection { name = "Single revision projection" } (
           <Cases [
             <Case #load-one-effective-tree (
-              <Given ?01M1H6565KSDCARFEFWHG9G5NM>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAD0>
               one admitted Effective VFS read port contains `/.eidolon/resources`
-              </?01M1H6565KSDCARFEFWHG9G5NM>
-              <When ?01M1H6565KSDCARFEFWHG9G5NN>
+              </?01M1VSP32FBG98XTVP1VX2XAD0>
+              <When ?01M1VSP32FBG98XTVP1VX2XAD1>
               the App registry loads or refreshes
-              </?01M1H6565KSDCARFEFWHG9G5NN>
-              <Then ?01M1H6565KSDCARFEFWHG9G5NP>
+              </?01M1VSP32FBG98XTVP1VX2XAD1>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAD2>
               it SHALL compile exactly one Halfcode ResourceTree from that bound read port and record the VFS revision、tree digest and materialization receipt in the registry snapshot
-              </?01M1H6565KSDCARFEFWHG9G5NP>
+              </?01M1VSP32FBG98XTVP1VX2XAD2>
             )>
             <Case #duplicate-fqn-fails-closed (
-              <Given ?01M1H6565KSDCARFEFWHG9G5NQ>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAD3>
               the final Effective VFS contains duplicate or invalid Halfcode resources
-              </?01M1H6565KSDCARFEFWHG9G5NQ>
-              <When ?01M1H6565KSDCARFEFWHG9G5NR>
+              </?01M1VSP32FBG98XTVP1VX2XAD3>
+              <When ?01M1VSP32FBG98XTVP1VX2XAD4>
               registry projection runs
-              </?01M1H6565KSDCARFEFWHG9G5NR>
-              <Then ?01M1H6565KSDCARFEFWHG9G5NS>
+              </?01M1VSP32FBG98XTVP1VX2XAD4>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAD5>
               projection SHALL fail without admitting a partial or winner-selected registry
-              </?01M1H6565KSDCARFEFWHG9G5NS>
+              </?01M1VSP32FBG98XTVP1VX2XAD5>
             )>
           ]>
         )>
         <Suite #revision-bound-source-and-freeze { name = "Revision-bound source and freeze" } (
           <Cases [
             <Case #source-never-rereads-overlay (
-              <Given ?01M1H6565KSDCARFEFWHG9G5NT>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAD6>
               a registry snapshot and effective source were produced from revision E1
-              </?01M1H6565KSDCARFEFWHG9G5NT>
-              <When ?01M1H6565KSDCARFEFWHG9G5NV>
+              </?01M1VSP32FBG98XTVP1VX2XAD6>
+              <When ?01M1VSP32FBG98XTVP1VX2XAD7>
               physical overlays change or revision E2 is admitted
-              </?01M1H6565KSDCARFEFWHG9G5NV>
-              <Then ?01M1H6565KSDCARFEFWHG9G5NW>
+              </?01M1VSP32FBG98XTVP1VX2XAD7>
+              <Then ?01M1VSP32FBG98XTVP1VX2XAD8>
               E1 source、dependency、profile and KindDefinition reads SHALL use the E1 read port and SHALL NOT reread physical overlay roots
-              </?01M1H6565KSDCARFEFWHG9G5NW>
+              </?01M1VSP32FBG98XTVP1VX2XAD8>
             )>
             <Case #frozen-effective-closure-recovers (
-              <Given ?01M1H6565KSDCARFEFWHG9G5NX>
+              <Given ?01M1VSP32FBG98XTVP1VX2XAD9>
               an Agent or Workflow run freezes registry R derived from Effective VFS E
-              </?01M1H6565KSDCARFEFWHG9G5NX>
-              <When ?01M1H6565KSDCARFEFWHG9G5NY>
+              </?01M1VSP32FBG98XTVP1VX2XAD9>
+              <When ?01M1VSP32FBG98XTVP1VX2XADA>
               the run is recovered after live resources change
-              </?01M1H6565KSDCARFEFWHG9G5NY>
-              <Then ?01M1H6565KSDCARFEFWHG9G5NZ>
+              </?01M1VSP32FBG98XTVP1VX2XADA>
+              <Then ?01M1VSP32FBG98XTVP1VX2XADB>
               the recovered registry SHALL use the frozen effective closure and reproduce E/R content identities without global/workspace layer composition
-              </?01M1H6565KSDCARFEFWHG9G5NZ>
+              </?01M1VSP32FBG98XTVP1VX2XADB>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #effective-vfs-product-convergence (
-      <Statement ?01M1H6565KSDCARFEFWHG9G5P0>
+      <Statement ?01M1VSP32FBG98XTVP1VX2XADC>
       Eidolon SHALL replay overlays across Builtin upgrades through candidate validation, recover exact frozen VFS revisions, and resolve the formal embedded Coding Agent in ordinary, Ctrl and Data execution modes including the compiled local product.
-      </?01M1H6565KSDCARFEFWHG9G5P0>
+      </?01M1VSP32FBG98XTVP1VX2XADC>
     )>
     <Requirement #physical-overlay-runtime-state-boundary (
-      <Statement ?01M1H6565KSDCARFEFWHG9G5P1>
+      <Statement ?01M1VSP32FBG98XTVP1VX2XADD>
       Physical home/workspace overlays SHALL project managed Eidolon configuration and resources, and SHALL reject runtime-owned state roots from traversal before materializing the Effective Eidolon VFS.
-      </?01M1H6565KSDCARFEFWHG9G5P1>
+      </?01M1VSP32FBG98XTVP1VX2XADD>
       <Suites [
         <Suite #physical-overlay-boundary { name = "Physical overlay authority boundary" } (
           <Cases [
             <Case #runtime-state-roots-are-not-traversed (
-              <Given ?01M1H6565KSDCARFEFWHG9G5P2>
+              <Given ?01M1VSP32FBG98XTVP1VX2XADE>
               home or workspace `.eidolon` contains `sessions` or `projects` trees with mutable, large or unreadable descendants.
-              </?01M1H6565KSDCARFEFWHG9G5P2>
-              <When ?01M1H6565KSDCARFEFWHG9G5P3>
+              </?01M1VSP32FBG98XTVP1VX2XADE>
+              <When ?01M1VSP32FBG98XTVP1VX2XADF>
               the physical directory source projects an overlay.
-              </?01M1H6565KSDCARFEFWHG9G5P3>
-              <Then ?01M1H6565KSDCARFEFWHG9G5P4>
+              </?01M1VSP32FBG98XTVP1VX2XADF>
+              <Then ?01M1VSP32FBG98XTVP1VX2XADG>
               those roots SHALL be skipped before descendant traversal and SHALL contribute neither VFS nodes nor snapshot/digest cost.
-              </?01M1H6565KSDCARFEFWHG9G5P4>
+              </?01M1VSP32FBG98XTVP1VX2XADG>
             )>
             <Case #managed-config-and-resources-remain-overlayable (
-              <Given ?01M1H6565KSDCARFEFWHG9G5P5>
+              <Given ?01M1VSP32FBG98XTVP1VX2XADH>
               the same physical root contains runtime configuration and Halfcode resources.
-              </?01M1H6565KSDCARFEFWHG9G5P5>
-              <When ?01M1H6565KSDCARFEFWHG9G5P6>
+              </?01M1VSP32FBG98XTVP1VX2XADH>
+              <When ?01M1VSP32FBG98XTVP1VX2XADJ>
               the overlay is projected.
-              </?01M1H6565KSDCARFEFWHG9G5P6>
-              <Then ?01M1H6565KSDCARFEFWHG9G5P7>
+              </?01M1VSP32FBG98XTVP1VX2XADJ>
+              <Then ?01M1VSP32FBG98XTVP1VX2XADK>
               the managed files SHALL retain stable logical paths and identities and remain available to Effective VFS consumers.
-              </?01M1H6565KSDCARFEFWHG9G5P7>
+              </?01M1VSP32FBG98XTVP1VX2XADK>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #feedback-driven-child-worker-preparation (
+      <Statement ?01M1VSP32FBG98XTVP1VX2XADM>
+      系统 SHALL 在运行父图发现能力缺口后，经资源声明的子图准备边界调用 native Agent select/create/revise admission，并保留父图和旧 Worker 的冻结执行闭包。
+      </?01M1VSP32FBG98XTVP1VX2XADM>
+      <Suites [
+        <Suite #runtime-child-evolution { name = "运行中能力演进" } (
+          <Cases [
+            <Case #failed-worker-to-new-child (
+              <Given ?01M1VSP32G8JFTBX37JMYD8JN8>
+              父图 Worker 的实际输出未通过目标 verifier。
+              </?01M1VSP32G8JFTBX37JMYD8JN8>
+              <When ?01M1VSP32G8JFTBX37JMYD8JN9>
+              控制器选择下一子图并根据真实 observation 和 previousExecution 提出原生资源修订。
+              </?01M1VSP32G8JFTBX37JMYD8JN9>
+              <Then ?01M1VSP32G8JFTBX37JMYD8JNA>
+              子实例 SHALL 在自己的 Prepared 边界发布和冻结新 Worker，执行结果 SHALL 经原 child owner 回流并由原 verifier 验收；不在测试中手动替换产物。
+              </?01M1VSP32G8JFTBX37JMYD8JNA>
+            )>
+            <Case #recover-prepared-child (
+              <Given ?01M1VSP32G8JFTBX37JMYD8JNB>
+              子图准备已经持久化，源资源随后改变或执行进程退出。
+              </?01M1VSP32G8JFTBX37JMYD8JNB>
+              <When ?01M1VSP32G8JFTBX37JMYD8JNC>
+              新进程恢复同一 child invocation。
+              </?01M1VSP32G8JFTBX37JMYD8JNC>
+              <Then ?01M1VSP32G8JFTBX37JMYD8JND>
+              系统 SHALL 恢复相同 prepared receipt、代码与提示词，保持父子 lineage，不再次发布新配方；未能证明发布的结果 SHALL 明确待协调。
+              </?01M1VSP32G8JFTBX37JMYD8JND>
+            )>
+            <Case #preserve-parent-and-ordinary-paths (
+              <Given ?01M1VSP32G8JFTBX37JMYD8JNE>
+              旧父 run、旧 Worker 和无准备声明的子图已存在。
+              </?01M1VSP32G8JFTBX37JMYD8JNE>
+              <When ?01M1VSP32G8JFTBX37JMYD8JNF>
+              另一个子实例准备新配方。
+              </?01M1VSP32G8JFTBX37JMYD8JNF>
+              <Then ?01M1VSP32G8JFTBX37JMYD8JNG>
+              旧闭包 SHALL 保持不变，普通 select/create 和子图执行 SHALL 保持可用；非 Workflow coding SHALL 不获得强制 stage 概念。
+              </?01M1VSP32G8JFTBX37JMYD8JNG>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #halfcode-03-exact-kind-admission (
+      <Statement ?01M1VSP32G8JFTBX37JMYD8JNH>
+      Eidolon SHALL separate Halfcode-authored resource loading from exact resolved resource admission and SHALL project executable Holon resources only after their issuer-owned Kind contracts and reader implementations have been verified.
+      </?01M1VSP32G8JFTBX37JMYD8JNH>
+      <Suites [
+        <Suite #halfcode-03-admission { name = "Halfcode 0.3 exact Kind admission" } (
+          <Cases [
+            <Case #exact-contract-before-projection (
+              <Given ?01M1VSP32G8JFTBX37JMYD8JNJ>
+              an authored ResourcePackage contains a Holon snapshot, execution binding and task runtime definition
+              </?01M1VSP32G8JFTBX37JMYD8JNJ>
+              <When ?01M1VSP32G8JFTBX37JMYD8JNK>
+              Eidolon constructs its effective registry
+              </?01M1VSP32G8JFTBX37JMYD8JNK>
+              <Then ?01M1VSP32G8JFTBX37JMYD8JNM>
+              each executable record SHALL be resolved by an exact owner/spec revision/reader registration before domain projection
+              </?01M1VSP32G8JFTBX37JMYD8JNM>
+            )>
+            <Case #forged-or-legacy-fails-closed (
+              <Given ?01M1VSP32G8JFTBX37JMYD8JNN>
+              a KindDefinition has a forged fingerprint, mismatched subject/source contract, or a legacy Halfcode envelope
+              </?01M1VSP32G8JFTBX37JMYD8JNN>
+              <When ?01M1VSP32G8JFTBX37JMYD8JNP>
+              the registry is loaded or resolved
+              </?01M1VSP32G8JFTBX37JMYD8JNP>
+              <Then ?01M1VSP32G8JFTBX37JMYD8JNQ>
+              the operation SHALL fail closed with contract diagnostics and MUST NOT fall back to a host parser
+              </?01M1VSP32G8JFTBX37JMYD8JNQ>
+            )>
+            <Case #issuer-authority-not-copied (
+              <Given ?01M1VSP32G8JFTBX37JMYD8JNR>
+              Holarchy exports the HolonEffectiveSnapshot Kind contract
+              </?01M1VSP32G8JFTBX37JMYD8JNR>
+              <When ?01M1VSP32G8JFTBX37JMYD8JNS>
+              Eidolon assembles its contract capsule
+              </?01M1VSP32G8JFTBX37JMYD8JNS>
+              <Then ?01M1VSP32G8JFTBX37JMYD8JNT>
+              it SHALL import that registration and MUST NOT recreate the snapshot owner or fingerprints
+              </?01M1VSP32G8JFTBX37JMYD8JNT>
             )>
           ]>
         )>

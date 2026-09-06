@@ -13,8 +13,8 @@
     "@cell/platform-contract": "workspace:*",
     "ai-ctrl-workflow-contract": "0.2.0",
     "ai-data-workflow-contract": "0.2.0",
-    "ai-workflow-contract": "0.2.0",
-    "ai-workflow-logic": "0.2.0",
+    "ai-workflow-contract": "0.2.1",
+    "ai-workflow-logic": "0.2.1",
     "flow-step-space-contract": "0.1.1"
   }
 }

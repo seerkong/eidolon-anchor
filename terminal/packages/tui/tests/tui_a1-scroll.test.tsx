@@ -6,7 +6,6 @@ import { TuiA1View } from "../src/app/tui_a1"
 import type { TuiA1Message } from "../src/app/tui_a1/data"
 import type { Message, Part, TuiRuntimeSdk } from "@terminal/core/AIAgent"
 import { Clipboard } from "../src/support/util/clipboard"
-import { scrollToBottom } from "../src/app/tui_a1/perf/scroll-history"
 
 const tick = (ms = 20) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -104,12 +103,28 @@ function createRuntimeWithUserInputHistory(options: {
 
 async function renderSettled(setup: Awaited<ReturnType<typeof testRender>>, passes = 2) {
   for (let index = 0; index < passes; index += 1) {
+    // The production actor/source runs asynchronously between renderer frames.
+    // Yield one event-loop turn; retain the existing layout-cycle assertions.
+    await tick(0)
     await setup.renderOnce()
   }
 }
 
 function isNearBottom(scrollbox: ScrollBoxRenderable, tolerance = 1) {
   return scrollbox.scrollTop + scrollbox.height >= scrollbox.scrollHeight - tolerance
+}
+
+async function settleGeometry(setup: Awaited<ReturnType<typeof testRender>>, scrollbox: ScrollBoxRenderable) {
+  let previous = ""
+  let stable = 0
+  for (let frame = 0; frame < 40; frame++) {
+    await renderSettled(setup, 1)
+    const geometry = `${scrollbox.scrollTop}:${scrollbox.scrollHeight}:${scrollbox.height}`
+    stable = geometry === previous ? stable + 1 : 0
+    if (stable >= 3) return
+    previous = geometry
+  }
+  throw new Error("Initial paged history geometry did not settle within 40 layout cycles")
 }
 
 function displayWidth(text: string) {
@@ -264,23 +279,6 @@ describe("tui_a1 scrollbox", () => {
     }
   })
 
-  it("coalesces repeated scroll-to-bottom requests into one scroll operation", async () => {
-    let calls = 0
-    const scrollbox = {
-      scrollHeight: 100,
-      scrollTo() {
-        calls += 1
-      },
-    } as any
-
-    scrollToBottom(scrollbox)
-    scrollToBottom(scrollbox)
-    scrollToBottom(scrollbox)
-    await tick()
-
-    expect(calls).toBe(1)
-  })
-
   it("accepts mouse wheel scrolling inside the card list area", async () => {
     let scrollbox: ScrollBoxRenderable | undefined
 
@@ -427,6 +425,7 @@ describe("tui_a1 scrollbox", () => {
 
       const target = scrollbox
       expect(target).toBeTruthy()
+      await settleGeometry(setup, target!)
       expect(isNearBottom(target!)).toBe(true)
 
       const before = target!.scrollTop
@@ -440,7 +439,11 @@ describe("tui_a1 scrollbox", () => {
       expect(target!.scrollTop).toBeGreaterThan(afterPageUp)
 
       setup.mockInput.pressKey("HOME")
-      await renderSettled(setup, 1)
+      await settleGeometry(setup, target!)
+      // Home reaches the retained window's head; prepend preserves its anchor.
+      // Continue Home after that page arrives to reach the source's first row.
+      setup.mockInput.pressKey("HOME")
+      await settleGeometry(setup, target!)
       expect(target!.scrollTop).toBe(0)
 
       setup.mockInput.pressKey("END")
@@ -476,6 +479,7 @@ describe("tui_a1 scrollbox", () => {
 
       const target = scrollbox
       expect(target).toBeTruthy()
+      await settleGeometry(setup, target!)
       expect(isNearBottom(target!)).toBe(true)
 
       setup.mockInput.pressKey(PAGE_UP)

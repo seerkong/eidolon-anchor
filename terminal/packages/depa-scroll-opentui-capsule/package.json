@@ -1,0 +1,14 @@
+{
+  "name": "depa-scroll-opentui-capsule",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" },
+    "./solid": { "types": "./src/solid.tsx", "default": "./src/solid.tsx" } },
+  "scripts": { "test": "bun test tests/" },
+  "dependencies": {
+    "depa-scroll-contract": "workspace:*", "depa-scroll-logic": "workspace:*",
+    "depa-scroll-opentui-support": "workspace:*", "depa-actor": "0.2.2",
+    "@opentui/core": "0.1.96", "@opentui/solid": "0.1.96", "solid-js": "1.9.11"
+  }
+}

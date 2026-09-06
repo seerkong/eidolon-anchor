@@ -12,6 +12,9 @@ import {
 import path from "node:path"
 import { lstat } from "node:fs/promises"
 import { loadResourceTreeFromReadPort } from "halfcode-compiler.xnl/resource-core"
+import { LocalFileEffectiveEidolonVfsAuthority } from "@cell/ai-support/runtime/LocalFileEffectiveEidolonVfsAuthority"
+import type { EidolonVfsPublicationAssociation, EidolonVfsPublicationRecord, EidolonVfsWorkspaceWrite } from "@cell/symbiont-contract/resource/EffectiveEidolonVFS"
+import type { EffectiveEidolonVfsPublicationAuthority } from "@cell/symbiont-logic/resource/EffectiveEidolonVfsPublication"
 
 import {
   createBuiltinEidolonResourcePackageReadPort,
@@ -23,11 +26,14 @@ export interface PrepareEffectiveEidolonVfsInput {
   readonly homeEidolonRoot: string
   readonly workspaceEidolonRoot: string
   readonly builtinAssetPort?: BuiltinEidolonVfsAssetPort
+  readonly publicationAuthority?: EffectiveEidolonVfsPublicationAuthority
 }
 
 export interface PreparedEffectiveEidolonVfs {
   readonly effective: EffectiveEidolonVfsView
   readonly materializer: EffectiveEidolonVfsMaterializer
+  /** Closes only the backend created by this composition root. */
+  dispose(): void
   readonly authoring: Readonly<{
     workspaceResourceRoot: string
     read(): EffectiveEidolonVfsView
@@ -36,7 +42,9 @@ export interface PreparedEffectiveEidolonVfs {
       logicalPath: `/.eidolon/resources/${string}`
       authorityText: string
     }>): Promise<PrepareEffectiveEidolonVfsResult>
-    admit(candidate: EffectiveEidolonVfsCandidate): Promise<EffectiveEidolonVfsMaterializationResult>
+    admit(candidate: EffectiveEidolonVfsCandidate, association?: EidolonVfsPublicationAssociation, workspaceWrite?: EidolonVfsWorkspaceWrite): Promise<EffectiveEidolonVfsMaterializationResult>
+    lookupPublication(transactionId: string): Promise<EidolonVfsPublicationRecord | undefined>
+    restore(): Promise<EffectiveEidolonVfsView>
   }>
 }
 
@@ -79,8 +87,34 @@ export async function prepareEffectiveEidolonVfs(
   input: PrepareEffectiveEidolonVfsInput,
 ): Promise<PreparedEffectiveEidolonVfs> {
   const builtin = await loadBuiltinEidolonVfs(input.builtinAssetPort)
+  const authority = input.publicationAuthority ?? new LocalFileEffectiveEidolonVfsAuthority({
+    databasePath: path.join(input.workspaceEidolonRoot, "projects", ".effective-vfs", "authority.sqlite"),
+    workspaceEidolonRoot: input.workspaceEidolonRoot,
+    builtinSnapshot: builtin.vfsSnapshot,
+  })
+  let disposed = false
+  const dispose = () => {
+    if (disposed) return
+    disposed = true
+    if (!input.publicationAuthority) (authority as LocalFileEffectiveEidolonVfsAuthority).close()
+  }
+  try {
+    return await initializeEffectiveEidolonVfs(input, builtin, authority, dispose)
+  } catch (error) {
+    dispose()
+    throw error
+  }
+}
+
+async function initializeEffectiveEidolonVfs(
+  input: PrepareEffectiveEidolonVfsInput,
+  builtin: Awaited<ReturnType<typeof loadBuiltinEidolonVfs>>,
+  authority: EffectiveEidolonVfsPublicationAuthority,
+  dispose: () => void,
+): Promise<PreparedEffectiveEidolonVfs> {
   const materializer = new EffectiveEidolonVfsMaterializer({
     builtinSnapshot: builtin.vfsSnapshot,
+    authority,
     validators: [{
       id: "halfcode-effective-resource-tree",
       async validate({ readPort }) {
@@ -92,6 +126,7 @@ export async function prepareEffectiveEidolonVfs(
       },
     }],
   })
+  await materializer.restore()
   const loadOverlays = () => loadConfiguredOverlays(input)
   const overlays = await loadOverlays()
   const result = await materializer.materialize({
@@ -113,6 +148,13 @@ export async function prepareEffectiveEidolonVfs(
       authorityText: string
     }>) => {
       const overlays = await loadOverlays()
+      const baseline = await materializer.prepare({ expectedCurrentRevision: authoringInput.expectedCurrentRevision, overlays })
+      if (baseline.status !== "prepared") return baseline
+      if (baseline.candidate.effective.snapshot.revision !== materializer.read().snapshot.revision) {
+        throw new Error("EIDOLON_VFS_OVERLAY_SOURCE_DRIFT")
+      }
+      const existing = await baseline.candidate.effective.readPort.stat(authoringInput.logicalPath)
+      if (existing && existing.kind !== "file") throw new Error("EIDOLON_VFS_AUTHORING_TARGET_NOT_FILE")
       return materializer.prepare({
         expectedCurrentRevision: authoringInput.expectedCurrentRevision,
         overlays: [
@@ -122,9 +164,9 @@ export async function prepareEffectiveEidolonVfs(
           kind: "workspace",
           order: overlays.length,
           mutations: [{
-            type: "FILE_CREATE",
+            type: existing ? "CONTENT_UPDATE" : "FILE_CREATE",
             path: `vfs://${authoringInput.logicalPath}`,
-            expectedId: stableEidolonOverlayNodeId(
+            expectedId: existing?.nodeId ?? stableEidolonOverlayNodeId(
               "workspace-directory",
               "file",
               authoringInput.logicalPath,
@@ -135,7 +177,11 @@ export async function prepareEffectiveEidolonVfs(
         ],
       })
     },
-    admit: (candidate: EffectiveEidolonVfsCandidate) => materializer.admit(candidate),
+    admit: (candidate: EffectiveEidolonVfsCandidate, association?: EidolonVfsPublicationAssociation, workspaceWrite?: EidolonVfsWorkspaceWrite) => materializer.admit(candidate, association, workspaceWrite),
+    lookupPublication: (transactionId: string) => materializer.lookupPublication(transactionId),
+    restore: () => materializer.restore(),
   })
-  return Object.freeze({ effective: result.effective, materializer, authoring })
+  return Object.freeze({ effective: result.effective, materializer, authoring,
+    dispose,
+  })
 }

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 
 import type { ChatMessage } from "@shared/composer";
 
+import type { AgentContextFactPresentationRecipe } from "@cell/ai-core-contract/runtime/AgentContextFactPresentation";
 import {
   CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
   type ActorHistoryGenerationData,
@@ -370,7 +371,8 @@ export async function synchronizeConversationDomainSessionFromPersistence(params
   });
 }
 
-function resolveSessionIdFromVm(vm: AiAgentVm): string {
+/** Shared identity for History and Prompt writes; callers must not invent another fallback. */
+export function resolveSessionIdFromVm(vm: AiAgentVm): string {
   const metadata = (vm.outerCtx?.metadata ?? {}) as Record<string, unknown>;
   const explicit = typeof metadata.sessionId === "string" ? metadata.sessionId.trim() : "";
   if (explicit) return explicit;
@@ -3349,12 +3351,13 @@ export function closeConversationSessionInConversationDomainRuntime(params: {
 export function materializeConversationRuntimeMessagesFromVm(params: {
   vm: AiAgentVm;
   actorKey: string;
+  factPresentation?: AgentContextFactPresentationRecipe;
 }): ChatMessage[] {
   const actorRawState = getConversationActorRawStateFromVm({
     vm: params.vm,
     actorKey: params.actorKey,
   });
-  return actorRawState ? materializeConversationRuntimePrompt(actorRawState) : [];
+  return actorRawState ? materializeConversationRuntimePrompt(actorRawState, params.factPresentation) : [];
 }
 
 export function materializeConversationHistoryMessagesFromVm(params: {

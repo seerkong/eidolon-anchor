@@ -20,6 +20,7 @@ import {
 import { WorkflowResourceLoader } from "../resources"
 import { createAIDataAgentPreparationExtensionCodecRegistry } from "../runtime/AIDataAgentResourcePreparation"
 import { createAIDataAutonomousControlExtensionCodecRegistry } from "../runtime/AIDataAutonomousControlLoop"
+import { createAIDataChildAgentPreparationExtensionCodecRegistry } from "../runtime/AIDataChildAgentPreparation"
 import { WorkflowDefinitionRepository } from "../runtime/WorkflowDefinitionRepository"
 import { WorkflowCommandService } from "./WorkflowCommandService"
 import { WorkflowQueryService } from "./WorkflowQueryService"
@@ -87,6 +88,7 @@ export class WorkflowComponent {
 
 export type WorkflowComponentOptions = {
   workspaceRoot?: string
+  resourceWorkspaceRoot?: string
   store?: WorkflowAuthoringStore
   resources?: WorkflowResourceLoader
   catalog?: WorkflowAuthoringCatalog
@@ -182,16 +184,16 @@ function runtimeStepExtensionCodecs(
     && typeof (candidate as { resolve?: unknown }).resolve === "function"
     ? candidate as DefinitionStepExtensionCodecRegistryPort
     : undefined
-  return createAIDataAgentPreparationExtensionCodecRegistry(
+  return createAIDataChildAgentPreparationExtensionCodecRegistry(createAIDataAgentPreparationExtensionCodecRegistry(
     createAIDataAutonomousControlExtensionCodecRegistry(fallback),
-  )
+  ))
 }
 
 export function createWorkflowComponent(options: WorkflowComponentOptions = {}): WorkflowComponent {
   const resources = options.resources ?? new WorkflowResourceLoader(
-    createAIDataAgentPreparationExtensionCodecRegistry(
+    createAIDataChildAgentPreparationExtensionCodecRegistry(createAIDataAgentPreparationExtensionCodecRegistry(
       createAIDataAutonomousControlExtensionCodecRegistry(options.extensionCodecs),
-    ),
+    )),
   )
   const store = options.store
     ?? (options.workspaceRoot ? new NodeWorkflowAuthoringStore(options.workspaceRoot) : undefined)
@@ -200,7 +202,7 @@ export function createWorkflowComponent(options: WorkflowComponentOptions = {}):
   const resourceLayers = options.effectiveVfs ? [] : options.resourceLayers ?? []
   const resourceRegistry = options.resourceRegistry ?? new EidolonAppResourceRegistryAdapter({
     ...(options.effectiveVfs ? { effectiveVfs: options.effectiveVfs } : { layers: resourceLayers }),
-    workspaceRoot: options.workspaceRoot,
+    workspaceRoot: options.resourceWorkspaceRoot ?? options.workspaceRoot,
   })
   const sessions = new WorkflowAuthoringSessionStore(
     effectiveStore,
@@ -266,6 +268,7 @@ export function createWorkflowComponentForRuntimeBinding(
   return createWorkflowComponent({
     ...options,
     workspaceRoot: runtimeWorkspaceRoot(runtime),
+    resourceWorkspaceRoot: options.resourceWorkspaceRoot ?? binding.workDir,
     resourceLayers: options.resourceLayers ?? runtimeResourcePackageLayers(runtime),
     effectiveVfs: options.effectiveVfs ?? runtimeEffectiveVfs(runtime),
     effectiveVfsAuthoring: options.effectiveVfsAuthoring ?? runtimeEffectiveVfsAuthoring(runtime),

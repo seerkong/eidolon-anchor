@@ -69,7 +69,8 @@ function canonicalTask(task: TaskRecord, subscription: HolonTaskPumpSubscription
   try {
     if (task.profile.profileKind === EIDOLON_HOLON_TASK_PROFILE_KIND) {
       const profile = normalizeHolonTaskExecutionProfile(task.profile)
-      return profile.facts.admission.admissionId === subscription.admissionId
+      return task.taskId === subscription.taskId
+        && profile.facts.admission.admissionId === subscription.admissionId
         && profile.facts.admission.definition.executionBinding.ref === subscription.bindingRef
         && profile.facts.admission.definition.rootHolonRef === subscription.holonRef
         && profile.facts.snapshotReceipt.issuerReceiptId === subscription.snapshotReceiptId

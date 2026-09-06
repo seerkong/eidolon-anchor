@@ -183,7 +183,7 @@ export function normalizeHolonDeploymentDefinition(value: unknown): HolonDeploym
       invalid("$.files", `Required authority file '${required}' is missing`)
     }
   }
-  if (!files.some((entry) => /^\.agent-resources\/(global|workspace)\/manifest\.xnl$/.test(entry.path))) {
+  if (!files.some((entry) => /^\.agent-resources\/(?:(global|workspace)|effective-vfs\/\.eidolon\/resources)\/manifest\.xnl$/.test(entry.path))) {
     invalid("$.files", "At least one frozen ResourcePackage layer manifest is required")
   }
   return Object.freeze({

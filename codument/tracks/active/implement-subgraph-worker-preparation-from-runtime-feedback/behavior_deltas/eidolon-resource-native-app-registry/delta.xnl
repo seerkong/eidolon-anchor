@@ -1,0 +1,30 @@
+<BehaviorPatch #track.implement-subgraph-worker-preparation-from-runtime-feedback.behavior_patch.eidolon-resource-native-app-registry apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-resource-native-app-registry" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-resource-native-app-registry/requirements/feedback-driven-child-worker-preparation" } (
+      <Requirement #feedback-driven-child-worker-preparation (
+        <Statement ?>系统 SHALL 在运行父图发现能力缺口后，经资源声明的子图准备边界调用 native Agent select/create/revise admission，并保留父图和旧 Worker 的冻结执行闭包。</?>
+        <Suites [
+          <Suite #runtime-child-evolution { name = "运行中能力演进" } (
+            <Cases [
+              <Case #failed-worker-to-new-child (
+                <Given ?>父图 Worker 的实际输出未通过目标 verifier。</?>
+                <When ?>控制器选择下一子图并根据真实 observation 和 previousExecution 提出原生资源修订。</?>
+                <Then ?>子实例 SHALL 在自己的 Prepared 边界发布和冻结新 Worker，执行结果 SHALL 经原 child owner 回流并由原 verifier 验收；不在测试中手动替换产物。</?>
+              )>
+              <Case #recover-prepared-child (
+                <Given ?>子图准备已经持久化，源资源随后改变或执行进程退出。</?>
+                <When ?>新进程恢复同一 child invocation。</?>
+                <Then ?>系统 SHALL 恢复相同 prepared receipt、代码与提示词，保持父子 lineage，不再次发布新配方；未能证明发布的结果 SHALL 明确待协调。</?>
+              )>
+              <Case #preserve-parent-and-ordinary-paths (
+                <Given ?>旧父 run、旧 Worker 和无准备声明的子图已存在。</?>
+                <When ?>另一个子实例准备新配方。</?>
+                <Then ?>旧闭包 SHALL 保持不变，普通 select/create 和子图执行 SHALL 保持可用；非 Workflow coding SHALL 不获得强制 stage 概念。</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

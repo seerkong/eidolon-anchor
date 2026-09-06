@@ -71,6 +71,7 @@ import {
   type AIDataAutonomousVerifierPort,
 } from "./AIDataAutonomousControlRunner"
 import { AgentExecutionContractError } from "../../agent/AgentExecutionContract"
+import { bindAIDataPreparedAgentSlots, writeAIDataExecutionFailures, type AIDataExecutionFailure } from "./AIDataChildAgentPreparation"
 import {
   readAIDataAgentPreparationReceipts,
   writeAIDataAgentPreparationExtensions,
@@ -151,6 +152,7 @@ export class AIDataWorkflowRuntimeDriver {
   private readonly aiRuntime: ReturnType<typeof createAIDataWorkflowRuntime>
   private readonly bindAgentNode?: ReturnType<typeof createAIDataWorkflowAgentNodeRuntimeBinder>
   private readonly agentEffects: EidolonWorkflowEffectProvider
+  private pendingExecutionFailures: AIDataExecutionFailure[] = []
 
   constructor(
     private readonly runtime: WorkflowRuntime,
@@ -230,17 +232,38 @@ export class AIDataWorkflowRuntimeDriver {
       graph: this.durableGraph(),
       input: record(input) as FlowClosedValue,
       config: { requestFingerprint: this.descriptor.requestFingerprint },
-      state: { status: "Pending", generation: 0 },
+      state: { status: "Pending", generation: this.graph.currentGeneration },
       output: null,
       controllerSidecars: { status: "Pending" },
       nodeSidecars: this.nodeSidecars(),
       ai: EMPTY_AI_WORKFLOW_DURABLE_STATE,
       stepExtensions: definitionStepExtensions,
     })
+    const preparedCheckpoint = await this.completePreparationCheckpoint(initialCheckpoint)
+    const autonomousControl = findAIDataAutonomousControlStateInExtensions(preparedCheckpoint.stepExtensions)
+    if (autonomousControl) {
+      this.autonomousControlPhase = autonomousControl.phase
+      this.assertAutonomousControlBarrier(this.graph, autonomousControl)
+    }
+    const bound = bindAIDataPreparedAgentSlots(this.graph, this.preparedAgents)
+    if (bound !== this.graph) {
+      this.graph = bound
+      this.descriptor.generation = bound.currentGeneration
+      await this.facts.saveDescriptor(this.descriptor)
+      await this.persist()
+    }
+    await this.advance(record(input))
+    return this.project("workflow.run")
+  }
+
+  private async completePreparationCheckpoint(initialCheckpoint: Awaited<ReturnType<typeof createAIDataWorkflowCheckpoint>>) {
     const receipts = this.preparedAgents.map(({ receipt }) => receipt)
-    const receiptExtensions = writeAIDataAgentPreparationExtensions(definitionStepExtensions, receipts)
+    const existingReceipts = readAIDataAgentPreparationReceipts(initialCheckpoint.stepExtensions)
+    const receiptExtensions = canonicalJson(existingReceipts) === canonicalJson(receipts)
+      ? initialCheckpoint.stepExtensions
+      : writeAIDataAgentPreparationExtensions(initialCheckpoint.stepExtensions, receipts)
     let preparedCheckpoint = initialCheckpoint
-    if (receiptExtensions !== definitionStepExtensions) {
+    if (receiptExtensions !== initialCheckpoint.stepExtensions) {
       preparedCheckpoint = await commitAIDataWorkflowCheckpoint(this.depa.checkpointRuntime, {
         expectedVersion: preparedCheckpoint.version,
         checkpoint: {
@@ -250,10 +273,12 @@ export class AIDataWorkflowRuntimeDriver {
         },
       })
     }
-    const preparedStepExtensions = writeAIDataPreparedAgentCapabilities(
-      preparedCheckpoint.stepExtensions,
-      receipts,
-    )
+    const control = findAIDataAutonomousControlStateInExtensions(preparedCheckpoint.stepExtensions)
+    const capabilitiesMissing = control && receipts.some(({ capability }) =>
+      canonicalJson(control.binding.catalog.capabilities[capability.capabilityId] ?? null) !== canonicalJson(capability))
+    const preparedStepExtensions = capabilitiesMissing
+      ? writeAIDataPreparedAgentCapabilities(preparedCheckpoint.stepExtensions, receipts)
+      : preparedCheckpoint.stepExtensions
     if (preparedStepExtensions !== preparedCheckpoint.stepExtensions) {
       preparedCheckpoint = await commitAIDataWorkflowCheckpoint(this.depa.checkpointRuntime, {
         expectedVersion: preparedCheckpoint.version,
@@ -264,25 +289,24 @@ export class AIDataWorkflowRuntimeDriver {
         },
       })
     }
-    const autonomousControl = findAIDataAutonomousControlStateInExtensions(preparedCheckpoint.stepExtensions)
-    if (autonomousControl) {
-      this.autonomousControlPhase = autonomousControl.phase
-      this.assertAutonomousControlBarrier(this.graph, autonomousControl)
-    }
-    await this.advance(record(input))
-    return this.project("workflow.run")
+    return preparedCheckpoint
   }
 
   async restore(): Promise<boolean> {
-    const stored = await loadAIDataWorkflowCheckpoint(this.depa.checkpointRuntime, {
+    let stored = await loadAIDataWorkflowCheckpoint(this.depa.checkpointRuntime, {
       instanceId: this.descriptor.instanceId,
       runId: this.descriptor.runId,
     })
     if (!stored) return false
     const durablePreparations = readAIDataAgentPreparationReceipts(stored.stepExtensions)
     const recoveredPreparations = this.preparedAgents.map(({ receipt }) => receipt)
-    if (canonicalJson(durablePreparations) !== canonicalJson(recoveredPreparations)) {
+    if (canonicalJson(durablePreparations) !== canonicalJson(recoveredPreparations)
+      && !(stored.version === 0 && durablePreparations.length === 0)) {
       throw new Error("AI_DATA_AGENT_PREPARATION_CHECKPOINT_DRIFT")
+    }
+    if (stored.profile.runGraph.currentGeneration === 0
+      && Object.keys(stored.profile.ai.invocationsByKey).length === 0) {
+      stored = await this.completePreparationCheckpoint(stored)
     }
     let graph = restoreAIDataWorkflowRunGraph({
       ...stored.profile.runGraph,
@@ -297,12 +321,14 @@ export class AIDataWorkflowRuntimeDriver {
         })
       }
     }
-    this.graph = graph
+    const preparedGraph = bindAIDataPreparedAgentSlots(graph, this.preparedAgents)
+    this.graph = preparedGraph
     this.autonomousControlPhase = findAIDataAutonomousControlState(
       stored as unknown as AIWorkflowFlowRunCheckpoint,
     )?.phase
-    this.descriptor.generation = graph.currentGeneration
-    if (Object.values(graph.nodes).some((node) => node.status === "Running" && node.nodeType !== "manual")) await this.persist()
+    this.descriptor.generation = preparedGraph.currentGeneration
+    if (preparedGraph !== graph) await this.facts.saveDescriptor(this.descriptor)
+    if (preparedGraph !== graph || Object.values(graph.nodes).some((node) => node.status === "Running" && node.nodeType !== "manual")) await this.persist()
     return true
   }
 
@@ -563,6 +589,8 @@ export class AIDataWorkflowRuntimeDriver {
         semanticFingerprint: fingerprint,
       })
     } catch (error) {
+      this.pendingExecutionFailures.push({ nodeId: node.id, generation,
+        message: String((error as Error)?.message ?? error) })
       this.graph = recordAIDataWorkflowNodeResult(this.graph!, node.id, {
         nodeId: node.id,
         generation,
@@ -645,6 +673,8 @@ export class AIDataWorkflowRuntimeDriver {
         return
       }
       const failed = this.graph!.nodes[nodeId]
+      this.pendingExecutionFailures.push({ nodeId, generation: failed?.generation ?? this.graph!.currentGeneration,
+        message: String((error as Error)?.message ?? error) })
       this.graph = recordAIDataWorkflowNodeResult(this.graph!, nodeId, {
         nodeId,
         generation: failed?.generation ?? this.graph!.currentGeneration,
@@ -776,7 +806,7 @@ export class AIDataWorkflowRuntimeDriver {
 
   private initialInput(): Record<string, unknown> {
     const entry = Object.values(this.graph!.nodes).find((node) => node.tag === "EntryNode")
-    return record(entry?.result?.output)
+    return record(entry?.result?.output ?? this.descriptor.frozenInput)
   }
 
   private runRef(generation = this.descriptor.generation): AIWorkflowRunRef {
@@ -819,6 +849,7 @@ export class AIDataWorkflowRuntimeDriver {
       return
     }
     const checkpointStatus = this.statusValue() === "Waiting" ? "Running" : this.statusValue()
+    const stepExtensions = writeAIDataExecutionFailures(current.stepExtensions, this.pendingExecutionFailures)
     await commitAIDataWorkflowCheckpoint(this.depa.checkpointRuntime, {
       expectedVersion: current.version,
       checkpoint: {
@@ -828,9 +859,11 @@ export class AIDataWorkflowRuntimeDriver {
         output: this.checkpointOutput(),
         controllerSidecars: { ...current.controllerSidecars, status: checkpointStatus },
         nodeSidecars: this.nodeSidecars(),
+        ...(stepExtensions === undefined ? {} : { stepExtensions }),
         profile: { ...current.profile, runGraph: this.durableGraph() },
       },
     })
+    this.pendingExecutionFailures = []
   }
 
   private durableGraph(): AIDataWorkflowRunGraph {
@@ -915,6 +948,55 @@ export class AIDataWorkflowRuntimeDriver {
   private async decideAutonomousControl(
     input: AIDataAutonomousControllerInput,
   ): Promise<AIDataAutonomousControllerResult> {
+    return this.invokeFrozenController({
+      state: input.state,
+      invocationKey: `${input.state.binding.controlNodeId}#control-${input.state.iteration}`,
+      payload: projectAIDataAutonomousControllerPayload(input) as unknown as FlowClosedValue,
+      metadata: { controlIteration: input.state.iteration, observationId: input.observation.observationId },
+    })
+  }
+
+  async childPreparationFeedback(nodeId: string) {
+    const checkpoint = await this.autonomousControlCheckpoint()
+    if (!checkpoint || checkpoint.profile.kind !== "AIDataWorkflow") throw new Error("AI_DATA_CHILD_PREPARATION_PARENT_MISSING")
+    const state = readAIDataAutonomousControlState(checkpoint)
+    const node = (checkpoint.profile.runGraph as unknown as AIDataWorkflowRunGraph).nodes[nodeId]
+    const proof = this.taskProofs[nodeId]
+    const observed = state.latestObservation?.graph.nodes.find(item => item.nodeId === nodeId)
+    const verifier = state.latestVerifier
+    if (!node || !proof || !node.result || !observed || !verifier || verifier.status !== "failed"
+      || observed.status !== node.status || verifier.graphGeneration !== state.latestObservation!.graph.generation) {
+      throw new Error("AI_DATA_CHILD_PREPARATION_FEEDBACK_UNVERIFIED")
+    }
+    const task = assertFrozenAIAgentTaskBinding(proof).task
+    if (task.nodeId !== nodeId || task.workflowRef !== this.descriptor.workflowRef) throw new Error("AI_DATA_CHILD_PREPARATION_PROOF_MISMATCH")
+    const attemptKey = `${nodeId}#${node.generation}`
+    if (!checkpoint.profile.ai.invocationsByKey[attemptKey]) throw new Error("AI_DATA_CHILD_PREPARATION_ATTEMPT_MISSING")
+    const executionFailure = state.executionFailures?.find(failure => failure.nodeId === nodeId && failure.generation === node.generation)
+    return { proof, evidence: {
+      parentInstanceId: this.descriptor.instanceId, parentRunId: this.descriptor.runId, nodeId,
+      generation: node.generation, checkpointVersion: checkpoint.version,
+      observationRef: state.latestObservation!.observationId,
+      attemptRef: `${this.descriptor.runId}/${attemptKey}`, verificationRef: verifier.factId,
+      previousExecutionFingerprint: proof.semanticFingerprint,
+      verifier, result: node.result,
+      ...(executionFailure === undefined ? {} : { executionFailure }),
+    } }
+  }
+
+  async selectChildWorker(input: { invocationKey: string; payload: FlowClosedValue }): Promise<FlowClosedValue> {
+    const checkpoint = await this.autonomousControlCheckpoint()
+    if (!checkpoint) throw new Error("AI_DATA_CHILD_PREPARATION_PARENT_MISSING")
+    return (await this.invokeFrozenController({ ...input, state: readAIDataAutonomousControlState(checkpoint),
+      metadata: { childPreparationInvocation: input.invocationKey } })).value
+  }
+
+  private async invokeFrozenController(input: {
+    state: AIDataAutonomousControlState
+    invocationKey: string
+    payload: FlowClosedValue
+    metadata: Record<string, FlowClosedValue>
+  }): Promise<AIDataAutonomousControllerResult> {
     if (this.definition.binding.kind !== "AIDataWorkflow" || !this.definition.resourceReceipt) {
       throw new Error("AI_DATA_CONTROL_RESOURCE_WORKFLOW_REQUIRED: controller execution requires a frozen resource workflow")
     }
@@ -939,22 +1021,19 @@ export class AIDataWorkflowRuntimeDriver {
     const dispatch = selectAIDataAgentDispatch(checkpoint.profile.ai, {
       instanceName: binding.instanceName,
       agentDefinitionRef: binding.agentDefinitionRef,
-      payload: projectAIDataAutonomousControllerPayload(input) as unknown as FlowClosedValue,
+      payload: input.payload,
     })
     const effects = bindAIAgentProcessors({
       checkpointRuntime: this.depa.checkpointRuntime,
       checkpointKey: { instanceId: this.descriptor.instanceId, runId: this.descriptor.runId },
       nodeId,
-      invocationKey: `${nodeId}#control-${input.state.iteration}`,
+      invocationKey: input.invocationKey,
       generation: Number((checkpoint.profile.runGraph as any).currentGeneration),
       workflowKind: "AIDataWorkflow",
       workflowRef: this.descriptor.workflowRef as `resource://${string}`,
       taskBinding: task,
       effects: this.agentEffects,
-      metadata: {
-        controlIteration: input.state.iteration,
-        observationId: input.observation.observationId,
-      },
+      metadata: input.metadata,
     })
     try {
       const result = dispatch.mode === "new"

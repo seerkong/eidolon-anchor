@@ -2,6 +2,7 @@ import { createRecoveryHooks, createSnapshotCodec } from "depa-actor";
 
 import { createActor, type AiAgentActor, type CreateActorParams } from "../actor";
 import { cloneAndFreezeAgentExecutionContract } from "../AgentExecutionContract";
+import { cloneAndFreezeAgentContextPipelineBinding } from "../AgentContextPipeline";
 import {
   normalizeActorRuntimeFacetIndex,
   normalizeActorRuntimeFacetIndexForRegistry,
@@ -63,7 +64,7 @@ const ACTOR_SNAPSHOT_CODEC = createSnapshotCodec<AiAgentActor, RuntimeSnapshotAc
         ? cloneAndFreezeAgentExecutionContract(actor.executionContract)
         : undefined,
       contextPipeline: actor.contextPipeline
-        ? { ...actor.contextPipeline, stages: [...actor.contextPipeline.stages] }
+        ? cloneAndFreezeAgentContextPipelineBinding(actor.contextPipeline)
         : undefined,
       origin: actor.origin ? { ...actor.origin } : undefined,
       modelConfig: { ...actor.modelConfig },
@@ -146,7 +147,7 @@ function hydrateActorFromSnapshot(
       ? cloneAndFreezeAgentExecutionContract(snapshot.executionContract)
       : undefined,
     contextPipeline: snapshot.contextPipeline
-      ? { ...snapshot.contextPipeline, stages: [...snapshot.contextPipeline.stages] }
+      ? cloneAndFreezeAgentContextPipelineBinding(snapshot.contextPipeline)
       : undefined,
     origin: snapshot.origin ? { ...snapshot.origin } : undefined,
     modelConfig: { ...snapshot.modelConfig },

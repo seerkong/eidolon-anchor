@@ -17,6 +17,7 @@ import {
 } from "ai-workflow-logic/filesystem"
 import {
   digestCanonical,
+  type AuthoredResourceTree,
   type KindReaderRegistration,
   type PortableSpec,
 } from "halfcode-compiler.xnl/resource-core"
@@ -66,14 +67,14 @@ const EIDOLON_RESOURCE_READERS: readonly KindReaderRegistration<any>[] = Object.
 ])
 
 /** Complete exact contract capsule for every resource Kind executable by Eidolon. */
-export function createEidolonResourceResolutionContext(): AIWorkflowResourceResolutionContext {
-  const base = createAIWorkflowResourceResolutionContext()
+export function createEidolonResourceResolutionContext(tree?: AuthoredResourceTree): AIWorkflowResourceResolutionContext {
+  const base = createAIWorkflowResourceResolutionContext(undefined, tree)
   for (const owner of EIDOLON_RESOURCE_OWNERS) base.contracts.registerOwner(owner)
   for (const revision of EIDOLON_RESOURCE_REVISIONS) base.contracts.registerRevision(revision)
   for (const reader of EIDOLON_RESOURCE_READERS) base.readers.register(reader)
   const readerProfile = createReaderProfile(
     EIDOLON_RESOURCE_READER_PROFILE_ID,
-    base.readers.all().map((reader) => ({
+    [...base.readerProfile.readers.values(), ...EIDOLON_RESOURCE_READERS].map((reader) => ({
       readerId: reader.readerId,
       subjectFqn: reader.subjectFqn,
       readerSpecVersion: reader.readerSpecVersion,

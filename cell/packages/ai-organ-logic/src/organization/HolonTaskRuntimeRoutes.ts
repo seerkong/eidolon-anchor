@@ -11,9 +11,11 @@ import {
   type HolonTaskRuntimeSettlementPort,
   type HolonTaskRuntimeTaskReceipt,
   type HolonTaskRuntimeTaskSpacePort,
+  type HolonTaskIdentitySelector,
+  type HolonTaskInspectionPort,
 } from "@cell/ai-organ-contract"
 import type { ClosedValue } from "holarchy-eidolon-adapter"
-import type { TaskProfileEnvelope, TaskRecord, TaskSettlementReceipt, TaskSpaceOwnerPort } from "task-manager-contract"
+import type { TaskClaimToken, TaskProfileEnvelope, TaskRecord, TaskSettlementReceipt, TaskSpaceOwnerPort } from "task-manager-contract"
 import type { HolonTaskSubmissionWriter } from "@cell/ai-organ-contract/organization/HolonTaskRuntimeStorage"
 import { createTaskSpace, TaskManagerError } from "task-manager-logic"
 
@@ -26,6 +28,8 @@ import type {
 import { createHolonTaskExecutionProfile, normalizeHolonTaskExecutionProfile } from "./HolonTaskExecutionProfile"
 import { HolonTaskSpaceCoordinatorActor } from "./HolonTaskSpaceCoordinatorActor"
 import type { HolonTaskProcessorRuntime } from "./HolonTaskRuntimeProcessor"
+import { observeHolonTask, repairHolonTask, recoverHolonTaskRepairSubscriptions, type HolonTaskInspectionRuntime } from "./HolonTaskInspection"
+import { resolveHolonTaskRuntimeAdmission } from "./HolonTaskRuntimeService"
 
 export interface LocalHolonTaskRuntimeOpenInput {
   readonly admission: FrozenHolonTaskRuntimeAdmission
@@ -44,6 +48,7 @@ export interface LocalHolonTaskRuntimeOpenResult {
 }
 
 export interface LocalHolonTaskRuntimeBinding {
+  readonly currentAssignment?: boolean
   readonly admission: FrozenHolonTaskRuntimeAdmission
   readonly processorConfig: HolonTaskRuntimeProcessorConfig
   readonly deploymentId: string
@@ -55,6 +60,11 @@ export interface LocalHolonTaskRuntimeBinding {
   readonly openTask?: (
     input: LocalHolonTaskRuntimeOpenInput,
   ) => Promise<LocalHolonTaskRuntimeOpenResult>
+  /** Read-only owner mapping for this exact task; must never ensure/create a runtime. */
+  readonly resolveMemberIdentity?: (
+    subscription: HolonTaskPumpSubscription,
+    claim: TaskClaimToken,
+  ) => Promise<Readonly<{ memberRef: string; sessionRef?: string }> | undefined>
   prepareProcessorRuntime(
     subscription: HolonTaskPumpSubscription,
   ): Promise<HolonTaskProcessorRuntime>
@@ -147,6 +157,7 @@ export type HolonTaskRuntimeCoordinatorPort = Pick<
 
 /** Live correlations are reconstructible; TaskSpace remains the task authority. */
 export interface HolonTaskRuntimeRouteState {
+  readonly wakeErrors: Map<string, Readonly<{ message: string; observedAt: string }>>
   readonly contexts: Map<string, Map<string, LocalHolonTaskRuntimeBinding>>
   readonly routes: Map<string, HolonTaskRuntimeCapabilityRoute>
   readonly tasks: Map<string, HolonTaskRuntimeRouteTaskContext>
@@ -167,6 +178,7 @@ export function createHolonTaskRuntimeRouteState(
   coordinators: Map<string, HolonTaskRuntimeCoordinatorPort> = new Map(),
 ): HolonTaskRuntimeRouteState {
   return Object.freeze({
+    wakeErrors: new Map(),
     contexts: new Map(),
     routes: new Map(),
     tasks: new Map(),
@@ -185,9 +197,15 @@ export function bindHolonTaskRuntimeRoute(runtime: HolonTaskRuntimeRoutesRuntime
     || JSON.stringify(existing.processorConfig) !== JSON.stringify(binding.processorConfig))) {
     throw new Error("EIDOLON_HOLON_TASK_SUPPORT_CONTEXT_CONFLICT")
   }
-  const deploymentIds = new Set([...byContext.values()].map((candidate) => candidate.deploymentId))
-  if (deploymentIds.size > 0 && !deploymentIds.has(binding.deploymentId)) {
-    throw new Error("EIDOLON_HOLON_TASK_SUPPORT_DEPLOYMENT_CONFLICT")
+  const otherCurrentContexts = [...byContext.values()].filter(context =>
+    context.deploymentId !== binding.deploymentId && context.currentAssignment !== false)
+  if (binding.currentAssignment !== false && otherCurrentContexts.length > 0) {
+    if (binding.currentAssignment !== true || [...byContext.values()].some(context => context.currentAssignment === undefined)) {
+      throw new Error("EIDOLON_HOLON_TASK_SUPPORT_DEPLOYMENT_CONFLICT")
+    }
+    for (const [key, context] of byContext) {
+      if (context.currentAssignment) byContext.set(key, Object.freeze({ ...context, currentAssignment: false }))
+    }
   }
   byContext.set(binding.contextRef, binding)
   runtime.contexts.set(binding.admission.admissionId, byContext)
@@ -207,6 +225,7 @@ export async function recoverHolonTaskRuntimePending(runtime: HolonTaskRuntimeRo
   readonly scheduled: number
   readonly terminal: number
 }>> {
+  await recoverHolonTaskRepairSubscriptions(inspectionRuntime(runtime))
   let recovered = 0
   let scheduled = 0
   let terminal = 0
@@ -229,17 +248,27 @@ export async function recoverHolonTaskRuntimePending(runtime: HolonTaskRuntimeRo
 }
 
 export async function wakeHolonTaskRuntimeSubscription(runtime: HolonTaskRuntimeRoutesRuntime, subscription: HolonTaskPumpSubscription) {
-  const context = contextForSubscription(runtime, subscription)
-  const coordinator = ensureCoordinator(runtime, subscription.deploymentId, subscription.holonRef)
-  const config = subscription.admissionId.startsWith("legacy-workflow:")
-    ? context.processorConfig
-    : subscription.processorConfig
-  return coordinator.wake(await context.prepareProcessorRuntime(subscription), {
-    subscription,
-    leaseDurationMs: config.leaseDurationMs,
-    maxSteps: config.maxSteps,
-    observedAt: new Date(runtime.now()).toISOString(),
-  })
+  try {
+    const context = contextForSubscription(runtime, subscription)
+    const coordinator = ensureCoordinator(runtime, subscription.deploymentId, subscription.holonRef)
+    const config = subscription.admissionId.startsWith("legacy-workflow:")
+      ? context.processorConfig
+      : subscription.processorConfig
+    const result = await coordinator.wake(await context.prepareProcessorRuntime(subscription), {
+      subscription,
+      leaseDurationMs: config.leaseDurationMs,
+      maxSteps: config.maxSteps,
+      observedAt: new Date(runtime.now()).toISOString(),
+    })
+    runtime.wakeErrors.delete(taskKey(subscription.taskSpaceId, subscription.taskId))
+    return result
+  } catch (error) {
+    runtime.wakeErrors.set(taskKey(subscription.taskSpaceId, subscription.taskId), Object.freeze({
+      message: error instanceof Error ? error.message : String(error),
+      observedAt: new Date(runtime.now()).toISOString(),
+    }))
+    throw error
+  }
 }
 
 export function scheduleHolonTaskRuntimeSubscription(
@@ -273,17 +302,28 @@ export function closeHolonTaskRuntimeRoutes(runtime: HolonTaskRuntimeRoutesRunti
   coordinators.clear()
   runtime.tasks.clear()
   runtime.wakeReceipts.clear()
+  runtime.wakeErrors.clear()
 }
 
 function createRoute(runtime: HolonTaskRuntimeRoutesRuntime, admission: FrozenHolonTaskRuntimeAdmission): HolonTaskRuntimeCapabilityRoute {
   const routeRef = `resource://eidolon.local-holon-task-route/${admission.definitionDigest.slice("sha256:".length)}` as const
   return Object.freeze({
     routeRef,
+    inspection: {
+      observe: async (selector: HolonTaskIdentitySelector) => {
+        if (selector?.admissionId !== admission.admissionId) throw new Error("EIDOLON_HOLON_TASK_ADMISSION_MISMATCH")
+        return observeHolonTask(inspectionRuntime(runtime), selector)
+      },
+      repair: async (input: Parameters<HolonTaskInspectionPort["repair"]>[0]) => {
+        if (input.selector?.admissionId !== admission.admissionId) throw new Error("EIDOLON_HOLON_TASK_ADMISSION_MISMATCH")
+        return repairHolonTask(inspectionRuntime(runtime), input)
+      },
+    },
     deployment: {
       ensure: async ({ admission: actual }: Parameters<HolonTaskRuntimeDeploymentPort["ensure"]>[0]) => {
         exactAdmission(admission, actual)
         const deploymentIds = new Set(
-          [...requiredContexts(runtime, admission.admissionId).values()].map(({ deploymentId }) => deploymentId),
+          [...requiredContexts(runtime, admission.admissionId).values()].filter(context => context.currentAssignment !== false).map(({ deploymentId }) => deploymentId),
         )
         if (deploymentIds.size !== 1) throw new Error("EIDOLON_HOLON_TASK_SUPPORT_DEPLOYMENT_AMBIGUOUS")
         return Object.freeze({ deploymentId: [...deploymentIds][0]! })
@@ -403,22 +443,7 @@ async function openCanonicalTask(
   runtime: HolonTaskRuntimeRoutesRuntime,
   input: LocalHolonTaskRuntimeOpenInput,
 ): Promise<LocalHolonTaskRuntimeOpenResult> {
-  const snapshotReceipt = Object.freeze({
-    kind: "holon-task-snapshot-receipt" as const,
-    schemaVersion: HOLON_TASK_SNAPSHOT_RECEIPT_SCHEMA_VERSION,
-    taskSpaceId: input.taskSpaceId,
-    holonRef: input.admission.snapshotAuthority.holonRef,
-    effectiveAt: input.admission.snapshotAuthority.effectiveAt,
-    holonSnapshotRef: input.admission.snapshotAuthority.holonSnapshotRef,
-    holonSnapshotDigest: input.admission.snapshotAuthority.holonSnapshotDigest,
-    snapshotArtifactDigest: input.admission.snapshotAuthority.snapshotArtifactDigest,
-    issuerReceiptId: input.snapshotReceiptId,
-    issuerReceiptArtifactDigest: input.snapshotReceiptId,
-    executionBindingRef: input.admission.snapshotAuthority.executionBindingRef,
-    executionBindingDigest: input.admission.snapshotAuthority.executionBindingDigest,
-    eligibleMemberRefs: input.admission.snapshotAuthority.eligibleMemberRefs,
-    eligibleRoleRefs: input.admission.snapshotAuthority.eligibleRoleRefs,
-  })
+  const snapshotReceipt = canonicalSnapshotReceipt(input.admission, input.taskSpaceId, input.snapshotReceiptId)
   const existing = await runtime.taskManager.owner.readSnapshot(input.taskSpaceId)
   if (existing) {
     const task = existing.tasks.find((candidate) => candidate.taskId === input.taskId)
@@ -484,6 +509,62 @@ async function openCanonicalTask(
   }
 }
 
+function canonicalSnapshotReceipt(admission: FrozenHolonTaskRuntimeAdmission, taskSpaceId: string, receiptId: `sha256:${string}`) {
+  return Object.freeze({
+    kind: "holon-task-snapshot-receipt" as const,
+    schemaVersion: HOLON_TASK_SNAPSHOT_RECEIPT_SCHEMA_VERSION,
+    taskSpaceId,
+    holonRef: admission.snapshotAuthority.holonRef,
+    effectiveAt: admission.snapshotAuthority.effectiveAt,
+    holonSnapshotRef: admission.snapshotAuthority.holonSnapshotRef,
+    holonSnapshotDigest: admission.snapshotAuthority.holonSnapshotDigest,
+    snapshotArtifactDigest: admission.snapshotAuthority.snapshotArtifactDigest,
+    issuerReceiptId: receiptId,
+    issuerReceiptArtifactDigest: receiptId,
+    executionBindingRef: admission.snapshotAuthority.executionBindingRef,
+    executionBindingDigest: admission.snapshotAuthority.executionBindingDigest,
+    eligibleMemberRefs: admission.snapshotAuthority.eligibleMemberRefs,
+    eligibleRoleRefs: admission.snapshotAuthority.eligibleRoleRefs,
+  })
+}
+
+function inspectionRuntime(runtime: HolonTaskRuntimeRoutesRuntime): HolonTaskInspectionRuntime {
+  return {
+    owner: runtime.taskManager.owner, journal: runtime.journal, now: runtime.now, wakeErrors: runtime.wakeErrors,
+    resolveTarget: (selector) => resolveHolonTaskRuntimeAdmission({ revision: 0,
+      admissions: [...runtime.contexts.values()].flatMap((contexts) => {
+        const current = [...contexts.values()].find(context => context.currentAssignment !== false)
+        return current ? [current.admission] : []
+      }),
+    }, selector),
+    resolveMemberIdentity: (subscription, claim) => contextForSubscription(runtime, subscription).resolveMemberIdentity?.(subscription, claim) ?? Promise.resolve(undefined),
+    prepareSuccessor: (admission, source) => {
+      const contexts = [...requiredContexts(runtime, admission.admissionId).values()].filter((binding) => binding.currentAssignment !== false && (
+        source.recoveryScope.kind === "standalone" ? binding.recoveryScope.kind === "standalone"
+          : sameScope(source.recoveryScope, binding.recoveryScope)
+      ))
+      if (contexts.length !== 1) throw new Error("EIDOLON_HOLON_TASK_REPAIR_TARGET_CONTEXT_AMBIGUOUS")
+      const context = contexts[0]!
+      exactAdmission(context.admission, admission)
+      return {
+        snapshotReceipt: canonicalSnapshotReceipt(admission, source.taskSpaceId, context.snapshotReceiptId),
+        subscription: {
+          admissionId: admission.admissionId, deploymentId: context.deploymentId,
+          bindingRef: admission.definition.executionBinding.ref, holonRef: admission.definition.rootHolonRef,
+          snapshotReceiptId: context.snapshotReceiptId, taskSpaceId: source.taskSpaceId, taskId: source.taskId,
+          origin: source.origin, recoveryScope: context.recoveryScope, processorConfig: context.processorConfig,
+          input: source.input, createdAt: source.createdAt,
+        },
+      }
+    },
+    wake: async (subscription) => {
+      // Mailbox ownership remains in the existing coordinator; repairs never dispatch the worker directly.
+      const result = await wakeHolonTaskRuntimeSubscription(runtime, subscription)
+      if (result.status === "waiting" || result.status === "yielded") scheduleHolonTaskRuntimeSubscription(runtime, subscription)
+    },
+  }
+}
+
 function requiredContexts(runtime: HolonTaskRuntimeRoutesRuntime, admissionId: string): Map<string, LocalHolonTaskRuntimeBinding> {
   const contexts = runtime.contexts.get(admissionId)
   if (!contexts || contexts.size === 0) throw new Error("EIDOLON_HOLON_TASK_SUPPORT_CONTEXT_MISSING")
@@ -507,7 +588,7 @@ function contextForInvocation(
     return matches[0]!
   }
   const matches = [...contexts.values()].filter(
-    (context) => context.recoveryScope.kind === "standalone",
+    (context) => context.recoveryScope.kind === "standalone" && context.currentAssignment !== false,
   )
   if (matches.length !== 1) throw new Error("EIDOLON_HOLON_TASK_SUPPORT_STANDALONE_CONTEXT_AMBIGUOUS")
   return matches[0]!

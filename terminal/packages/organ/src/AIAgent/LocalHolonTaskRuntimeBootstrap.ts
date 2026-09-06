@@ -8,6 +8,9 @@ import {
 } from "@cell/ai-organ-logic/organization/HolonTaskRuntimeCapability"
 import {
   materializeHolonDeploymentDefinition,
+  loadHolonDeploymentDefinition,
+  captureHolonDeploymentResources,
+  type CapturedHolonDeploymentResources,
   type MaterializedHolonDeploymentDefinition,
 } from "@cell/ai-organ-logic/organization/HolonDeploymentDefinition"
 import { FileHolonDeploymentRuntimeStore } from "@cell/ai-organ-logic/organization/HolonDeploymentRuntimeStore"
@@ -17,6 +20,7 @@ import {
   type HolonGenericActorOwnerPort,
 } from "@cell/ai-organ-logic/organization/HolonLocalActorRuntime"
 import { createHolonTaskProcessorRuntime } from "@cell/ai-organ-logic/organization/HolonWorkflowTaskRuntime"
+import { resolveHolonTaskMemberIdentity } from "@cell/ai-organ-logic/organization/HolonTaskMemberIdentity"
 import {
   EidolonAppResourceRegistryAdapter,
   type EidolonHolonTaskRuntimeDefinitionProjection,
@@ -28,6 +32,7 @@ import {
   type LocalHolonTaskRuntimeSupportOptions,
 } from "@cell/ai-organ-logic/organization/HolonTaskRuntimeComposition"
 import { createLocalHolonTaskRuntimeStorage } from "@cell/ai-support/organization/LocalHolonTaskRuntimeSupport"
+import type { HolonTaskPumpSubscription } from "@cell/ai-organ-contract/organization/HolonTaskPumpJournal"
 
 export interface LocalHolonTaskActorRuntimeFactoryInput {
   readonly admission: EidolonHolonTaskRuntimeDefinitionProjection
@@ -79,11 +84,13 @@ const STANDALONE_HOST_FACET = "eidolon.local-holon-task-runtime-host/v1"
 
 function standaloneDeploymentId(
   projection: EidolonHolonTaskRuntimeDefinitionProjection,
+  captured: CapturedHolonDeploymentResources,
 ): string {
   return `standalone-holon-${createHash("sha256").update(JSON.stringify({
     bindingRef: projection.bindingProjection.binding.bindingRef,
     snapshotReceiptDigest: projection.bindingProjection.receiptBytesDigest,
     bindingSemanticFingerprint: projection.bindingFreezeReceipt.semanticFingerprint,
+    captured,
   })).digest("hex").slice(0, 40)}`
 }
 
@@ -129,65 +136,74 @@ export async function openLocalHolonTaskRuntime(
     maxSteps: input.processorConfig?.maxSteps ?? 1_024,
   })
   const admissionIds: string[] = []
+  const mountedContexts = new Set<string>()
+  async function mountDeployment(projection: EidolonHolonTaskRuntimeDefinitionProjection,
+    deployment: MaterializedHolonDeploymentDefinition, currentAssignment: boolean,
+    subscription?: HolonTaskPumpSubscription): Promise<void> {
+    const deploymentId = deployment.definition.deploymentId
+    const processorConfig = subscription?.processorConfig ?? config
+    const recoveryScope = subscription?.recoveryScope ?? Object.freeze({ kind: "standalone" as const, scopeRef: projection.admission.admissionId })
+    if (subscription && (subscription.bindingRef !== deployment.definition.bindingRef
+      || subscription.holonRef !== deployment.definition.rootHolonRef
+      || subscription.snapshotReceiptId !== deployment.definition.snapshotReceiptDigest)) {
+      throw new Error("EIDOLON_HOLON_TASK_HISTORICAL_DEPLOYMENT_MISMATCH")
+    }
+    const contextRef = createHash("sha256").update(JSON.stringify([projection.admission.admissionId, deploymentId, processorConfig, recoveryScope])).digest("hex")
+    if (mountedContexts.has(contextRef)) return
+    const store = new FileHolonDeploymentRuntimeStore({ supportRoot })
+    await store.open(deploymentId)
+    let actorRuntime = facet.actorRuntimes.get(deploymentId)
+    if (!actorRuntime) {
+      const factoryInput = Object.freeze({ admission: projection, deployment, store })
+      actorRuntime = new EidolonHolonLocalActorRuntime(store, await input.createGenericActorOwner(factoryInput),
+        await input.createExecutionAdapters(factoryInput), `standalone-${deploymentId}`)
+      await actorRuntime.recover(deploymentId)
+      facet.actorRuntimes.set(deploymentId, actorRuntime)
+    }
+    const route = support.bind({
+      admission: projection.admission, processorConfig, deploymentId, contextRef, recoveryScope, currentAssignment,
+      snapshotReceiptId: deployment.definition.snapshotReceiptDigest,
+      resolveMemberIdentity: (sub, claim) => resolveHolonTaskMemberIdentity({ store }, { subscription: sub, claim }),
+      prepareProcessorRuntime: () => createHolonTaskProcessorRuntime({ store: actorRuntime!.store,
+        taskManager: support.taskManager, actorRuntime: actorRuntime!, journal: support.journal }, { deploymentId }),
+    })
+    registerHolonTaskRuntimeCapabilityBinding(input.vm, scope, {
+      admission: projection.admission, route, processorConfig, currentAssignment,
+    })
+    mountedContexts.add(contextRef)
+  }
+  const capturedResources = snapshot.holonTaskRuntimeDefinitions.length > 0
+    ? await captureHolonDeploymentResources(input.resourceRegistry) : undefined
   for (const projection of snapshot.holonTaskRuntimeDefinitions) {
     const prior = facet.definitionAdmissions.get(projection.resource.resourceId)
     if (prior && (prior.admissionId !== projection.admission.admissionId
       || prior.definitionDigest !== projection.admission.definitionDigest)) {
       throw new Error("EIDOLON_HOLON_TASK_STANDALONE_DEFINITION_CONFLICT")
     }
-    const deploymentId = prior?.deploymentId ?? standaloneDeploymentId(projection)
+    const deploymentId = standaloneDeploymentId(projection, capturedResources!)
     const deployment = await materializeHolonDeploymentDefinition({
       supportRoot,
       resourceRegistry: input.resourceRegistry,
+      capturedResources,
     }, {
       deploymentId,
       bindingRef: projection.bindingProjection.binding.bindingRef,
     }, {})
-    const store = new FileHolonDeploymentRuntimeStore({ supportRoot })
-    await store.open(deploymentId)
-    let actorRuntime = facet.actorRuntimes.get(deploymentId)
-    if (!actorRuntime) {
-      const factoryInput = Object.freeze({ admission: projection, deployment, store })
-      actorRuntime = new EidolonHolonLocalActorRuntime(
-        store,
-        await input.createGenericActorOwner(factoryInput),
-        await input.createExecutionAdapters(factoryInput),
-        `standalone-${deploymentId}`,
-      )
-      await actorRuntime.recover(deploymentId)
-      facet.actorRuntimes.set(deploymentId, actorRuntime)
-    }
-    const route = support.bind({
-      admission: projection.admission,
-      processorConfig: config,
-      deploymentId,
-      contextRef: projection.admission.admissionId,
-      recoveryScope: Object.freeze({
-        kind: "standalone" as const,
-        scopeRef: projection.admission.admissionId,
-      }),
-      snapshotReceiptId: deployment.definition.snapshotReceiptDigest,
-      prepareProcessorRuntime: () => createHolonTaskProcessorRuntime({
-        store: actorRuntime!.store,
-        taskManager: support.taskManager,
-        actorRuntime: actorRuntime!,
-        journal: support.journal,
-      }, { deploymentId }),
-    })
-    const registered = registerHolonTaskRuntimeCapabilityBinding(input.vm, scope, {
-      admission: projection.admission,
-      route,
-      processorConfig: config,
-    })
-    if (registered.serviceRuntimeRef !== capability.serviceRuntimeRef) {
-      throw new Error("EIDOLON_HOLON_TASK_STANDALONE_SERVICE_OWNER_MISMATCH")
-    }
+    await mountDeployment(projection, deployment, true)
     facet.definitionAdmissions.set(projection.resource.resourceId, Object.freeze({
       admissionId: projection.admission.admissionId,
       definitionDigest: projection.admission.definitionDigest,
       deploymentId,
     }))
     admissionIds.push(projection.admission.admissionId)
+  }
+  for (const subscription of await support.listSubscriptions()) {
+    if (subscription.recoveryScope.kind !== "standalone") continue
+    const deployment = await loadHolonDeploymentDefinition({ supportRoot }, { deploymentId: subscription.deploymentId }, {})
+    const historical = (await deployment.resourceRegistry.snapshot()).holonTaskRuntimeDefinitions.find(
+      projection => projection.admission.admissionId === subscription.admissionId)
+    if (!historical) throw new Error("EIDOLON_HOLON_TASK_HISTORICAL_ADMISSION_MISSING")
+    await mountDeployment(historical, deployment, false, subscription)
   }
   const recovery = await support.recoverPending()
   return Object.freeze({

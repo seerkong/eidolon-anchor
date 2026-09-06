@@ -1,0 +1,40 @@
+<Track #implement-feedback-driven-agent-context-resource-revision apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "从运行反馈修订 Halfcode Agent/Context 配方并冻结可恢复的执行闭包" description = "保留动态创建选择，扩展 owner-backed 修订与资源化 ContextPipeline；不丢失成熟上下文语义" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-05T18:21:57.323Z" updated_at = "2026-09-05T21:48:43.537Z" modeling_base_commit = "8df4a6f61a6b77226189b7eb4e577ade6f39e202" engineering_base_commit = "8df4a6f61a6b77226189b7eb4e577ade6f39e202" gap_round = 2 } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_implement-feedback-driven-agent-context-resource-revision { name = "implement-feedback-driven-agent-context-resource-revision" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "资源修订和执行闭包" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "补齐上下文映射及可执行设计" status = "DONE" order = 0 } (
+            <Description ?01M1SCYGGXMMQW16BWSSD869C0>
+            逐项核对 MessagePrefix、workspace AGENTS、history split/anchor、overlay/handoff、compaction/tool pairing、provider conversion 到资源代码闭包的映射；确定 Halfcode 原生 update 与执行资源冻结 API，缺失协议标 owner。
+            </?01M1SCYGGXMMQW16BWSSD869C0>
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1SCYGGXMMQW16BWSSD869C1>
+              design 给出全部历史代码位置、目标路径和原生协议边界，无隐式重写成熟算法。
+              </?01M1SCYGGXMMQW16BWSSD869C1>
+            ]>
+          )>
+          <Task #P1-T2 { name = "TDD 实现反馈修订与冻结恢复" status = "DONE" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M1SCYGGXMMQW16BWSSD869C2>
+              真实 Halfcode plan/apply/fence/reconcile 发布 Agent/Context 修订；资源代码执行且旧 frozen run 保持旧代码；create/selection 回归通过。
+              </?01M1SCYGGXMMQW16BWSSD869C2>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P1-G1 { checked = true } ?01M1SCYGGYWDGVSJ0AR4XH4QPZ>
+          资源修订、CAS、执行闭包和上下文行为等价验收通过。
+          </?01M1SCYGGYWDGVSJ0AR4XH4QPZ>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" verify_round = true }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

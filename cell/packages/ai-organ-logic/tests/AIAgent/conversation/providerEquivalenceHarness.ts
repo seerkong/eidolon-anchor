@@ -468,7 +468,9 @@ type HarnessRuntime = {
   nextSemanticEvent: (eventType: SemanticEvent["event_type"], extra?: Record<string, unknown>) => SemanticEvent
 }
 
-function createHarnessRuntime(scenario: ProviderEquivalenceScenario): HarnessRuntime {
+type HarnessContextExecution = Pick<AiAgentActor, "contextPipeline" | "contextPipelineExecution" | "durableMaterials">
+
+function createHarnessRuntime(scenario: ProviderEquivalenceScenario, contextExecution?: HarnessContextExecution): HarnessRuntime {
   const llmAdapter = {
     type: "openai" as const,
     async createStream(): Promise<never> {
@@ -476,6 +478,7 @@ function createHarnessRuntime(scenario: ProviderEquivalenceScenario): HarnessRun
     },
   }
   const actor = createActor({
+    ...contextExecution,
     key: "main",
     llmClient: llmAdapter,
     systemPrompts: [scenario.systemPrompt],
@@ -717,8 +720,9 @@ function captureTurnBoundary(runtime: HarnessRuntime, boundaryIndex: number, lab
  */
 export async function runScriptedAssemblyScenario(
   scenario: ProviderEquivalenceScenario,
+  contextExecution?: HarnessContextExecution,
 ): Promise<ScriptedAssemblyRun> {
-  const runtime = createHarnessRuntime(scenario)
+  const runtime = createHarnessRuntime(scenario, contextExecution)
   const snapshots: TurnBoundarySnapshot[] = []
   let turn = 0
 

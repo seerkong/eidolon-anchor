@@ -27,6 +27,7 @@ import {
   type VmRecoveryReport,
 } from "@cell/ai-core-logic"
 import { hasPendingAiAgentWakeMailbox } from "@cell/ai-core-logic/runtime/actor"
+import { restoreAgentContextPipelineExecution } from "../resources/EidolonAppResourceRegistryAdapter"
 import type { AiRuntimeOuterCtx } from "@cell/ai-core-contract/runtime/AiRuntimeOuterCtx"
 import type { McpManagerLike } from "@cell/ai-core-contract/runtime/McpManagerLike"
 import type {
@@ -1728,6 +1729,9 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
         messages: [],
         actorFacetRuntime,
       })
+      // Code is a process-local dependency rebuilt from the exact durable bundle
+      // before registration or any synchronous provider prompt construction.
+      actor.contextPipelineExecution = await restoreAgentContextPipelineExecution(actor)
       // Facet v1 is an exact recovery input, not an admissible runtime value.
       // Run the one-way importer before any v2-only read or registration.
       migrateWorkflowLifecycleFacetV1(actor)

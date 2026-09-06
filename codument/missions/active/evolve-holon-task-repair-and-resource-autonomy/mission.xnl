@@ -1,0 +1,153 @@
+<Mission #evolve-holon-task-repair-and-resource-autonomy apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "让独立 Holon 任务可观察、可修复、可跨进程恢复，并以运行反馈修订 Halfcode Agent/Context 资源，在下一子图准备新 Worker 完成目标" description = "合并用户第3与第5项；复用 TaskSpace、通用 actor 和 AI Data 图控制环，将任务修复与资源能力演进连接为可验证闭环" question_mode = "decision-tree" question_severity = "auto" revision = 39 created_at = "2026-09-05T11:24:51.225Z" updated_at = "2026-09-05T23:47:49.776Z" } (
+  <Ports { scope = "mission" } [
+    <MaterialBundle { role = "state" name = "reports" domain = "mission" path = "vfs://./reports/" }>
+  ]>
+  <ProjectRefs [
+    <ProjectRef #host { kind = "host" }>
+    <ProjectRef #halfcode { kind = "external" }>
+    <ProjectRef #depa-flows { kind = "external" }>
+    <ProjectRef #holarchy { kind = "external" }>
+    <ProjectRef #task-manager { kind = "external" }>
+  ]>
+  <ActorSets { default = "default-control-loop" } [
+    <ActorSet #default-control-loop [
+      <Actor { role = "MissionPlanner" project_ref = "host" } (
+        <Description ?01M1SCJDN40QPGT4QCV79S9TR4>
+        依据真实停滞与能力缺口规划观察、修复、资源修订和子图 Worker admission 的真实 Tracks；优先增加任务完成能力。
+        </?01M1SCJDN40QPGT4QCV79S9TR4>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "host" } (
+        <Description ?01M1SCJDN40QPGT4QCV79S9TR5>
+        读取 TaskSpace、journal、actor/session、Halfcode 内容身份、图 checkpoint 与独立 OS 进程测试回执；不把 fresh VM 等同进程恢复。
+        </?01M1SCJDN40QPGT4QCV79S9TR5>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "host" } (
+        <Description ?01M1SCJDN40QPGT4QCV79S9TR6>
+        按目标完成、重复 effect、资源版本和成本比较实际态；区分普通修复与能力升级，记录证据后重规划；协调独立职责归位 Mission 的同文件交接。
+        </?01M1SCJDN40QPGT4QCV79S9TR6>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "host" } (
+        <Description ?01M1SCJDN40QPGT4QCV79S9TR7>
+        创建绑定并实现 ready Track，运行零付费故障注入和产品链验收，通过原 owner 的命令落实改变；每次操作验证后回写，保持 bun.lock 不入版本库。
+        </?01M1SCJDN40QPGT4QCV79S9TR7>
+      )>
+    ]>
+  ]>
+  <TaskSpace #space_evolve-holon-task-repair-and-resource-autonomy { name = "evolve-holon-task-repair-and-resource-autonomy" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #G1 { name = "现状校准与联合设计" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #G1-T1 { name = "校准任务停滞、author-create、ContextPipeline 与子图接缝" status = "DONE" order = 0 } (
+            <Description ?01M1SCJDN40QPGT4QCV79S9TR8>
+            以 design.md 的历史到目标映射校准当前源码、包版本、已有测试和外部 owner；确认用户锁文件禁令及本地未发布依赖支持。
+            </?01M1SCJDN40QPGT4QCV79S9TR8>
+          )>
+          <Task #G1-T2 { name = "形成 DEPA 指导与可观测验收矩阵" status = "DONE" order = 1 } (
+            <Description ?01M1SCJDN40QPGT4QCV79S9TR9>
+            输出任务 observation/repair、资源版本/执行闭包、父子 run lineage 的 owner/port 设计；明确跨进程断点和无需新 GoalGraph 的下一子图 admission；按证据决定是否需外部真实 Track。
+            </?01M1SCJDN40QPGT4QCV79S9TR9>
+          )>
+        ]>
+      )>
+      <TaskGroup #G2 { name = "独立任务诊断修复与进程恢复" status = "DONE" order = 1 } (
+        <SubNodes [
+          <Task #G2-T1 { name = "实现真正跨 OS 进程的 Holon 恢复验证" status = "DONE" order = 0 } (
+            <Description ?01M1SCJDN40QPGT4QCV79S9TRA>
+            进程 A/B 只经持久资源及外部 effect ledger 交接；覆盖 intent、accepted-before-result、settlement、pending/replay；禁止复用 JS Map 或 closure。
+            </?01M1SCJDN40QPGT4QCV79S9TRA>
+            <TrackLink #verify-holon-task-recovery-across-os-processes { state = "bound" project_ref = "host" }>
+          )>
+          <Task #G2-T2 { name = "实现 owner-backed 任务观察与修复入口" status = "DONE" order = 1 } (
+            <Description ?01M1SCJDN40QPGT4QCV79S9TRB>
+            显示 claim/member/session、停滞阶段、最后进展/错误、可执行下一动作；人和 AI 使用同一观察与 repair command，覆盖重试、改派或后继修复任务及因果链。
+            </?01M1SCJDN40QPGT4QCV79S9TRB>
+            <TrackLink #implement-holon-task-observation-and-repair { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G3P { name = "原生执行闭包与修订 admission 协议" status = "DONE" order = 2 } (
+        <SubNodes [
+          <Task #G3P-T1 { name = "扩展 Halfcode 原生代码执行闭包" status = "DONE" order = 0 } (
+            <Description ?G3P-D1>
+            由 Halfcode owner 提供资源模块和资产的递归捕获、校验、恢复及执行 binding；复用 CodeBinding，不在 Eidolon 自建编译器。先协调外部未提交的 loader、identity、assembly 和 compiler 改动；旧闭包在 live source 不可用时仍可执行，ambient identity 不匹配明确拒绝。
+            </?G3P-D1>
+            <TrackLink #add-native-code-binding-execution-closure { state = "bound" project_ref = "halfcode" }>
+          )>
+          <Task #G3P-T2 { name = "扩展原生 Agent 修订 admission" status = "DONE" order = 1 } (
+            <Description ?G3P-D2>
+            由 depa-flows owner 扩展既有 selection/reconcile，接纳携 feedback identity 的 native update，校验 before/after 和原生 receipt；Agent code Kind 引用前项真实 binding。保留 create/select，恢复 authentic frozen proof；不得在宿主复制 admission 协议。
+            </?G3P-D2>
+            <TrackLink #extend-agent-resource-revision-admission { state = "bound" project_ref = "depa-flows" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G3 { name = "Halfcode 管理的 Agent 与 Context 配方修订" status = "DONE" order = 3 } (
+        <SubNodes [
+          <Task #G3-T1 { name = "实现反馈驱动的版本化 Agent/Context 修订" status = "DONE" order = 0 } (
+            <Description ?01M1SCJDN40QPGT4QCV79S9TRC>
+            保留 create/selection，增加从失败证据生成修订、通过 Halfcode plan/apply 与 VFS publication/reconcile 发布；ContextPipeline 真正引用资源管理的可执行代码；保留成熟上下文组装与旧 frozen run。
+            </?01M1SCJDN40QPGT4QCV79S9TRC>
+            <TrackLink #implement-feedback-driven-agent-context-resource-revision { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G4 { name = "下一子图按缺口准备 Worker" status = "DONE" order = 4 } (
+        <SubNodes [
+          <Task #G4-T1 { name = "实现运行目标中的子图能力准备与结果回流" status = "DONE" order = 0 } (
+            <Description ?01M1SCJDN40QPGT4QCV79S9TRD>
+            父目标在 run 中发现能力缺口；下一子图/子 run 选择或创建/修订 Worker、冻结新资源身份、执行并回流结果；恢复 parent-child lineage，不修改当前 frozen closure。
+            </?01M1SCJDN40QPGT4QCV79S9TRD>
+            <TrackLink #implement-subgraph-worker-preparation-from-runtime-feedback { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G5 { name = "端到端控制论闭环" status = "DONE" order = 5 } (
+        <SubNodes [
+          <Task #G5-T1 { name = "验证停滞到修复及资源升级到成功的产品路径" status = "DONE" order = 0 } (
+            <Description ?01M1SCJDN40QPGT4QCV79S9TRE>
+            独立 Holon、Ctrl、Data 复用同一任务执行闭包；真实合成工作产物由 verifier 验收；记录停滞原因、修复/修订记录、恢复、重复 effect、provider usage 与缓存前缀。
+            </?01M1SCJDN40QPGT4QCV79S9TRE>
+            <TrackLink #verify-holon-repair-and-resource-evolution-product-loop { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G6 { name = "独立总目标验收与交付" status = "DONE" order = 6 } (
+        <SubNodes [
+          <Task #G6-T1 { name = "核验总目标并形成交付证据" status = "DONE" order = 0 } (
+            <Description ?01M1SCJDN40QPGT4QCV79S9TRF>
+            逐条验收 proposal 成功判据，区分新运行与历史证据；确认无第二 TaskSpace、无 GoalGraph、旧 run 可恢复、bun.lock 未跟踪；检查两个 Mission 重叠闭包并整理 docs/行为与后续安装计划，不自动发布或提交。
+            </?01M1SCJDN40QPGT4QCV79S9TRF>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_evolve-holon-task-repair-and-resource-autonomy" } [
+      <Node #G2 [
+        <After { ref = "G1" }>
+      ]>
+      <Node #G3P [
+        <After { ref = "G1" }>
+      ]>
+      <Node #G3 [
+        <After { ref = "G3P" }>
+      ]>
+      <Node #G4 [
+        <After { ref = "G2" }>
+        <After { ref = "G3" }>
+      ]>
+      <Node #G5 [
+        <After { ref = "G4" }>
+      ]>
+      <Node #G6 [
+        <After { ref = "G5" }>
+      ]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "mission:after-node" } (
+      <MissionReconcile { max_tracks = 10 on_limit = "checkpoint" on_drift = "replan-or-block" }>
+    )>
+  ]>
+)>

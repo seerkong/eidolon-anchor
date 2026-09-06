@@ -18,6 +18,7 @@
     "@cell/ai-composer": "workspace:*",
     "@cell/ai-core-contract": "workspace:*",
     "@cell/ai-organ-contract": "workspace:*",
+    "@cell/ai-support": "workspace:*",
     "@cell/symbiont-contract": "workspace:*",
     "@cell/symbiont-logic": "workspace:*",
     "ai-workflow-contract": "0.2.0",

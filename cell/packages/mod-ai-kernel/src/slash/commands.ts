@@ -128,6 +128,16 @@ export function createKernelSlashCommandDescriptors(): RuntimeSlashCommandDescri
     {
       namespace: "holon",
       actions: {
+        "task-observe": {
+          toolName: "HolonTaskObserve",
+          parse: { kind: "json", form: "task-observe" },
+          help: "`/holon task-observe <JSON {selector}>` Inspect persisted task state without invoking a model",
+        },
+        "task-repair": {
+          toolName: "HolonTaskRepair",
+          parse: { kind: "json", form: "task-repair" },
+          help: "`/holon task-repair <JSON {selector, invocation}>` Resume or create an explicit repair successor",
+        },
         status: {
           toolName: "HolonStatus",
           parse: { kind: "target", form: "status", argName: "target" },

@@ -16,6 +16,9 @@ import {
   type HolonTaskRuntimeTaskSpacePort,
   type HolonTaskDigest,
   type HolonTaskSelector,
+  type HolonTaskInspectionPort,
+  type HolonTaskIdentitySelector,
+  type HolonTaskRepairInvocation,
 } from "@cell/ai-organ-contract"
 
 import {
@@ -26,6 +29,7 @@ import {
 } from "./HolonTaskRuntimeContract"
 
 export interface HolonTaskRuntime {
+  readonly inspection?: HolonTaskInspectionPort
   readonly catalog: HolonTaskRuntimeCatalogPort
   readonly deployment: HolonTaskRuntimeDeploymentPort
   readonly taskSpace: HolonTaskRuntimeTaskSpacePort
@@ -265,6 +269,14 @@ export async function assignHolonTask(
 export function createHolonTaskRuntimeService(runtime: HolonTaskRuntime): HolonTaskRuntimeService {
   assertRuntime(runtime)
   return Object.freeze({
+    observe: (selector: HolonTaskIdentitySelector) => {
+      if (!runtime.inspection) return invalid("EIDOLON_HOLON_TASK_INSPECTION_UNBOUND", "Task inspection port is missing.")
+      return runtime.inspection.observe(selector)
+    },
+    repair: async (selector: HolonTaskIdentitySelector, invocation: HolonTaskRepairInvocation) => {
+      if (!runtime.inspection) return invalid("EIDOLON_HOLON_TASK_INSPECTION_UNBOUND", "Task inspection port is missing.")
+      return runtime.inspection.repair({ selector, invocation })
+    },
     assign: (
       selector: HolonTaskSelector,
       invocation: HolonTaskRuntimeInvocation,

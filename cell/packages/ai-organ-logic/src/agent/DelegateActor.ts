@@ -175,9 +175,10 @@ export async function spawnChildExecutionActor(
       : config.contextPolicy,
     executionContract,
     contextPipeline: config.contextPipeline,
+    contextPipelineExecution: config.contextPipelineExecution,
     origin: params.origin,
     runtimeFacets: params.runtimeFacets,
-    durableMaterials: params.durableMaterials,
+    durableMaterials: { ...config.durableMaterials, ...params.durableMaterials },
     callbacks: {
       buildToolset: params.buildToolset ?? parentActor.callbacks.buildToolset,
       processStream: parentActor.callbacks.processStream,

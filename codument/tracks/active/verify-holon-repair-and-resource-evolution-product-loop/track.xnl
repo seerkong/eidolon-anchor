@@ -1,0 +1,67 @@
+<Track #verify-holon-repair-and-resource-evolution-product-loop apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "以同一真实产物验证独立 Holon、Ctrl、Data 的修复与资源演进闭环" description = "先锁住真实执行闭包，再验证产物、恢复、前缀和用量证据，不以 fixture 成功代替产品成功" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-05T22:46:31.258Z" updated_at = "2026-09-05T23:38:14.298Z" modeling_base_commit = "8df4a6f61a6b77226189b7eb4e577ade6f39e202" engineering_base_commit = "8df4a6f61a6b77226189b7eb4e577ade6f39e202" gap_round = 2 } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_verify-holon-repair-and-resource-evolution-product-loop { name = "verify-holon-repair-and-resource-evolution-product-loop" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "任务执行闭包与产品验收" status = "DONE" order = 0 child_mode = "dag" } (
+        <SubNodes [
+          <Task #P1-T1 { name = "锁定共同执行闭包与 DEPA 接缝" status = "DONE" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1SW8N3R8BSMHW4GHJ691707>
+              设计明确原 owner、真实 RED、冻结配方与三入口共同身份，并通过方向审查。
+              </?01M1SW8N3R8BSMHW4GHJ691707>
+            ]>
+          )>
+          <Task #P1-T2 { name = "TDD 修复生产独立 Holon 的冻结执行与恢复" status = "DONE" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M1SW8N3R8BSMHW4GHJ691708>
+              实际生产适配使用原冻结 Agent/Context/input；physical/Effective VFS 与资源变更后旧任务恢复可验证，不创建隐藏 Workflow。
+              </?01M1SW8N3R8BSMHW4GHJ691708>
+            ]>
+          )>
+          <Task #P1-T3 { name = "实现三入口产物与反馈升级测试闭环" status = "DONE" order = 2 } (
+            <Acceptance [
+              <Criterion #P1-T3-AC1 { checked = true } ?01M1SW8N3R8BSMHW4GHJ691709>
+              同一问题经独立 Holon、Ctrl、Data 的真实执行链产生文件并通过独立 verifier；正式修复与 Data 反馈修订保留失败和 lineage。
+              </?01M1SW8N3R8BSMHW4GHJ691709>
+            ]>
+          )>
+          <Task #P1-T4 { name = "验证跨进程、前缀、用量并整理证据" status = "DONE" order = 3 } (
+            <Acceptance [
+              <Criterion #P1-T4-AC1 { checked = true } ?01M1SW8N3R8BSMHW4GHJ69170A>
+              实际产物 effect 跨 OS 恢复无重复接受；同配方前缀稳定、新配方变化可归因；usage 明确实测或合成，付费为零，回归通过。
+              </?01M1SW8N3R8BSMHW4GHJ69170A>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P1-G1 { checked = true } ?01M1SW8N3R8BSMHW4GHJ69170B>
+          原目标由产品产物证据达成，独立 GapLoop 与 DEPA 审查通过，未夸大远端缓存或崩溃覆盖。
+          </?01M1SW8N3R8BSMHW4GHJ69170B>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" verify_round = true }>
+          )>
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 2 spot_check = true } [
+    <Dag { for = "P1" } [
+      <Node #P1-T2 [
+        <After { ref = "P1-T1" }>
+      ]>
+      <Node #P1-T3 [
+        <After { ref = "P1-T1" }>
+      ]>
+      <Node #P1-T4 [
+        <After { ref = "P1-T2" }>
+        <After { ref = "P1-T3" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

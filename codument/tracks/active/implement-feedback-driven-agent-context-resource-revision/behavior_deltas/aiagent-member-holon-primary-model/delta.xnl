@@ -1,0 +1,14 @@
+<BehaviorPatch #track.implement-feedback-driven-agent-context-resource-revision.behavior_patch.aiagent-member-holon-primary-model apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-member-holon-primary-model" } (
+  <Mutations [<Upsert { selector = "behavior://aiagent-member-holon-primary-model/requirements/feedback-resource-revision" } (
+    <Requirement #feedback-resource-revision (
+      <Statement ?>系统 SHALL 根据运行反馈经 Halfcode authority 发布 Agent/Context 修订，旧 frozen run 保留实际执行闭包。</?>
+      <Suites [<Suite #revision { name = "修订与恢复" } (<Cases [
+        <Case #frozen-closure (
+          <Given ?>已有运行冻结旧 Agent/Context 资源和代码依赖，产生能力缺口反馈。</?>
+          <When ?>通过 Halfcode plan/apply、publication fence 与 reconcile 发布新配方并恢复旧运行。</?>
+          <Then ?>新运行执行新资源代码；旧运行执行旧闭包，成熟 prefix/history/overlay/handoff/compaction/conversion 语义保持，CAS 冲突不覆盖资源。</?>
+        )>
+      ]>)>]>
+    )>
+  )>]>
+)>

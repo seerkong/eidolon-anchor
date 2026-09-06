@@ -1,0 +1,4 @@
+export function loadMessages(runtime, input, config) {
+  const instructions = runtime.readWorkspaceInstructions();
+  return instructions ? [{ role: "system", content: instructions }] : [];
+}

@@ -40,7 +40,7 @@ import {
   type FrozenHolonTaskTarget,
   type HolonTaskTarget,
 } from "ai-workflow-contract"
-import { runAgent } from "ai-workflow-logic"
+import { runAgent, normalizeFlowClosedObject, normalizeAIAgentTaskRequirement } from "ai-workflow-logic"
 import { assertFrozenAIAgentTaskBinding } from "ai-workflow-logic/run-freeze"
 import {
   canonicalHolonEffectiveSnapshotBytes,
@@ -78,6 +78,10 @@ import {
   createWorkflowStepExtensionAuthoredFacade,
 } from "../effects/WorkflowStepExtensionAuthoredFacade"
 import { AIDataWorkflowRuntimeDriver } from "./AIDataWorkflowRuntimeDriver"
+import {
+  createAIDataChildAgentPreparationExtensionCodecRegistry,
+  readAIDataChildAgentPreparationDeclaration,
+} from "./AIDataChildAgentPreparation"
 import {
   normalizeAgentExecutionSchema,
   normalizeAgentExecutionValue,
@@ -123,6 +127,7 @@ import {
   type MaterializedHolonDeploymentDefinition,
 } from "../../organization/HolonDeploymentDefinition"
 import { FileHolonDeploymentRuntimeStore } from "../../organization/HolonDeploymentRuntimeStore"
+import { resolveHolonTaskMemberIdentity } from "../../organization/HolonTaskMemberIdentity"
 import {
   EidolonHolonLocalActorRuntime,
   type HolonExecutionAdapterPorts,
@@ -374,13 +379,13 @@ function stepExtensionCodecs(runtime: WorkflowRuntime): DefinitionStepExtensionC
   const aiWorkflow = nestedRecord(metadata(runtime).aiWorkflow)
   const candidate = aiWorkflow.extensionCodecs
   if (candidate && typeof candidate === "object" && typeof (candidate as { resolve?: unknown }).resolve === "function") {
-    return createAIDataAgentPreparationExtensionCodecRegistry(createAIDataAutonomousControlExtensionCodecRegistry(
+    return createAIDataChildAgentPreparationExtensionCodecRegistry(createAIDataAgentPreparationExtensionCodecRegistry(createAIDataAutonomousControlExtensionCodecRegistry(
       candidate as DefinitionStepExtensionCodecRegistryPort,
-    ))
+    )))
   }
-  return createAIDataAgentPreparationExtensionCodecRegistry(
+  return createAIDataChildAgentPreparationExtensionCodecRegistry(createAIDataAgentPreparationExtensionCodecRegistry(
     createAIDataAutonomousControlExtensionCodecRegistry(),
-  )
+  ))
 }
 
 function runRef(
@@ -743,7 +748,9 @@ export class WorkflowRuntimeService {
   private async captureInstanceDefinition(workflowRef: string): Promise<WorkflowDefinitionRevision> {
     const frozen = await this.repository.capture(workflowRef)
     if (!frozen.resourceReceipt) return frozen
-    const closure = await this.resourceRegistry.captureFrozenResourceClosure()
+    const closure = await this.resourceRegistry.captureFrozenResourceClosure(undefined, {
+      workspaceRoot: this.runtime.vm.outerCtx.workDir,
+    })
     const files = { ...frozen.files, ...closure }
     return {
       ...frozen,
@@ -939,6 +946,21 @@ export class WorkflowRuntimeService {
         }
         if (existing.form === "AIDataWorkflow") {
           const driver = await this.loadDataDriver(existing)
+          if (!driver && !await this.facts.loadDataGraph(existing.runId)) {
+            if (existing.generation !== 0 || existing.requestFingerprint !== fingerprint({
+              instanceId: existing.instanceId,
+              definitionRevision: existing.definitionRevision,
+              input: existing.frozenInput,
+              bindings: existing.frozenBindings,
+              agentPreparations,
+              replayOf: existing.replayOf,
+            })) throw new Error("AI_DATA_WORKFLOW_START_INTENT_MISMATCH")
+            const definition = await this.loadFrozenDefinition(existing, "AIDataWorkflow")
+            await this.persistRunStart(existing, instance)
+            const resumed = await this.execute(existing, definition, existing.frozenInput)
+            await this.synchronizeInstanceStatus(existing.runId, resumed)
+            return resumed
+          }
           const current = await driver?.status()
           if (current?.terminal) return this.status(requestedRunId)
           const continued = await driver?.continue()
@@ -991,26 +1013,7 @@ export class WorkflowRuntimeService {
       replayOf: input.replayOf,
     }
     await this.facts.saveDescriptor(descriptor)
-    const now = Date.now()
-    const receipt: WorkflowRunReceipt = {
-      runId: descriptor.runId,
-      instanceId: instance.instanceId,
-      definitionRevision: frozen.revision,
-      input: instance.input,
-      inputMaterials: bindings,
-      outputMaterials: [],
-      requestFingerprint,
-      replayOf: input.replayOf,
-      createdAt: now,
-      updatedAt: now,
-    }
-    await this.facts.saveRunReceipt(receipt)
-    await this.facts.saveInstance({
-      ...instance,
-      status: "Running",
-      runIds: [...instance.runIds, descriptor.runId],
-      updatedAt: now,
-    })
+    await this.persistRunStart(descriptor, instance)
     try {
       let result = await this.execute(descriptor, definition, instance.input)
       if (this.holonAutomaticPumpEnabled()) {
@@ -1022,6 +1025,29 @@ export class WorkflowRuntimeService {
       await this.facts.saveInstance({ ...instance, status: "Failed", runIds: [...instance.runIds, descriptor.runId], updatedAt: Date.now() })
       throw error
     }
+  }
+
+  private async persistRunStart(descriptor: WorkflowRunDescriptor, instance: WorkflowInstance): Promise<void> {
+    if (!await this.facts.loadRunReceipt(descriptor.runId)) {
+      await this.facts.saveRunReceipt({
+        runId: descriptor.runId,
+        instanceId: descriptor.instanceId,
+        definitionRevision: descriptor.definitionRevision,
+        input: descriptor.frozenInput,
+        inputMaterials: descriptor.frozenBindings,
+        outputMaterials: [],
+        requestFingerprint: descriptor.requestFingerprint,
+        replayOf: descriptor.replayOf,
+        createdAt: descriptor.createdAt,
+        updatedAt: Date.now(),
+      })
+    }
+    await this.facts.saveInstance({
+      ...instance,
+      status: "Running",
+      runIds: instance.runIds.includes(descriptor.runId) ? instance.runIds : [...instance.runIds, descriptor.runId],
+      updatedAt: Date.now(),
+    })
   }
 
   async status(runId: string): Promise<any | undefined> {
@@ -1382,6 +1408,12 @@ export class WorkflowRuntimeService {
       }),
       snapshotReceiptId: replanned.successorSnapshotReceipt.issuerReceiptId as `sha256:${string}`,
       automaticPump: () => this.holonAutomaticPumpEnabled(),
+      resolveMemberIdentity: (subscription, claim) => {
+        const deployment = context.deployments.get(frozenTarget.executionBinding.ref)
+        return deployment
+          ? resolveHolonTaskMemberIdentity({ store: deployment.store }, { subscription, claim })
+          : Promise.resolve(undefined)
+      },
       prepareProcessorRuntime: async (subscription) => {
         const infrastructure = (
           await this.workflowHolonTaskProcessorRuntime(
@@ -1747,11 +1779,26 @@ export class WorkflowRuntimeService {
     const checkpointPreparationReceipts = storedCheckpoint
       ? readAIDataAgentPreparationReceipts(storedCheckpoint.stepExtensions)
       : undefined
+    // Version zero is admitted with the frozen definition's empty extension values.
+    // The original start request binds the receipts that must be attached next.
+    const resumesPreparationInitialization = storedCheckpoint?.version === 0
+      && checkpointPreparationReceipts?.length === 0
+      && descriptor.requestFingerprint === fingerprint({
+        instanceId: descriptor.instanceId,
+        definitionRevision: descriptor.definitionRevision,
+        input: descriptor.frozenInput,
+        bindings: descriptor.frozenBindings,
+        agentPreparations: storedPreparationReceipts,
+        replayOf: descriptor.replayOf,
+      })
     if (checkpointPreparationReceipts
-      && fingerprint(checkpointPreparationReceipts) !== fingerprint(storedPreparationReceipts)) {
+      && fingerprint(checkpointPreparationReceipts) !== fingerprint(storedPreparationReceipts)
+      && !resumesPreparationInitialization) {
       throw new Error("AI_DATA_AGENT_PREPARATION_CHECKPOINT_AUTHORITY_MISMATCH")
     }
-    const preparationReceipts = checkpointPreparationReceipts ?? storedPreparationReceipts
+    const preparationReceipts = resumesPreparationInitialization
+      ? storedPreparationReceipts
+      : checkpointPreparationReceipts ?? storedPreparationReceipts
     const preparationService = preparationReceipts.length > 0
       ? await this.liveAgentPreparationService()
       : undefined
@@ -1838,13 +1885,78 @@ export class WorkflowRuntimeService {
     input: FlowClosedObject,
   ): Promise<AIDataWorkflowChildInvocationObservation> {
     const freeze = normalizeAIDataWorkflowChildFreezeReceipt(rawFreeze, identity)
-    await this.ensureChildWorkflowInstance(identity, freeze, input)
+    const instance = await this.ensureChildWorkflowInstance(identity, freeze, input)
+    await this.prepareChildWorkflowWorker(identity, freeze, instance, input)
     const projection = await this.start({
       instanceId: identity.childInstanceId,
       runId: identity.childRunId,
       confirmed: true,
     })
     return this.childWorkflowObservation(identity, projection)
+  }
+
+  private async prepareChildWorkflowWorker(
+    identity: AIDataWorkflowChildInvocationIdentity,
+    freeze: AIDataWorkflowChildFreezeReceipt,
+    instance: WorkflowInstance,
+    input: FlowClosedObject,
+  ): Promise<void> {
+    const materialized = this.depa.load(instance.instanceId)
+    const declaration = readAIDataChildAgentPreparationDeclaration(this.depa.initialStepExtensions(
+      instance.instanceId, materialized.descriptor.definition, "AIDataWorkflow",
+    ))
+    if (!declaration) return
+    const sourceNodeId = input[declaration.sourceNodeInput]
+    if (typeof sourceNodeId !== "string" || !sourceNodeId || sourceNodeId.trim() !== sourceNodeId) {
+      throw new Error("AI_DATA_CHILD_PREPARATION_SOURCE_NODE_REQUIRED")
+    }
+    const receipts = await this.agentPreparationStore.list(instance.instanceId)
+    const existing = receipts.find(receipt => receipt.task.nodeId === declaration.nodeId)
+    if (existing) {
+      const intent = await this.agentPreparationStore.loadIntent(instance.instanceId, declaration.nodeId)
+      const { implementation: _implementation, nodeType: _nodeType, ...capability } = existing.capability
+      if (existing.task.workflowRef !== identity.subflow.definitionRef
+        || existing.instanceName !== declaration.instanceName
+        || existing.requirementDigest !== normalizeAIAgentTaskRequirement(declaration.requirement).requirementDigest
+        || fingerprint(capability) !== fingerprint({ ...declaration.capability,
+          fixedConfig: { ...declaration.capability.fixedConfig, instanceName: declaration.instanceName } })
+        || !intent || fingerprint(intent.identity.childInvocation) !== fingerprint(identity)
+        || existing.preparation?.intentDigest !== intent.intentDigest
+        || fingerprint(intent.identity.childFreeze) !== fingerprint(freeze)
+        || nestedRecord(intent.identity.feedback).nodeId !== sourceNodeId) throw new Error("AI_DATA_CHILD_PREPARATION_RECEIPT_MISMATCH")
+      await this.agentPreparationStore.assertReceiptBinding(existing)
+      await (await this.liveAgentPreparationService()).recover(existing)
+      return
+    }
+    if (instance.status !== "Prepared") throw new Error("AI_DATA_CHILD_PREPARATION_RECEIPT_MISSING")
+    const parentDescriptor = await this.facts.loadDescriptor(identity.parentRunId)
+    if (!parentDescriptor || parentDescriptor.instanceId !== identity.parentInstanceId) throw new Error("AI_DATA_CHILD_PREPARATION_PARENT_MISMATCH")
+    const parent = await this.loadDataDriver(parentDescriptor)
+    if (!parent) throw new Error("AI_DATA_CHILD_PREPARATION_PARENT_MISSING")
+    const source = await parent.childPreparationFeedback(sourceNodeId)
+    const { checkpointVersion: _version, ...feedback } = source.evidence
+    const preparationIdentity = normalizeFlowClosedObject({ childInvocation: identity, childFreeze: freeze, feedback }, "childPreparation.identity")
+    const service = await this.liveAgentPreparationService()
+    const observation = await service.observeDurably({ store: this.agentPreparationStore,
+      instanceId: instance.instanceId, nodeId: declaration.nodeId, requirement: declaration.requirement, identity: preparationIdentity })
+    const priorDecision = await this.agentPreparationStore.loadDecision(instance.instanceId, declaration.nodeId)
+    const value = priorDecision ?? await parent.selectChildWorker({
+      invocationKey: `${identity.invocationKey}/prepare/${declaration.nodeId}`,
+      payload: normalizeFlowClosedObject({ schemaVersion: "eidolon.ai-data-child-worker-selection/v1", observation,
+        authoring: await service.describeObservation(observation),
+        feedback, target: { instanceId: instance.instanceId, workflowRef: identity.subflow.definitionRef,
+          nodeId: declaration.nodeId, instanceName: declaration.instanceName }, input }, "childPreparation.selection"),
+    })
+    const decision = (typeof value === "string" ? JSON.parse(value) : value) as AIAgentDefinitionSelectionDecision
+    if (decision?.mode === "revise-existing" && (!decision.feedback || decision.feedback.observationRef !== feedback.observationRef
+      || decision.feedback.attemptRef !== feedback.attemptRef || decision.feedback.verificationRef !== feedback.verificationRef)) {
+      throw new Error("AI_DATA_CHILD_PREPARATION_FEEDBACK_REF_MISMATCH")
+    }
+    const prepared = await service.prepareDurably({ store: this.agentPreparationStore, identity: preparationIdentity,
+      instanceId: instance.instanceId, observation, decision, previousExecution: source.proof,
+      workflowRef: identity.subflow.definitionRef, nodeId: declaration.nodeId,
+      instanceName: declaration.instanceName, capability: declaration.capability })
+    if (!("receipt" in prepared)) throw new Error(`AI_DATA_CHILD_PREPARATION_REJECTED: ${prepared.code}`)
   }
 
   private async loadChildWorkflow(
@@ -2056,6 +2168,7 @@ export class WorkflowRuntimeService {
         }),
         snapshotReceiptId: deployment.definition.definition.snapshotReceiptDigest,
         automaticPump: () => this.holonAutomaticPumpEnabled(),
+        resolveMemberIdentity: (subscription, claim) => resolveHolonTaskMemberIdentity({ store: deployment.store }, { subscription, claim }),
         openTask: async (input) => {
           const opened = await openAICtrlHolonTask({
             taskManager,
@@ -2572,17 +2685,19 @@ export class WorkflowRuntimeService {
 
   private frozenAgentRegistry(instanceId: string): EidolonAppResourceRegistryAdapter | undefined {
     const definitionDir = this.depa.load(instanceId).definitionDir
+    const frozenWorkspaceInstructions = EidolonAppResourceRegistryAdapter.loadFrozenWorkspaceInstructions(definitionDir)
     const effectiveRoot = path.join(definitionDir, ".agent-resources", "effective-vfs")
     if (existsSync(effectiveRoot)) {
       return new EidolonAppResourceRegistryAdapter({
         effectiveVfs: () => loadFrozenEffectiveEidolonVfsReadPort(effectiveRoot),
+        frozenWorkspaceInstructions,
       })
     }
     const layers = (["global", "workspace"] as const).flatMap((id) => {
       const rootDir = path.join(definitionDir, ".agent-resources", id)
       return existsSync(rootDir) ? [{ id, rootDir }] : []
     })
-    return layers.length > 0 ? new EidolonAppResourceRegistryAdapter({ layers }) : undefined
+    return layers.length > 0 ? new EidolonAppResourceRegistryAdapter({ layers, frozenWorkspaceInstructions }) : undefined
   }
 
   private async frozenAgentTaskProofs(

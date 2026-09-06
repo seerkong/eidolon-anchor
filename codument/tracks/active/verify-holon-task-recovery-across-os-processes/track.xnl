@@ -1,0 +1,40 @@
+<Track #verify-holon-task-recovery-across-os-processes apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "通过真实独立 OS 进程验证 Holon task 持久恢复及 effect 幂等" description = "持久 external ledger 与断点注入，不共享 Map 或 closure；修复测试暴露的恢复缺陷" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-05T18:17:38.074Z" updated_at = "2026-09-05T18:37:02.352Z" modeling_base_commit = "8df4a6f61a6b77226189b7eb4e577ade6f39e202" engineering_base_commit = "8df4a6f61a6b77226189b7eb4e577ade6f39e202" gap_round = 2 } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_verify-holon-task-recovery-across-os-processes { name = "verify-holon-task-recovery-across-os-processes" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "跨进程验证与纠偏" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "建立独立进程 fixture 和故障窗口用例" status = "DONE" order = 0 } (
+            <Description ?01M1SCTF33XZ8SHPQ32W204CTG>
+            复用真实 service、FileTaskSpaceOwner、journal 与 coordinator；child A 在断点退出，child B 仅凭持久事实恢复。覆盖 pending、intent、accepted/result、settlement。允许抽取旧测试 fixture；禁止生产代码引用 tests。
+            </?01M1SCTF33XZ8SHPQ32W204CTG>
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1SCTF33XZ8SHPQ32W204CTH>
+              不同 PID，真实外部持久 ledger，各窗口可重复测试，无共享内存事实。
+              </?01M1SCTF33XZ8SHPQ32W204CTH>
+            ]>
+          )>
+          <Task #P1-T2 { name = "修复恢复偏差并验证现有语义" status = "DONE" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M1SCTF33XZ8SHPQ32W204CTJ>
+              新测试及既有 final/none/stream、pending/replay 回归通过；未知外部接受不虚构 exactly-once。
+              </?01M1SCTF33XZ8SHPQ32W204CTJ>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P1-G1 { checked = true } ?01M1SCTF33XZ8SHPQ32W204CTK>
+          跨进程与既有 file E2E 通过，fresh GapLoop 收敛。
+          </?01M1SCTF33XZ8SHPQ32W204CTK>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" verify_round = true }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

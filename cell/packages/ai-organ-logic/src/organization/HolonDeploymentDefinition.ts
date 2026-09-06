@@ -29,12 +29,40 @@ import {
 
 import {
   EidolonAppResourceRegistryAdapter,
+  type EidolonAgentResourceObservationClosure,
+  type EidolonFrozenAgentExecutionBundle,
   type ResourcePackageLayerBinding,
 } from "../resources/EidolonAppResourceRegistryAdapter"
 
 export interface HolonDeploymentDefinitionRuntime {
   readonly supportRoot: string
   readonly resourceRegistry: EidolonAppResourceRegistryAdapter
+  readonly capturedResources?: CapturedHolonDeploymentResources
+}
+
+export interface CapturedHolonDeploymentResources {
+  readonly observation: EidolonAgentResourceObservationClosure
+  readonly agents: readonly EidolonFrozenAgentExecutionBundle[]
+  readonly workspaceInstructions: string | null
+}
+
+export async function captureHolonDeploymentResources(registry: EidolonAppResourceRegistryAdapter): Promise<CapturedHolonDeploymentResources> {
+  const snapshot = await registry.snapshot()
+  const observation = await registry.captureAgentResourceObservation(snapshot)
+  const workspaceInstructions = observation.workspaceInstructions !== undefined
+    ? observation.workspaceInstructions : registry.captureWorkspaceInstructions()
+  const agents: EidolonFrozenAgentExecutionBundle[] = []
+  for (const agent of snapshot.agentResources.agentDefinitions) {
+    if (agent.materialPorts.length > 0) continue
+    // Prefix sources intentionally execute on the original registry's workspace view once.
+    const originalCode = await registry.compileAgentCodeExecutions(snapshot, agent.resource.resourceId)
+    const bundle = await registry.captureFrozenAgentExecution(`resource://${agent.resource.resourceId}`, snapshot, originalCode, { workspaceInstructions })
+    if (JSON.stringify(bundle.files) !== JSON.stringify(observation.files)) {
+      throw new Error("EIDOLON_HOLON_DEPLOYMENT_CAPTURE_DRIFT")
+    }
+    agents.push(bundle)
+  }
+  return Object.freeze({ observation, agents: Object.freeze(agents), workspaceInstructions })
 }
 
 export interface HolonDeploymentDefinitionReadRuntime {
@@ -58,6 +86,7 @@ export interface MaterializedHolonDeploymentDefinition {
   readonly bindingProjection: EidolonHolonExecutionBindingProjection
   readonly bindingFreezeReceipt: EidolonHolonExecutionBindingFreezeReceipt
   readonly resourceRegistry: EidolonAppResourceRegistryAdapter
+  readonly materializeAgentExecutionPlan: EidolonAppResourceRegistryAdapter["materializeAgentExecutionPlan"]
 }
 
 export class HolonDeploymentDefinitionError extends Error {
@@ -68,6 +97,9 @@ export class HolonDeploymentDefinitionError extends Error {
 }
 
 const DEFINITION_FILE = "definition.json"
+const RESOURCE_OBSERVATION_FILE = "authority/resource-observation.json"
+const AGENT_EXECUTIONS_FILE = "authority/agent-executions.json"
+const WORKSPACE_INSTRUCTIONS_FILE = ".agent-resources/workspace-instructions.json"
 const AUTHORITY_FILES = Object.freeze({
   snapshot: "authority/organization-snapshot.json",
   snapshotReceipt: "authority/organization-snapshot-receipt.json",
@@ -298,7 +330,33 @@ async function loadDefinitionDirectory(
   const bindingBytes = material.get(AUTHORITY_FILES.binding)!
   const binding = parseHolonExecutionBindingBytes(bindingBytes)
 
-  const registry = new EidolonAppResourceRegistryAdapter({ layers: layerBindings(root, definition.files) })
+  const observationBytes = material.get(RESOURCE_OBSERVATION_FILE)
+  const observation: EidolonAgentResourceObservationClosure | undefined = observationBytes
+    ? JSON.parse(Buffer.from(observationBytes).toString("utf8")) : undefined
+  if (observation && !material.has(WORKSPACE_INSTRUCTIONS_FILE)) throw new Error("EIDOLON_HOLON_DEPLOYMENT_CAPTURE_INCOMPLETE")
+  const registry = observation
+    ? await EidolonAppResourceRegistryAdapter.restoreAgentResourceObservation(observation, {
+      frozenWorkspaceInstructions: EidolonAppResourceRegistryAdapter.loadFrozenWorkspaceInstructions(root),
+    })
+    : new EidolonAppResourceRegistryAdapter({ layers: layerBindings(root, definition.files) })
+  const executionBytes = material.get(AGENT_EXECUTIONS_FILE)
+  if (Boolean(observationBytes) !== Boolean(executionBytes)) throw new Error("EIDOLON_HOLON_DEPLOYMENT_CAPTURE_INCOMPLETE")
+  const agents: readonly EidolonFrozenAgentExecutionBundle[] = executionBytes ? JSON.parse(Buffer.from(executionBytes).toString("utf8")) : []
+  if (observation) {
+    for (const [relative, encoded] of Object.entries(observation.files)) {
+      const bytes = material.get(relative)
+      if (!bytes || !sameBytes(bytes, Buffer.from(encoded, "base64"))) throw new Error("EIDOLON_HOLON_DEPLOYMENT_RESOURCE_BYTES_MISMATCH")
+    }
+    if (new Set(agents.map(agent => agent.agentDefinitionRef)).size !== agents.length) throw new Error("EIDOLON_HOLON_DEPLOYMENT_AGENT_DUPLICATE")
+    for (const agent of agents) {
+      if (!sameBytes(canonicalJsonBytes(agent.files), canonicalJsonBytes(observation.files))
+        || !sameBytes(canonicalJsonBytes(agent.layers), canonicalJsonBytes(observation.layers))) {
+        throw new Error("EIDOLON_HOLON_DEPLOYMENT_AGENT_SOURCE_MISMATCH")
+      }
+    }
+  }
+  const executions = new Map(await Promise.all(agents.map(async bundle => [bundle.agentDefinitionRef,
+    await EidolonAppResourceRegistryAdapter.restoreFrozenAgentExecution(bundle)] as const)))
   const registrySnapshot = await registry.snapshot()
   const projection = registrySnapshot.holonExecutionBindings.find(
     (candidate) => candidate.binding.bindingRef === definition.bindingRef,
@@ -344,6 +402,11 @@ async function loadDefinitionDirectory(
     bindingProjection: projection,
     bindingFreezeReceipt: freezeReceipt,
     resourceRegistry: registry,
+    materializeAgentExecutionPlan: async (ref: string, options: Parameters<EidolonAppResourceRegistryAdapter["materializeAgentExecutionPlan"]>[1]) => {
+      const execution = executions.get(ref as `resource://${string}`)
+      if (!execution) throw new Error(`EIDOLON_HOLON_DEPLOYMENT_FROZEN_AGENT_MISSING: ${ref}`)
+      return execution.materializeAgentExecutionPlan(ref, options)
+    },
   })
 }
 
@@ -369,7 +432,7 @@ export async function materializeHolonDeploymentDefinition(
     request.bindingRef,
     registrySnapshot,
   )
-  const captured = await runtime.resourceRegistry.captureFrozenResourceClosure()
+  const captured = runtime.capturedResources ?? await captureHolonDeploymentResources(runtime.resourceRegistry)
   const authorityFiles: Record<string, Uint8Array> = {
     [AUTHORITY_FILES.snapshot]: await canonicalHolonEffectiveSnapshotBytes(projection.snapshot),
     [AUTHORITY_FILES.snapshotReceipt]: canonicalHolonEffectiveSnapshotIssuanceReceiptBytes(
@@ -378,9 +441,12 @@ export async function materializeHolonDeploymentDefinition(
     ),
     [AUTHORITY_FILES.binding]: canonicalHolonExecutionBindingBytes(projection.binding),
     [AUTHORITY_FILES.bindingFreezeReceipt]: canonicalJsonBytes(freezeReceipt),
+    [RESOURCE_OBSERVATION_FILE]: canonicalJsonBytes(captured.observation),
+    [AGENT_EXECUTIONS_FILE]: canonicalJsonBytes(captured.agents),
+    [WORKSPACE_INSTRUCTIONS_FILE]: canonicalJsonBytes({ schemaVersion: "eidolon.frozen-workspace-instructions/v1", instructions: captured.workspaceInstructions }),
   }
-  for (const [relative, content] of Object.entries(captured)) {
-    authorityFiles[relative] = new TextEncoder().encode(content)
+  for (const [relative, content] of Object.entries(captured.observation.files)) {
+    authorityFiles[relative] = Buffer.from(content, "base64")
   }
   const definition = normalizeHolonDeploymentDefinition({
     schemaVersion: "eidolon.holon-deployment-definition/v1",

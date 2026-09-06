@@ -1,0 +1,13 @@
+<BehaviorPatch #track.verify-holon-repair-and-resource-evolution-product-loop.behavior_patch.eidolon-resource-native-agent-runtime apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-resource-native-agent-runtime" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-resource-native-agent-runtime/requirements/holon-frozen-execution-closure" } (
+      <Requirement #holon-frozen-execution-closure (
+        <Statement ?>Holon task 的 Agent 执行 SHALL 使用其已采用的冻结资源、代码、实际前缀与真实输入；独立入口不得因 live registry 改变而漂移或伪造 Workflow admission。</?>
+        <Suites [<Suite #frozen-product { name = "冻结产品执行" } (<Cases [
+          <Case #standalone-old-task (<Given ?>旧任务的部署已被冻结，live Agent/Context 随后改变。</?><When ?>旧任务执行或新 OS 进程恢复。</?><Then ?>实际 addressed actor SHALL 收到原冻结配置和原输入，原 task lineage 保持；新 assign 可采用新版本而不混淆旧 route。</?>)>
+          <Case #effective-vfs-and-bytes (<Given ?>admission 源自物理或 Effective VFS，闭包含代码或二进制资源。</?><When ?>部署保存后重新读取。</?><Then ?>native reader/编译链 SHALL 验证并使用相同内容；缺失或冲突 SHALL 在 effect 前拒绝。</?>)>
+        ]>)> ]>
+      )>
+    )>
+  ]>
+)>

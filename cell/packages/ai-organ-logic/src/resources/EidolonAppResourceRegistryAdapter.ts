@@ -6,8 +6,9 @@ import type { DefinitionStepSourceReadPort } from "flow-step-space-contract"
 import {
   projectAIWorkflowAgentResources,
   projectAIWorkflowAppBundles,
+  resolveAIAgentExecutionResources,
+  type AIAgentExecutionResourceObservation,
 } from "ai-workflow-logic"
-import { resolveAIWorkflowResourceTree } from "ai-workflow-logic/filesystem"
 import {
   freezeAIWorkflowHolonTaskTarget,
   freezeAIWorkflowRunResources,
@@ -23,6 +24,8 @@ import type {
   AIWorkflowRunResourceFreezeReceipt,
   FrozenHolonTaskTarget,
   FrozenAIAgentTaskBinding,
+  CompiledAIAgentCodeExecution,
+  FrozenAIAgentCodeArtifact,
   HolonTaskTarget,
 } from "ai-workflow-contract"
 import type { AgentConfig } from "@cell/ai-core-contract/runtime/AgentConfig"
@@ -31,7 +34,13 @@ import type {
   EidolonVfsEntry,
   EidolonVfsReadPort,
 } from "@cell/symbiont-contract/resource/EffectiveEidolonVFS"
-import type { AgentContextPipelineBinding } from "@cell/ai-core-contract/runtime/AgentContextPipeline"
+import type { AgentContextPipelineBinding, AgentContextPipelineExecution } from "@cell/ai-core-contract/runtime/AgentContextPipeline"
+import type { AiAgentActorData } from "@cell/ai-core-contract/runtime/AiAgentActor"
+import { createActorDurableMaterial, readActorDurableMaterialText } from "@cell/ai-core-logic/runtime/ActorDurableMaterial"
+import { digestAgentContextPipelineBinding } from "@cell/ai-core-logic/runtime/AgentContextPipeline"
+import type { AgentContextFactPresentationRecipe } from "@cell/ai-core-contract/runtime/AgentContextFactPresentation"
+import { normalizeAgentContextFactPresentationRecipe } from "@cell/ai-core-logic/runtime/AgentContextFactPresentation"
+import { restoreAIAgentCodeExecution } from "ai-workflow-logic/agent-code-execution"
 import type {
   AgentExecutionContract,
   AgentExecutionMaterialPortInput,
@@ -47,15 +56,14 @@ import {
   composeLayeredResourceRegistry,
   buildResourceDependencySnapshot,
   canonicalResourcePackageSourcePath,
+  createDirectoryResourcePackageReadPort,
   loadResourceTree,
   loadResourceTreeFromReadPort,
-  resolveEffectiveResourceContentIdentities,
   sha256Digest,
   type AuthoredResourceTree,
   type EffectiveResourceRegistry,
   type PortableSpec,
   type ResolvedResourceRecord,
-  type ResolvedResourceTree,
   type ResourceContentIdentity,
   type ResourceLayerContentIdentityInput,
   type ResourcePackageReadPort,
@@ -73,7 +81,8 @@ import {
   type EidolonHolonTaskRuntimeDefinitionProjection,
 } from "./HolonTaskRuntimeDefinitionProjection"
 import { EidolonResourceRegistryError } from "./EidolonResourceRegistryError"
-import { createEidolonResourceResolutionContext } from "./EidolonResourceKindContractCapsule"
+import { compileEidolonAgentCodeResource, createAgentCodeMemoryReadPort, EIDOLON_AGENT_CODE_ENVIRONMENT, prepareEidolonContextFactPresentation } from "./EidolonAgentCodeExecution"
+import { createEidolonResourceResolutionContext, EIDOLON_RESOURCE_READER_PROFILE_ID } from "./EidolonResourceKindContractCapsule"
 
 export { EidolonResourceRegistryError } from "./EidolonResourceRegistryError"
 
@@ -88,6 +97,7 @@ export type EidolonResourceRegistrySnapshot = {
   readonly schemaVersion: "eidolon.resource-registry-snapshot/v1"
   /** Authentic authored registry paired with contentIdentityLayers for digest/authoring authority. */
   readonly contentIdentityRegistry: EffectiveResourceRegistry
+  readonly executionResources: AIAgentExecutionResourceObservation
   readonly registry: EffectiveResourceRegistry
   readonly contentIdentities: ReadonlyMap<string, ResourceContentIdentity>
   /** Exact loaded trees composed into registry; retained for branded Halfcode proof projection. */
@@ -193,6 +203,30 @@ export type EidolonPreparedWorkflowAgentExecution = {
   readonly receipt: AIWorkflowRunResourceFreezeReceipt
 }
 
+export type EidolonFrozenAgentExecutionBundle = Readonly<{
+  schemaVersion: "eidolon.frozen-agent-execution/v1"
+  fileEncoding: "base64"
+  files: Readonly<Record<string, string>>
+  layers: readonly string[]
+  codeArtifacts: readonly Readonly<{ artifact: FrozenAIAgentCodeArtifact; artifactDigest: `sha256:${string}` }>[]
+  agentDefinitionRef: `resource://${string}`
+  messages: readonly EidolonResourceAgentResolvedMessage[]
+  factPresentation?: AgentContextFactPresentationRecipe
+}>
+
+/** Portable source bytes; native readers must admit these again before use. */
+export type EidolonAgentResourceObservationClosure = Readonly<{
+  schemaVersion: "eidolon.agent-resource-observation-closure/v1"
+  fileEncoding: "base64"
+  files: Readonly<Record<string, string>>
+  layers: readonly string[]
+  /** Missing only for legacy observations that did not capture ambient instructions. */
+  workspaceInstructions?: string | null
+}>
+
+export type EidolonFrozenAgentResourceRegistry = Pick<EidolonAppResourceRegistryAdapter,
+  "snapshot" | "compileAgentCodeExecutions" | "captureFrozenAgentExecution" | "captureAgentResourceObservation">
+
 export type EidolonWorkflowAgentTaskProofRef = {
   readonly taskProofRef: `resource://${string}`
   readonly task: AIWorkflowAgentTaskRef
@@ -214,7 +248,6 @@ export type EidolonEffectiveResourceSource = {
 type LoadedLayer = {
   readonly binding: ResourcePackageLayerBinding
   readonly tree: AuthoredResourceTree
-  readonly resolvedTree: ResolvedResourceTree
 }
 
 type LoadedSnapshotGeneration = {
@@ -228,6 +261,7 @@ export type EffectiveEidolonVfsRegistrySource =
 
 const EFFECTIVE_VFS_LAYER_ID = "effective-vfs"
 const EFFECTIVE_VFS_PACKAGE_ROOT = "/.eidolon/resources" as const
+const FROZEN_WORKSPACE_INSTRUCTIONS_FILE = ".agent-resources/workspace-instructions.json"
 
 const LAYER_ORDER: Readonly<Record<ResourcePackageLayerId, number>> = Object.freeze({
   global: 0,
@@ -238,6 +272,8 @@ export class EidolonAppResourceRegistryAdapter {
   private readonly configuredLayers: readonly ResourcePackageLayerBinding[]
   private readonly effectiveVfsSource?: EffectiveEidolonVfsRegistrySource
   private readonly workspaceRoot: string
+  private readonly frozenWorkspaceInstructions?: string | null
+  private legacyWorkspaceInstructionsMissing = false
   private readonly effectiveSources = new WeakMap<
     EidolonEffectiveResourceSource,
     EidolonResourceRegistrySnapshot
@@ -250,12 +286,15 @@ export class EidolonAppResourceRegistryAdapter {
   private admittedLoadGeneration = 0
   private sourceReadsBlocked = false
   private activeSourceReads = 0
+  private readonly frozenCodeInputs = new WeakMap<object, Readonly<Record<string, string>>>()
+  private readonly frozenResourceInputs = new WeakMap<EidolonResourceRegistrySnapshot, Readonly<Record<string, string>>>()
   private resolveSourceReadsDrained?: () => void
 
   constructor(input: {
     readonly layers?: readonly ResourcePackageLayerBinding[]
     readonly effectiveVfs?: EffectiveEidolonVfsRegistrySource
     readonly workspaceRoot?: string
+    readonly frozenWorkspaceInstructions?: string | null
   } = {}) {
     if (input.effectiveVfs && input.layers && input.layers.length > 0) {
       throw new EidolonResourceRegistryError(
@@ -266,6 +305,28 @@ export class EidolonAppResourceRegistryAdapter {
     this.configuredLayers = normalizeLayerBindings(input.layers ?? [])
     this.effectiveVfsSource = input.effectiveVfs
     this.workspaceRoot = path.resolve(input.workspaceRoot ?? process.cwd())
+    this.frozenWorkspaceInstructions = input.frozenWorkspaceInstructions
+  }
+
+  captureWorkspaceInstructions(workspaceRoot = this.workspaceRoot): string | null {
+    return this.frozenWorkspaceInstructions !== undefined
+      ? this.frozenWorkspaceInstructions : loadWorkspaceAgentInstructions(workspaceRoot)
+  }
+
+  static loadFrozenWorkspaceInstructions(definitionDir: string): string | null | undefined {
+    let bytes: string
+    try { bytes = readFileSync(path.join(definitionDir, FROZEN_WORKSPACE_INSTRUCTIONS_FILE), "utf8") }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined
+      throw error
+    }
+    const value = JSON.parse(bytes)
+    if (!value || value.schemaVersion !== "eidolon.frozen-workspace-instructions/v1"
+      || (value.instructions !== null && typeof value.instructions !== "string")
+      || Object.keys(value).some(key => !["schemaVersion", "instructions"].includes(key))) {
+      throw new Error("EIDOLON_FROZEN_WORKSPACE_INSTRUCTIONS_INVALID")
+    }
+    return value.instructions
   }
 
   snapshot(): Promise<EidolonResourceRegistrySnapshot> {
@@ -301,6 +362,164 @@ export class EidolonAppResourceRegistryAdapter {
     readPort: EidolonVfsReadPort,
   ): Promise<EidolonResourceRegistrySnapshot> {
     return this.loadEffectiveVfsSnapshot(readPort)
+  }
+
+  async preflightAuthoringCandidate(snapshot: EidolonResourceRegistrySnapshot, input: { resourceId: string; kind: string }): Promise<void> {
+    const resource = snapshot.registry.byId.get(input.resourceId)?.resource
+    if (!resource || resource.kind !== input.kind) throw new Error("EIDOLON_AGENT_AUTHORING_PREFLIGHT_RESOURCE_MISMATCH")
+    await this.compileAgentCodeExecutions(snapshot, input.resourceId)
+  }
+
+  async compileAgentCodeExecutions(snapshot: EidolonResourceRegistrySnapshot, resourceId: string): Promise<readonly CompiledAIAgentCodeExecution[]> {
+    const files = await this.captureAgentResourceBytes(snapshot)
+    const captured = await loadFrozenAgentExecutionObservation(files, snapshot.contentIdentityLayers.map(layer => layer.id), "base64")
+    if (snapshot.registry.compositionRevision !== captured.observation.registry.compositionRevision
+      || JSON.stringify([...snapshot.contentIdentities]) !== JSON.stringify([...captured.observation.contentIdentities])
+      || JSON.stringify([...snapshot.executionResources.resolutionIdentities]) !== JSON.stringify([...captured.observation.resolutionIdentities])) {
+      throw new Error("EIDOLON_AGENT_CODE_SOURCE_SNAPSHOT_DRIFT")
+    }
+    const closure = buildResourceDependencySnapshot({
+      registry: snapshot.registry, roots: [resourceId], edges: snapshot.agentResources.dependencyEdges,
+      contentIdentities: snapshot.contentIdentities,
+    })
+    const selected = new Set(closure.closure.map(item => item.resourceId))
+    const result: CompiledAIAgentCodeExecution[] = []
+    for (const code of snapshot.agentResources.codeResources ?? []) {
+      if (!selected.has(code.resource.resourceId)) continue
+      const layerId = snapshot.registry.byId.get(code.resource.resourceId)?.effectiveLayerId
+      if (!layerId) throw new Error("EIDOLON_AGENT_CODE_SOURCE_LAYER_MISSING")
+      result.push(await compileEidolonAgentCodeResource({
+        source: frozenAgentLayerPort(files, layerId, "base64"),
+        sourceRoot: layerId === EFFECTIVE_VFS_LAYER_ID ? EFFECTIVE_VFS_PACKAGE_ROOT : "/",
+      }, code))
+    }
+    Object.freeze(result)
+    this.frozenCodeInputs.set(result, files)
+    return result
+  }
+
+  private async captureAgentResourceBytes(snapshot: EidolonResourceRegistrySnapshot): Promise<Readonly<Record<string, string>>> {
+    const frozen = this.frozenResourceInputs.get(snapshot)
+    if (frozen) return frozen
+    const files: Record<string, string> = {}
+    const visit = async (port: ResourcePackageReadPort, directory: string, prefix: string): Promise<void> => {
+      const entries = await port.readDirectory(directory)
+      if (!entries) throw new Error("EIDOLON_AGENT_CODE_DIRECTORY_MISSING")
+      if (entries.length === 0) files[`${prefix}/.eidolon-directory`] = Buffer.from("eidolon.frozen-catalog-root/v1\n").toString("base64")
+      for (const entry of entries) {
+        const sourcePath = canonicalResourcePackageSourcePath(`${directory.replace(/\/$/, "")}/${entry.name}`)
+        if (entry.kind === "directory") await visit(port, sourcePath, `${prefix}/${entry.name}`)
+        else {
+          const bytes = await port.readBytes(sourcePath)
+          if (!bytes) throw new Error("EIDOLON_AGENT_CODE_FILE_MISSING")
+          files[`${prefix}/${entry.name}`] = Buffer.from(bytes).toString("base64")
+        }
+      }
+    }
+    const effective = this.effectiveVfsPorts.get(snapshot)
+    if (effective) await visit(createHalfcodeReadPort(effective), EFFECTIVE_VFS_PACKAGE_ROOT, ".agent-resources/effective-vfs/.eidolon/resources")
+    else for (const layer of snapshot.layers) await visit(await createDirectoryResourcePackageReadPort(layer.rootDir), "/", `.agent-resources/${layer.id}`)
+    return Object.freeze(files)
+  }
+
+  async captureAgentResourceObservation(snapshot: EidolonResourceRegistrySnapshot): Promise<EidolonAgentResourceObservationClosure> {
+    const files = await this.captureAgentResourceBytes(snapshot)
+    const layers = Object.freeze(snapshot.contentIdentityLayers.map(layer => layer.id))
+    const restored = await loadFrozenAgentExecutionObservation(files, layers, "base64")
+    if (snapshot.registry.compositionRevision !== restored.observation.registry.compositionRevision
+      || JSON.stringify([...snapshot.contentIdentities]) !== JSON.stringify([...restored.observation.contentIdentities])
+      || JSON.stringify([...snapshot.executionResources.resolutionIdentities]) !== JSON.stringify([...restored.observation.resolutionIdentities])) {
+      throw new Error("EIDOLON_AGENT_OBSERVATION_SOURCE_SNAPSHOT_DRIFT")
+    }
+    return Object.freeze({ schemaVersion: "eidolon.agent-resource-observation-closure/v1", fileEncoding: "base64", files, layers,
+      ...(!this.legacyWorkspaceInstructionsMissing ? { workspaceInstructions: this.captureWorkspaceInstructions() } : {}) })
+  }
+
+  static async restoreAgentResourceObservation(input: EidolonAgentResourceObservationClosure,
+    options: { readonly frozenWorkspaceInstructions?: string | null } = {},
+  ): Promise<EidolonAppResourceRegistryAdapter> {
+    const material = freezeDetachedJson(JSON.parse(JSON.stringify(input))) as EidolonAgentResourceObservationClosure
+    if (material.schemaVersion !== "eidolon.agent-resource-observation-closure/v1" || material.fileEncoding !== "base64"
+      || (material.workspaceInstructions !== undefined && material.workspaceInstructions !== null && typeof material.workspaceInstructions !== "string")
+      || Object.keys(material).some(key => !["schemaVersion", "fileEncoding", "files", "layers", "workspaceInstructions"].includes(key))) {
+      throw new Error("EIDOLON_AGENT_OBSERVATION_CLOSURE_INVALID")
+    }
+    const snapshot = await restoreFrozenResourceSnapshot(material)
+    const frozenWorkspaceInstructions = options.frozenWorkspaceInstructions !== undefined
+      ? options.frozenWorkspaceInstructions : material.workspaceInstructions
+    if (material.workspaceInstructions !== undefined && frozenWorkspaceInstructions !== material.workspaceInstructions) {
+      throw new Error("EIDOLON_AGENT_OBSERVATION_WORKSPACE_INSTRUCTIONS_MISMATCH")
+    }
+    const adapter = new EidolonAppResourceRegistryAdapter({ frozenWorkspaceInstructions })
+    adapter.legacyWorkspaceInstructionsMissing = frozenWorkspaceInstructions === undefined
+    adapter.current = snapshot
+    adapter.frozenResourceInputs.set(snapshot, material.files)
+    return adapter
+  }
+
+  async captureFrozenAgentExecution(
+    task: AIWorkflowAgentTaskRef | `resource://${string}`,
+    snapshot: EidolonResourceRegistrySnapshot,
+    codeExecutions: readonly CompiledAIAgentCodeExecution[],
+    options: { readonly workspaceInstructions?: string | null } = {},
+  ): Promise<EidolonFrozenAgentExecutionBundle> {
+    const agentDefinitionRef = typeof task === "string" ? task : task.agentDefinitionRef
+    const workflowTask = typeof task === "string" ? undefined : task
+    const receipt = workflowTask && freezeAIWorkflowRunResources({ registry: snapshot.contentIdentityRegistry,
+      projection: projectAIWorkflowAgentResources(snapshot.contentIdentityRegistry), executionResources: snapshot.executionResources,
+      contentIdentities: snapshot.contentIdentities, task: workflowTask, codeExecutions })
+    const files = this.frozenCodeInputs.get(codeExecutions)
+    if (!files) throw new Error("EIDOLON_AGENT_CODE_CAPTURE_UNTRUSTED")
+    const plan = await this.materializeAgentExecutionPlanFromSnapshot(agentDefinitionRef, workflowTask ? "workflow" : "standalone", snapshot,
+      { task: workflowTask, receipt, payload: null, codeExecutions, frozenFiles: files, preparingPrefix: true,
+        workspaceInstructions: options.workspaceInstructions })
+    return Object.freeze({ schemaVersion: "eidolon.frozen-agent-execution/v1", fileEncoding: "base64", files,
+      layers: Object.freeze(snapshot.contentIdentityLayers.map(layer => layer.id)),
+      codeArtifacts: Object.freeze(codeExecutions.map(code => Object.freeze({ artifact: code.artifact, artifactDigest: code.artifactDigest }))),
+      agentDefinitionRef, messages: plan.messages,
+      ...(plan.agentConfig.contextPipelineExecution?.factPresentation ? { factPresentation: plan.agentConfig.contextPipelineExecution.factPresentation } : {}) })
+  }
+
+  static async restoreFrozenAgentExecution(input: EidolonFrozenAgentExecutionBundle): Promise<Pick<EidolonAppResourceRegistryAdapter, "prepareWorkflowAgentExecution" | "freezeWorkflowAgentTaskBinding" | "materializeAgentExecutionPlan">> {
+    const bundle = freezeDetachedJson(JSON.parse(JSON.stringify(input))) as EidolonFrozenAgentExecutionBundle
+    if (bundle.schemaVersion !== "eidolon.frozen-agent-execution/v1" || !Array.isArray(bundle.messages)
+      || !Array.isArray(bundle.codeArtifacts) || Object.keys(bundle).some(key =>
+        !["schemaVersion", "fileEncoding", "files", "layers", "codeArtifacts", "agentDefinitionRef", "messages", "factPresentation"].includes(key))) throw new Error("EIDOLON_FROZEN_AGENT_EXECUTION_INVALID")
+    if (bundle.fileEncoding !== "base64") throw new Error("EIDOLON_FROZEN_AGENT_ENCODING_INVALID")
+    const snapshot = await restoreFrozenResourceSnapshot(bundle)
+    const observation = snapshot.executionResources
+    const authoredRegistry = snapshot.contentIdentityRegistry
+    const seen = new Set<string>()
+    const codeExecutions = bundle.codeArtifacts.map(item => {
+      if (seen.has(item.artifact.resourceId)) throw new Error("EIDOLON_FROZEN_AGENT_CODE_DUPLICATE")
+      seen.add(item.artifact.resourceId)
+      const code = observation.projection.codeResources?.find(code => code.resource.resourceId === item.artifact.resourceId)
+      if (!code) throw new Error("EIDOLON_FROZEN_AGENT_CODE_MISSING")
+      return restoreAIAgentCodeExecution({ environment: EIDOLON_AGENT_CODE_ENVIRONMENT }, code, item.artifact, item.artifactDigest)
+    })
+    const adapter = new EidolonAppResourceRegistryAdapter()
+    const freeze = (task: AIWorkflowAgentTaskRef) => {
+      if (task.agentDefinitionRef !== bundle.agentDefinitionRef) throw new Error("EIDOLON_FROZEN_AGENT_TASK_MISMATCH")
+      return freezeAIWorkflowRunResources({ registry: authoredRegistry, projection: projectAIWorkflowAgentResources(authoredRegistry),
+        executionResources: observation, contentIdentities: observation.contentIdentities, task, codeExecutions })
+    }
+    return Object.freeze({
+      async materializeAgentExecutionPlan(agentDefinitionRef: string, options: { scope: EidolonResourceAgentExecutionScope; payload?: unknown }) {
+        if (agentDefinitionRef !== bundle.agentDefinitionRef) throw new Error("EIDOLON_FROZEN_AGENT_TASK_MISMATCH")
+        if (options.scope !== "standalone") throw new Error("EIDOLON_FROZEN_AGENT_WORKFLOW_ADMISSION_REQUIRED")
+        return adapter.materializeAgentExecutionPlanFromSnapshot(bundle.agentDefinitionRef, "standalone", snapshot,
+          { payload: options.payload ?? null, codeExecutions, frozenFiles: bundle.files, frozenMessages: bundle.messages,
+            ...(bundle.factPresentation ? { factPresentation: bundle.factPresentation } : {}) })
+      },
+      async freezeWorkflowAgentTaskBinding(task: AIWorkflowAgentTaskRef) { return projectFrozenAIAgentTaskBinding(freeze(task)) },
+      async prepareWorkflowAgentExecution(task: AIWorkflowAgentTaskRef, executionInput: { payload?: unknown } = {}) {
+        const receipt = freeze(task)
+        const plan = await adapter.materializeAgentExecutionPlanFromSnapshot(task.agentDefinitionRef, "workflow", snapshot,
+          { task, receipt, payload: executionInput.payload ?? null, codeExecutions, frozenFiles: bundle.files, frozenMessages: bundle.messages,
+            ...(bundle.factPresentation ? { factPresentation: bundle.factPresentation } : {}) })
+        return Object.freeze({ receipt, plan })
+      },
+    })
   }
 
   async withPublicationFence<T>(
@@ -448,7 +667,7 @@ export class EidolonAppResourceRegistryAdapter {
     const plans: EidolonResourceAgentExecutionPlan[] = []
     for (const agent of snapshot.agentResources.agentDefinitions) {
       if (agent.materialPorts.length > 0) continue
-      plans.push(this.materializeAgentExecutionPlanFromSnapshot(
+      plans.push(await this.materializeAgentExecutionPlanFromSnapshot(
         resourceRef(agent.resource.resourceId),
         "standalone",
         snapshot,
@@ -460,7 +679,7 @@ export class EidolonAppResourceRegistryAdapter {
 
   async materializeAgentExecutionPlan(
     agentDefinitionRef: string,
-    options: { readonly scope: EidolonResourceAgentExecutionScope },
+    options: { readonly scope: EidolonResourceAgentExecutionScope; readonly payload?: unknown },
   ): Promise<EidolonResourceAgentExecutionPlan> {
     const exactRef = exactResourceRef(agentDefinitionRef)
     if (options?.scope !== "standalone" && options?.scope !== "workflow") {
@@ -469,7 +688,7 @@ export class EidolonAppResourceRegistryAdapter {
         "Agent execution scope must be 'standalone' or 'workflow'.",
       )
     }
-    return this.materializeAgentExecutionPlanFromSnapshot(exactRef, options.scope, await this.snapshot(), { payload: null })
+    return this.materializeAgentExecutionPlanFromSnapshot(exactRef, options.scope, await this.snapshot(), { payload: options.payload ?? null })
   }
 
   async prepareWorkflowAgentExecution(
@@ -477,17 +696,20 @@ export class EidolonAppResourceRegistryAdapter {
     input: { readonly payload?: unknown } = {},
   ): Promise<EidolonPreparedWorkflowAgentExecution> {
     const snapshot = await this.snapshot()
+    const codeExecutions = await this.compileAgentCodeExecutions(snapshot, task.agentDefinitionRef.slice("resource://".length))
     const receipt = freezeAIWorkflowRunResources({
-      registry: snapshot.registry,
-      projection: snapshot.agentResources,
+      registry: snapshot.contentIdentityRegistry,
+      projection: projectAIWorkflowAgentResources(snapshot.contentIdentityRegistry),
+      executionResources: snapshot.executionResources,
+      codeExecutions,
       task,
       contentIdentities: snapshot.contentIdentities,
     })
-    const plan = this.materializeAgentExecutionPlanFromSnapshot(
+    const plan = await this.materializeAgentExecutionPlanFromSnapshot(
       exactResourceRef(task.agentDefinitionRef),
       "workflow",
       snapshot,
-      { task, receipt, payload: input.payload ?? null },
+      { task, receipt, payload: input.payload ?? null, codeExecutions },
     )
     return Object.freeze({ plan, receipt })
   }
@@ -495,8 +717,10 @@ export class EidolonAppResourceRegistryAdapter {
   async freezeWorkflowAgentTaskBinding(task: AIWorkflowAgentTaskRef): Promise<FrozenAIAgentTaskBinding> {
     const snapshot = await this.snapshot()
     return projectFrozenAIAgentTaskBinding(freezeAIWorkflowRunResources({
-      registry: snapshot.registry,
-      projection: snapshot.agentResources,
+      registry: snapshot.contentIdentityRegistry,
+      projection: projectAIWorkflowAgentResources(snapshot.contentIdentityRegistry),
+      executionResources: snapshot.executionResources,
+      codeExecutions: await this.compileAgentCodeExecutions(snapshot, task.agentDefinitionRef.slice("resource://".length)),
       task,
       contentIdentities: snapshot.contentIdentities,
     }))
@@ -525,9 +749,11 @@ export class EidolonAppResourceRegistryAdapter {
       )
     }
     const receipt = freezeAIWorkflowRunResources({
-      registry: snapshot.registry,
-      projection: snapshot.agentResources,
+      registry: snapshot.contentIdentityRegistry,
+      projection: projectAIWorkflowAgentResources(snapshot.contentIdentityRegistry),
+      executionResources: snapshot.executionResources,
       task: binding.task,
+      codeExecutions: await this.compileAgentCodeExecutions(snapshot, binding.task.agentDefinitionRef.slice("resource://".length)),
       contentIdentities: snapshot.contentIdentities,
     })
     if (!receipt.bindingResourceIds.includes(resourceId)) {
@@ -549,9 +775,14 @@ export class EidolonAppResourceRegistryAdapter {
   }
 
   /** Captures one admitted authority as portable instance-owned bytes. */
-  async captureFrozenResourceClosure(): Promise<Readonly<Record<string, string>>> {
-    const snapshot = await this.snapshot()
-    const files: Record<string, string> = {}
+  async captureFrozenResourceClosure(selectedSnapshot?: EidolonResourceRegistrySnapshot,
+    options: { readonly workspaceRoot?: string } = {},
+  ): Promise<Readonly<Record<string, string>>> {
+    const snapshot = selectedSnapshot ?? await this.snapshot()
+    const files: Record<string, string> = {
+      [FROZEN_WORKSPACE_INSTRUCTIONS_FILE]: JSON.stringify({ schemaVersion: "eidolon.frozen-workspace-instructions/v1",
+        instructions: this.captureWorkspaceInstructions(options.workspaceRoot) }),
+    }
     const effectiveVfs = this.effectiveVfsPorts.get(snapshot)
     if (effectiveVfs && snapshot.effectiveVfs) {
       await captureFrozenEffectiveVfs(effectiveVfs, "/.eidolon", ".agent-resources/effective-vfs/.eidolon", files)
@@ -981,7 +1212,7 @@ export class EidolonAppResourceRegistryAdapter {
     })
   }
 
-  private materializeAgentExecutionPlanFromSnapshot(
+  private async materializeAgentExecutionPlanFromSnapshot(
     agentDefinitionRef: `resource://${string}`,
     scope: EidolonResourceAgentExecutionScope,
     snapshot: EidolonResourceRegistrySnapshot,
@@ -989,8 +1220,14 @@ export class EidolonAppResourceRegistryAdapter {
       readonly task?: AIWorkflowAgentTaskRef
       readonly receipt?: AIWorkflowRunResourceFreezeReceipt
       readonly payload: unknown
+      readonly codeExecutions?: readonly CompiledAIAgentCodeExecution[]
+      readonly frozenFiles?: Readonly<Record<string, string>>
+      readonly frozenMessages?: readonly EidolonResourceAgentResolvedMessage[]
+      readonly preparingPrefix?: boolean
+      readonly factPresentation?: AgentContextFactPresentationRecipe
+      readonly workspaceInstructions?: string | null
     },
-  ): EidolonResourceAgentExecutionPlan {
+  ): Promise<EidolonResourceAgentExecutionPlan> {
     const agentId = agentDefinitionRef.slice("resource://".length)
     const agent = snapshot.agentResources.agentDefinitions.find(
       (candidate) => candidate.resource.resourceId === agentId,
@@ -1008,7 +1245,13 @@ export class EidolonAppResourceRegistryAdapter {
       )
     }
 
-    const messages: readonly EidolonResourceAgentResolvedMessage[] = Object.freeze(
+    const codeExecutions = execution.codeExecutions ?? await this.compileAgentCodeExecutions(snapshot, agentId)
+    let workspaceInstructions: string | null = null
+    if (!execution.frozenMessages) {
+      workspaceInstructions = execution.workspaceInstructions !== undefined
+        ? execution.workspaceInstructions : this.captureWorkspaceInstructions()
+    }
+    const messages: readonly EidolonResourceAgentResolvedMessage[] = execution.frozenMessages ?? Object.freeze(
       agent.messagePrefix.flatMap<EidolonResourceAgentResolvedMessage>((item) => {
         if (item.type === "message-source") {
         const source = effectiveResource(snapshot, item.source.resource.resourceId)
@@ -1018,22 +1261,16 @@ export class EidolonAppResourceRegistryAdapter {
             `Agent message source '${item.id}' does not match the selected effective resource.`,
           )
         }
-        const descriptor = parseClosedResourceDescriptor(snapshot, source, "AgentMessageSource")
-        if (descriptor.implementation !== "eidolon.workspace-agents/v1") {
-          throw new EidolonResourceRegistryError(
-            "EIDOLON_AGENT_MESSAGE_SOURCE_IMPLEMENTATION_UNSUPPORTED",
-            `Agent message source '${item.id}' selects unsupported implementation '${String(descriptor.implementation)}'.`,
-          )
-        }
-        const workspaceInstructions = loadWorkspaceAgentInstructions(this.workspaceRoot)
-        if (!workspaceInstructions) return []
-        return [Object.freeze({
-          id: item.id,
-          role: "system" as const,
-          promptResourceId: source.resourceId,
-          contentDigest: sha256Digest(new TextEncoder().encode(workspaceInstructions)),
-          content: workspaceInstructions,
-        }) satisfies EidolonResourceAgentResolvedMessage]
+        const executable = codeExecutions.find(code => code.artifact.resourceId === source.resourceId)
+        if (!executable) throw new Error("EIDOLON_AGENT_MESSAGE_SOURCE_EXECUTION_MISSING")
+        const generated = executable.execute(Object.freeze({ readWorkspaceInstructions: () => workspaceInstructions }), Object.freeze({}))
+        if (!Array.isArray(generated)) throw new Error("EIDOLON_AGENT_MESSAGE_SOURCE_RESULT_INVALID")
+        return generated.map((message, index) => {
+          if (!message || !["system", "user", "assistant"].includes(message.role) || typeof message.content !== "string"
+            || Object.keys(message).some(key => !["role", "content"].includes(key))) throw new Error("EIDOLON_AGENT_MESSAGE_SOURCE_RESULT_INVALID")
+          return Object.freeze({ id: index === 0 ? item.id : `${item.id}:${index}`, role: message.role as AIAgentMessageRole,
+            promptResourceId: source.resourceId, contentDigest: sha256Digest(message.content), content: message.content })
+        })
         }
         const message = item
         const prompt = effectiveResource(snapshot, message.prompt.resource.resourceId)
@@ -1065,7 +1302,23 @@ export class EidolonAppResourceRegistryAdapter {
         }) satisfies EidolonResourceAgentResolvedMessage]
       }),
     )
-    const contextPipeline = materializeAgentContextPipeline(agent, snapshot)
+    const contextCode = codeExecutions.find(code => code.artifact.resourceId === agent.contextPipeline?.resource.resourceId)
+    const factPresentation = contextCode ? (execution.frozenMessages
+      ? (execution.factPresentation && normalizeAgentContextFactPresentationRecipe(execution.factPresentation))
+      : prepareEidolonContextFactPresentation(contextCode)) : undefined
+    const material = contextCode ? createActorDurableMaterial(JSON.stringify({
+      schemaVersion: "eidolon.agent-code-material/v1", fileEncoding: "base64", files: execution.frozenFiles ?? this.frozenCodeInputs.get(codeExecutions),
+      layers: snapshot.contentIdentityLayers.map(layer => layer.id), artifact: contextCode.artifact,
+      ...(factPresentation ? { factPresentation } : {}),
+    }), "application/vnd.eidolon.agent-code+json") : undefined
+    const contextPipeline: AgentContextPipelineBinding | undefined = contextCode && material ? Object.freeze({
+      schemaVersion: "eidolon.agent-context-pipeline-binding/v2", resourceId: contextCode.artifact.resourceId,
+      contentDigest: requiredContentIdentity(snapshot, contextCode.artifact.resourceId).contentDigest,
+      executionDigest: contextCode.artifactDigest, materialDigest: material.digest,
+    }) : undefined
+    const durableMaterials = material ? Object.freeze({ [material.digest]: material }) : undefined
+    const contextPipelineExecution = contextPipeline && durableMaterials
+      ? await restoreAgentContextPipelineExecution({ contextPipeline, durableMaterials }) : undefined
 
     const toolResourceIds = agent.tools.map((tool) => {
       const selected = effectiveResource(snapshot, tool.resource.resourceId)
@@ -1121,7 +1374,7 @@ export class EidolonAppResourceRegistryAdapter {
       effectPolicy: Object.freeze({ toolMode }),
     }) satisfies AgentExecutionContract
     validateAgentExecutionMessages(executionContract, messages)
-    validateAgentExecutionInput(executionContract)
+    if (!execution.preparingPrefix) validateAgentExecutionInput(executionContract)
     const agentConfig = Object.freeze({
       name: agentDefinitionRef,
       description: agent.resource.description ?? agentDefinitionRef,
@@ -1131,6 +1384,7 @@ export class EidolonAppResourceRegistryAdapter {
       requireExactTools: true,
       executionContract,
       ...(contextPipeline ? { contextPipeline } : {}),
+      ...(contextPipelineExecution ? { contextPipelineExecution, durableMaterials } : {}),
     }) satisfies AgentConfig
     return Object.freeze({
       schemaVersion: "eidolon.resource-agent-execution-plan/v1",
@@ -1205,12 +1459,10 @@ export class EidolonAppResourceRegistryAdapter {
     configuredLayers: readonly ResourcePackageLayerBinding[],
   ): Promise<EidolonResourceRegistrySnapshot> {
     const layers: LoadedLayer[] = []
-    const resolutionContext = createEidolonResourceResolutionContext()
     for (const binding of configuredLayers) {
       if (!await directoryExists(binding.rootDir)) continue
       const tree = await loadResourceTree({ rootDir: binding.rootDir })
-      const resolvedTree = resolveAIWorkflowResourceTree(tree, resolutionContext)
-      layers.push(Object.freeze({ binding, tree, resolvedTree }))
+      layers.push(Object.freeze({ binding, tree }))
     }
     const contentIdentityLayers = Object.freeze(
       layers.map(({ binding, tree }) => Object.freeze({ id: binding.id, tree })),
@@ -1218,17 +1470,13 @@ export class EidolonAppResourceRegistryAdapter {
     const authoredRegistry = composeLayeredResourceRegistry({
       layers: contentIdentityLayers,
     })
-    const registry = composeLayeredResourceRegistry({
-      layers: layers.map(({ binding, resolvedTree }) => Object.freeze({ id: binding.id, tree: resolvedTree })),
-    })
-    const contentIdentities = resolveEffectiveResourceContentIdentities({
+    const executionResources = resolveAIAgentExecutionResources({
+      resolutionContexts: new Map(contentIdentityLayers.map(layer => [layer.id, createEidolonResourceResolutionContext(layer.tree)])),
+    }, {
       registry: authoredRegistry,
       layers: contentIdentityLayers,
     })
-    const resolvedResources = selectEffectiveResolvedResources(
-      registry,
-      layers.map(({ binding, resolvedTree }) => ({ id: binding.id, resolvedTree })),
-    )
+    const { registry, contentIdentities, resolvedResources } = executionResources
     const roots = [...registry.byId.values()]
       .filter((entry) => entry.resource !== undefined)
       .map((entry) => entry.resourceId)
@@ -1242,7 +1490,7 @@ export class EidolonAppResourceRegistryAdapter {
       kindDefinitionAuthorityDigests,
       registryRevision,
     })
-    const agentResources = projectAIWorkflowAgentResources(registry)
+    const agentResources = executionResources.projection
     const holonTaskRuntimeDefinitions = await projectHolonTaskRuntimeDefinitions({
       registry,
       contentIdentities,
@@ -1254,11 +1502,12 @@ export class EidolonAppResourceRegistryAdapter {
     return Object.freeze({
       schemaVersion: "eidolon.resource-registry-snapshot/v1",
       contentIdentityRegistry: authoredRegistry,
+      executionResources,
       registry,
       contentIdentities,
       contentIdentityLayers,
       resolvedResources,
-      readerProfileId: resolutionContext.readerProfile.profileId,
+      readerProfileId: EIDOLON_RESOURCE_READER_PROFILE_ID,
       registryRevision,
       appBundles: projectAIWorkflowAppBundles(registry),
       agentResources,
@@ -1281,22 +1530,18 @@ export class EidolonAppResourceRegistryAdapter {
       port: createHalfcodeReadPort(readPort),
       rootPath: EFFECTIVE_VFS_PACKAGE_ROOT,
     })
-    const resolutionContext = createEidolonResourceResolutionContext()
-    const resolvedTree = resolveAIWorkflowResourceTree(tree, resolutionContext)
+    const resolutionContext = createEidolonResourceResolutionContext(tree)
     const contentIdentityLayers = Object.freeze([
       Object.freeze({ id: EFFECTIVE_VFS_LAYER_ID, tree }),
     ])
     const authoredRegistry = composeLayeredResourceRegistry({ layers: contentIdentityLayers })
-    const registry = composeLayeredResourceRegistry({
-      layers: [Object.freeze({ id: EFFECTIVE_VFS_LAYER_ID, tree: resolvedTree })],
-    })
-    const contentIdentities = resolveEffectiveResourceContentIdentities({
+    const executionResources = resolveAIAgentExecutionResources({
+      resolutionContexts: new Map([[EFFECTIVE_VFS_LAYER_ID, resolutionContext]]),
+    }, {
       registry: authoredRegistry,
       layers: contentIdentityLayers,
     })
-    const resolvedResources = selectEffectiveResolvedResources(registry, [
-      Object.freeze({ id: EFFECTIVE_VFS_LAYER_ID, resolvedTree }),
-    ])
+    const { registry, contentIdentities, resolvedResources } = executionResources
     const roots = [...registry.byId.values()]
       .filter((entry) => entry.resource !== undefined)
       .map((entry) => entry.resourceId)
@@ -1310,7 +1555,7 @@ export class EidolonAppResourceRegistryAdapter {
       kindDefinitionAuthorityDigests,
       registryRevision,
     })
-    const agentResources = projectAIWorkflowAgentResources(registry)
+    const agentResources = executionResources.projection
     const holonTaskRuntimeDefinitions = await projectHolonTaskRuntimeDefinitions({
       registry,
       contentIdentities,
@@ -1322,6 +1567,7 @@ export class EidolonAppResourceRegistryAdapter {
     const snapshot = Object.freeze({
       schemaVersion: "eidolon.resource-registry-snapshot/v1" as const,
       contentIdentityRegistry: authoredRegistry,
+      executionResources,
       registry,
       contentIdentities,
       contentIdentityLayers,
@@ -1343,6 +1589,97 @@ export class EidolonAppResourceRegistryAdapter {
     this.effectiveVfsPorts.set(snapshot, readPort)
     return snapshot
   }
+}
+
+/** Restores solely from actor-owned addressed bytes; never consults live resource directories. */
+export async function restoreAgentContextPipelineExecution(
+  actor: Pick<AiAgentActorData, "contextPipeline" | "durableMaterials">,
+): Promise<AgentContextPipelineExecution | undefined> {
+  const binding = actor.contextPipeline
+  if (!binding || binding.schemaVersion === "eidolon.agent-context-pipeline-binding/v1") return undefined
+  const bundle = JSON.parse(readActorDurableMaterialText(actor, binding.materialDigest)) as {
+    schemaVersion: string; fileEncoding?: "base64"; files: Record<string, string>; layers: string[]; artifact: FrozenAIAgentCodeArtifact; factPresentation?: AgentContextFactPresentationRecipe
+  }
+  if (bundle.schemaVersion !== "eidolon.agent-code-material/v1" || !bundle.files || !Array.isArray(bundle.layers)
+    || Object.values(bundle.files).some(value => typeof value !== "string")
+    || (bundle.fileEncoding !== undefined && bundle.fileEncoding !== "base64")
+    || Object.keys(bundle).some(key => !["schemaVersion", "files", "layers", "artifact", "fileEncoding", "factPresentation"].includes(key))
+    || new Set(bundle.layers).size !== bundle.layers.length) throw new Error("EIDOLON_AGENT_CODE_MATERIAL_INVALID")
+  const { observation } = await loadFrozenAgentExecutionObservation(bundle.files, bundle.layers, bundle.fileEncoding ?? "utf8")
+  const code = observation.projection.codeResources?.find(item => item.resource.resourceId === binding.resourceId)
+  if (!code || code.kind !== "AgentContextPipeline" || observation.contentIdentities.get(binding.resourceId)?.contentDigest !== binding.contentDigest) {
+    throw new Error("EIDOLON_AGENT_CODE_MATERIAL_RESOURCE_MISMATCH")
+  }
+  const compiled = restoreAIAgentCodeExecution({ environment: EIDOLON_AGENT_CODE_ENVIRONMENT }, code,
+    bundle.artifact, binding.executionDigest as `sha256:${string}`)
+  const factPresentation = bundle.factPresentation && normalizeAgentContextFactPresentationRecipe(bundle.factPresentation)
+  if (JSON.stringify(prepareEidolonContextFactPresentation(compiled)) !== JSON.stringify(factPresentation)) {
+    throw new Error("EIDOLON_CONTEXT_FACT_PRESENTATION_FROZEN_MISMATCH")
+  }
+  return Object.freeze({ bindingDigest: digestAgentContextPipelineBinding(binding), executionDigest: compiled.artifactDigest,
+    ...(factPresentation ? { factPresentation } : {}),
+    execute: (runtime, input) => compiled.execute(runtime, input) })
+}
+
+function frozenAgentLayerPort(files: Readonly<Record<string, string>>, id: string, encoding: "utf8" | "base64"): ResourcePackageReadPort {
+  if (id === EFFECTIVE_VFS_LAYER_ID && encoding === "utf8") return createHalfcodeReadPort(createFrozenEffectiveEidolonVfsReadPort(files))
+  const prefix = `.agent-resources/${id}/`
+  return createAgentCodeMemoryReadPort(Object.fromEntries(Object.entries(files)
+    .filter(([name]) => name.startsWith(prefix)).map(([name, value]) => [name.slice(prefix.length), value])), encoding)
+}
+
+async function loadFrozenAgentExecutionObservation(files: Readonly<Record<string, string>>, layerIds: readonly string[], encoding: "utf8" | "base64" = "utf8") {
+  if (!files || Object.values(files).some(value => typeof value !== "string") || !Array.isArray(layerIds)
+    || new Set(layerIds).size !== layerIds.length) throw new Error("EIDOLON_AGENT_CODE_MATERIAL_INVALID")
+  const layers: ResourceLayerContentIdentityInput[] = []
+  for (const id of layerIds) {
+    if (!["global", "workspace", EFFECTIVE_VFS_LAYER_ID].includes(id)) throw new Error("EIDOLON_AGENT_CODE_MATERIAL_LAYER_INVALID")
+    const port = frozenAgentLayerPort(files, id, encoding)
+    layers.push({ id, tree: await loadResourceTreeFromReadPort({ port, rootPath: id === EFFECTIVE_VFS_LAYER_ID ? EFFECTIVE_VFS_PACKAGE_ROOT : "/" }) })
+  }
+  const authoredRegistry = composeLayeredResourceRegistry({ layers })
+  const observation = resolveAIAgentExecutionResources({ resolutionContexts: new Map(layers.map(layer =>
+    [layer.id, createEidolonResourceResolutionContext(layer.tree)])) }, { registry: authoredRegistry, layers })
+  return { layers, observation, authoredRegistry }
+}
+
+async function restoreFrozenResourceSnapshot(material: Pick<EidolonAgentResourceObservationClosure, "files" | "layers" | "fileEncoding">): Promise<EidolonResourceRegistrySnapshot> {
+  const { layers, observation, authoredRegistry } = await loadFrozenAgentExecutionObservation(material.files, material.layers, material.fileEncoding)
+  const registry = observation.registry
+  const roots = [...registry.byId.values()].filter(item => item.resource).map(item => item.resourceId)
+  const registryRevision = roots.length ? buildResourceDependencySnapshot({ registry, roots, edges: [], contentIdentities: observation.contentIdentities }).registryRevision : registry.compositionRevision
+  const kindDefinitionAuthorityDigests = new Map<string, `sha256:${string}`>()
+  for (const [kind, effective] of registry.kindDefinitions) {
+    const uri = effective.definition.documentUri
+    if (!uri.startsWith("vfs://@/")) continue
+    const origin = [...effective.origins].filter(item => item.documentUri === uri)
+      .sort((left, right) => right.layerIndex - left.layerIndex)[0]
+    if (!origin) throw new Error("EIDOLON_FROZEN_KIND_ORIGIN_MISSING")
+    const sourceRoot = origin.layerId === EFFECTIVE_VFS_LAYER_ID ? EFFECTIVE_VFS_PACKAGE_ROOT : ""
+    const bytes = await frozenAgentLayerPort(material.files, origin.layerId, material.fileEncoding)
+      .readBytes(canonicalResourcePackageSourcePath(`${sourceRoot}/${uri.slice("vfs://@/".length)}`))
+    if (!bytes) throw new Error("EIDOLON_FROZEN_KIND_SOURCE_MISSING")
+    kindDefinitionAuthorityDigests.set(kind, sha256Digest(bytes))
+  }
+  const holonExecutionBindings = await projectHolonExecutionBindings({ registry, contentIdentities: observation.contentIdentities,
+    kindDefinitionAuthorityDigests, registryRevision })
+  const holonTaskRuntimeDefinitions = await projectHolonTaskRuntimeDefinitions({ registry, contentIdentities: observation.contentIdentities,
+    kindDefinitionAuthorityDigests, registryRevision, holonExecutionBindings, agentResources: observation.projection })
+  return Object.freeze({
+    schemaVersion: "eidolon.resource-registry-snapshot/v1", contentIdentityRegistry: authoredRegistry,
+    executionResources: observation, registry, contentIdentities: observation.contentIdentities, contentIdentityLayers: layers,
+    resolvedResources: observation.resolvedResources, readerProfileId: EIDOLON_RESOURCE_READER_PROFILE_ID, registryRevision,
+    agentResources: observation.projection, appBundles: projectAIWorkflowAppBundles(registry),
+    holonExecutionBindings, holonTaskRuntimeDefinitions, layers: [],
+  })
+}
+
+function freezeDetachedJson<T>(value: T): T {
+  if (value && typeof value === "object") {
+    for (const child of Object.values(value)) freezeDetachedJson(child)
+    Object.freeze(value)
+  }
+  return value
 }
 
 async function resolveEffectiveVfsSource(source: EffectiveEidolonVfsRegistrySource): Promise<EidolonVfsReadPort> {
@@ -1782,31 +2119,6 @@ function effectiveResource(
   return resource
 }
 
-function selectEffectiveResolvedResources(
-  registry: EffectiveResourceRegistry,
-  layers: readonly Readonly<{ id: string; resolvedTree: ResolvedResourceTree }>[],
-): ReadonlyMap<string, ResolvedResourceRecord> {
-  const recordsByLayer = new Map(layers.map(({ id, resolvedTree }) => [
-    id,
-    new Map([...resolvedTree.registry.byKind.values()]
-      .flatMap((records) => records)
-      .map((record) => [record.resourceId, record] as const)),
-  ] as const))
-  const selected = new Map<string, ResolvedResourceRecord>()
-  for (const entry of registry.byId.values()) {
-    if (!entry.resource || !entry.effectiveLayerId) continue
-    const resolved = recordsByLayer.get(entry.effectiveLayerId)?.get(entry.resourceId)
-    if (!resolved || resolved.stage !== "resolved" || resolved.kind !== entry.kind) {
-      throw new EidolonResourceRegistryError(
-        "EIDOLON_RESOURCE_RESOLUTION_PROOF_MISSING",
-        `Effective resource '${entry.resourceId}' has no exact reader-admitted record in layer '${entry.effectiveLayerId}'.`,
-      )
-    }
-    selected.set(entry.resourceId, resolved)
-  }
-  return selected
-}
-
 function requiredResolvedResource(
   snapshot: EidolonResourceRegistrySnapshot,
   resource: ResourceRecord,
@@ -1819,44 +2131,6 @@ function requiredResolvedResource(
     )
   }
   return resolved as ResolvedResourceRecord<PortableSpec>
-}
-
-type ClosedResourceDescriptor = Readonly<{
-  implementation?: unknown
-  stages?: unknown
-}>
-
-function parseClosedResourceDescriptor(
-  snapshot: EidolonResourceRegistrySnapshot,
-  resource: ResourceRecord,
-  expectedKind: "AgentMessageSource" | "AgentContextPipeline",
-): ClosedResourceDescriptor {
-  if (resource.kind !== expectedKind) {
-    throw new EidolonResourceRegistryError(
-      "EIDOLON_AGENT_CODE_RESOURCE_KIND_MISMATCH",
-      `Resource '${resource.resourceId}' must have kind '${expectedKind}', got '${resource.kind}'.`,
-    )
-  }
-  const descriptorSpec = requiredResolvedResource(snapshot, resource).readerValue
-  const subdomains = portableRecord(descriptorSpec.subdomains)
-  const contentNode = portableRecord(subdomains?.Content)
-  const content = contentNode?.text
-  if (typeof content !== "string" || !content.trim()) {
-    throw new EidolonResourceRegistryError(
-      "EIDOLON_AGENT_CODE_RESOURCE_CONTENT_MISSING",
-      `Resource '${resource.resourceId}' requires one non-empty JSON code descriptor in Content.`,
-    )
-  }
-  try {
-    const parsed = JSON.parse(content)
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object")
-    return Object.freeze({ ...(parsed as Record<string, unknown>) })
-  } catch (error) {
-    throw new EidolonResourceRegistryError(
-      "EIDOLON_AGENT_CODE_RESOURCE_CONTENT_INVALID",
-      `Resource '${resource.resourceId}' code descriptor must be exact JSON: ${error instanceof Error ? error.message : String(error)}.`,
-    )
-  }
 }
 
 function portableRecord(value: unknown): Readonly<Record<string, unknown>> | undefined {
@@ -1876,50 +2150,6 @@ function loadWorkspaceAgentInstructions(workspaceRoot: string): string | null {
   }
 }
 
-const STANDARD_CONTEXT_PIPELINE_STAGES = Object.freeze([
-  "prompt-plan",
-  "conversation-prelude",
-  "provider-context-facts-at-history-anchors",
-  "stable-message-prefix",
-  "conversation-boundary-overlays",
-  "provider-conversion",
-])
-
-function materializeAgentContextPipeline(
-  agent: AIAgentDefinitionProjection,
-  snapshot: EidolonResourceRegistrySnapshot,
-): AgentContextPipelineBinding | undefined {
-  if (!agent.contextPipeline) return undefined
-  const resource = effectiveResource(snapshot, agent.contextPipeline.resource.resourceId)
-  if (resource !== agent.contextPipeline.resource || resource.kind !== agent.contextPipeline.kind) {
-    throw new EidolonResourceRegistryError(
-      "EIDOLON_RESOURCE_AGENT_CONTEXT_PIPELINE_IDENTITY_MISMATCH",
-      `Agent ContextPipeline does not match the selected effective resource.`,
-    )
-  }
-  const descriptor = parseClosedResourceDescriptor(snapshot, resource, "AgentContextPipeline")
-  if (descriptor.implementation !== "eidolon.standard-context-pipeline/v1") {
-    throw new EidolonResourceRegistryError(
-      "EIDOLON_AGENT_CONTEXT_PIPELINE_IMPLEMENTATION_UNSUPPORTED",
-      `ContextPipeline '${resource.resourceId}' selects unsupported implementation '${String(descriptor.implementation)}'.`,
-    )
-  }
-  if (!Array.isArray(descriptor.stages)
-    || descriptor.stages.length !== STANDARD_CONTEXT_PIPELINE_STAGES.length
-    || descriptor.stages.some((stage, index) => stage !== STANDARD_CONTEXT_PIPELINE_STAGES[index])) {
-    throw new EidolonResourceRegistryError(
-      "EIDOLON_AGENT_CONTEXT_PIPELINE_STAGES_INVALID",
-      `ContextPipeline '${resource.resourceId}' must declare the canonical ordered stage ledger.`,
-    )
-  }
-  return Object.freeze({
-    schemaVersion: "eidolon.agent-context-pipeline-binding/v1",
-    resourceId: resource.resourceId,
-    contentDigest: requiredContentIdentity(snapshot, resource.resourceId).contentDigest,
-    implementation: "eidolon.standard-context-pipeline/v1",
-    stages: STANDARD_CONTEXT_PIPELINE_STAGES,
-  })
-}
 
 function requiredContentIdentity(
   snapshot: EidolonResourceRegistrySnapshot,

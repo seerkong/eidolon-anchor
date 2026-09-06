@@ -1,0 +1,19 @@
+<BehaviorPatch #track.implement-holon-task-observation-and-repair.behavior_patch.eidolon-holon-e2e-resource apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-holon-e2e-resource" } (
+  <Mutations [<Upsert { selector = "behavior://eidolon-holon-e2e-resource/requirements/task-observation-repair" } (
+    <Requirement #task-observation-repair (
+      <Statement ?>人和 AI SHALL 经同一 TaskRuntimeService 观察与修复任务，原 TaskSpace 保持唯一任务 authority。</?>
+      <Suites [<Suite #repair { name = "观察及后继修复" } (<Cases [
+        <Case #terminal-successor (
+          <Given ?>任务失败且有持久失败证据。</?>
+          <When ?>按原revision和修复request请求重试或改派，并在新进程恢复。</?>
+          <Then ?>原失败保留，后继任务与因果证据可查询；相同请求重放不重复创建，冲突拒绝；新任务可继续执行。</?>
+        )>
+        <Case #observe-resume (
+          <Given ?>任务已持久化但停止进展。</?>
+          <When ?>读取诊断并请求恢复。</?>
+          <Then ?>显示claim/member/session或明确未知、进展/错误和下一动作；通过原协调器恢复，不用另一任务状态库。</?>
+        )>
+      ]>)>]>
+    )>
+  )>]>
+)>

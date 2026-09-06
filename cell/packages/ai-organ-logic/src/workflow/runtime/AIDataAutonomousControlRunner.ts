@@ -55,6 +55,7 @@ export type AIDataAutonomousControllerPayload = Readonly<{
   goal: AIDataControlGoal
   catalog: AIDataAutonomousControlState["binding"]["catalog"]
   observation: ReturnType<typeof projectAIDataControlObservation>
+  executionFailures?: AIDataAutonomousControlState["executionFailures"]
 }>
 
 export function projectAIDataAutonomousControllerPayload(
@@ -65,6 +66,7 @@ export function projectAIDataAutonomousControllerPayload(
     goal: input.state.binding.goal,
     catalog: input.state.binding.catalog,
     observation: input.observation,
+    ...(input.state.executionFailures?.length ? { executionFailures: input.state.executionFailures } : {}),
   })
 }
 

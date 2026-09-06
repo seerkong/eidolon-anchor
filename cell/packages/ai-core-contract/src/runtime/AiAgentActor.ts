@@ -21,7 +21,7 @@ import type { QuestionnaireRequestPayload } from "./Questionnaire";
 import type { HeartbeatWakePayload } from "./Heartbeat";
 import type { ChatMessage, InputContent, Logger, XStream } from "@shared/composer";
 import type { AgentExecutionContract } from "./AgentExecutionContract";
-import type { AgentContextPipelineBinding } from "./AgentContextPipeline";
+import type { AgentContextPipelineBinding, AgentContextPipelineExecution } from "./AgentContextPipeline";
 import type { ActorRuntimeFacetIndex } from "./ActorRuntimeFacet";
 import type { ActorDurableMaterialIndex } from "./ActorDurableMaterial";
 
@@ -281,6 +281,8 @@ export interface AiAgentActorData<TVm = any, TActor = any> {
   contextPolicy: ActorContextPolicy;
   executionContract?: AgentExecutionContract;
   contextPipeline?: AgentContextPipelineBinding;
+  /** Prepared process-local code; never serialized by the Actor snapshot codec. */
+  contextPipelineExecution?: AgentContextPipelineExecution;
   origin?: ActorOriginFact;
   modelConfig: ActorModelConfig;
   llmClient: object | null;

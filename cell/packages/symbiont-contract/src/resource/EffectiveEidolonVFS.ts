@@ -98,6 +98,31 @@ export interface AdmittedEidolonVfsMaterializationReceipt {
   readonly publishedAt: string;
 }
 
+/** Causal identity attached to the native VFS commit, never a separate head. */
+export interface EidolonVfsPublicationAssociation {
+  readonly transactionId: string;
+  readonly planDigest: string;
+  readonly receiptDigest: string;
+}
+
+/** Closed, recoverable projection input. Paths are relative to the configured workspace. */
+export interface EidolonVfsWorkspaceWrite {
+  readonly logicalPath: `/.eidolon/resources/${string}`;
+  readonly before: { readonly state: "absent" } | {
+    readonly state: "present";
+    readonly text: string;
+    readonly digest: EidolonVfsDigest;
+  };
+  readonly authorityText: string;
+}
+
+export interface EidolonVfsPublicationRecord {
+  readonly publicationKey: string;
+  readonly association?: EidolonVfsPublicationAssociation;
+  readonly plan: EidolonVfsMaterializationPlan;
+  readonly receipt: AdmittedEidolonVfsMaterializationReceipt;
+}
+
 export interface RejectedEidolonVfsMaterializationReceipt {
   readonly schemaVersion: typeof EIDOLON_VFS_MATERIALIZATION_RECEIPT_SCHEMA;
   readonly status: "rejected";

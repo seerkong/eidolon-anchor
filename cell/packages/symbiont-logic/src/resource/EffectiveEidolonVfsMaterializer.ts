@@ -15,6 +15,9 @@ import {
   type EidolonVfsMaterializationReceipt,
   type EidolonVfsOverlayDescriptor,
   type EidolonVfsOverlayKind,
+  type EidolonVfsPublicationAssociation,
+  type EidolonVfsPublicationRecord,
+  type EidolonVfsWorkspaceWrite,
   type EidolonVfsReadPort,
   type LegacyResourceVfsProjection,
 } from "@cell/symbiont-contract/resource/EffectiveEidolonVFS"
@@ -36,7 +39,10 @@ import {
   type VfsOverlayIntent,
   type VfsOverlayPlan,
   type RevisionedVfsSnapshot,
+  type RevisionedVfsAuthority,
+  type VfsRevision,
 } from "xnl-vfs"
+import { eidolonVfsPublicationKey, type EffectiveEidolonVfsPublicationAuthority } from "./EffectiveEidolonVfsPublication"
 
 import {
   assertEffectiveEidolonVfsSnapshot,
@@ -85,6 +91,7 @@ export interface EffectiveEidolonVfsMaterializerOptions {
   readonly builtinSnapshot: DataElementNode
   readonly validators?: readonly EidolonVfsCandidateValidator[]
   readonly clock?: () => string
+  readonly authority?: EffectiveEidolonVfsPublicationAuthority
 }
 
 export interface EffectiveEidolonVfsView {
@@ -146,7 +153,7 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(canonicalValue(value))
 }
 
-function snapshotDigest(snapshot: DataElementNode): EidolonVfsDigest {
+export function effectiveEidolonVfsTreeDigest(snapshot: DataElementNode): EidolonVfsDigest {
   const canonical = structuredClone(snapshot)
   const visit = (node: DataElementNode): void => {
     if (node.tag !== "folder") return
@@ -161,6 +168,7 @@ function snapshotDigest(snapshot: DataElementNode): EidolonVfsDigest {
   visit(canonical)
   return digest(serializeVfsSnapshotToString(canonical, { mode: "full" }))
 }
+const snapshotDigest = effectiveEidolonVfsTreeDigest
 
 export function stableEidolonOverlayNodeId(overlayId: string, kind: "file" | "directory", logicalPath: string): string {
   return `eidolon_${createHash("sha256").update(`${overlayId}\0${kind}\0${logicalPath}`).digest("hex").slice(0, 24)}`
@@ -442,7 +450,10 @@ export class EffectiveEidolonVfsMaterializer {
   readonly #baseRevision: EidolonVfsDigest
   readonly #validators: readonly EidolonVfsCandidateValidator[]
   readonly #clock: () => string
-  readonly #authority: MemoryRevisionedVfsAuthority
+  readonly #authority: RevisionedVfsAuthority
+  readonly #publicationAuthority?: EffectiveEidolonVfsPublicationAuthority
+  readonly #publications = new Map<string, EidolonVfsPublicationRecord>()
+  #currentNativeRevision?: VfsRevision
   readonly #preparedCandidates = new WeakMap<EffectiveEidolonVfsCandidate, {
     readonly currentAtStart: EffectiveEidolonVfsView
     readonly authorityBase: RevisionedVfsSnapshot
@@ -459,7 +470,13 @@ export class EffectiveEidolonVfsMaterializer {
     this.#baseRevision = snapshotDigest(this.#builtinSnapshot)
     this.#validators = Object.freeze([...(options.validators ?? [])])
     this.#clock = options.clock ?? (() => new Date().toISOString())
-    this.#authority = new MemoryRevisionedVfsAuthority(this.#builtinSnapshot, { authorityId: "eidolon-effective-vfs" })
+    this.#publicationAuthority = options.authority
+    if (options.authority) this.#authority = options.authority
+    else {
+      const memory = new MemoryRevisionedVfsAuthority(this.#builtinSnapshot, { authorityId: "eidolon-effective-vfs" })
+      this.#authority = memory
+      this.#currentNativeRevision = memory.read().revision
+    }
     const admittedAt = this.#clock()
     const snapshot = effectiveSnapshot({
       revision: this.#baseRevision,
@@ -475,13 +492,39 @@ export class EffectiveEidolonVfsMaterializer {
     return this.#current
   }
 
+  async lookupPublication(key: string): Promise<EidolonVfsPublicationRecord | undefined> {
+    return this.#publicationAuthority ? this.#publicationAuthority.lookupPublication(key) : this.#publications.get(key)
+  }
+
+  /** Restore the original owner before consumers read physical overlay inputs. */
+  async restore(): Promise<EffectiveEidolonVfsView> {
+    if (!this.#publicationAuthority) return this.#current
+    await this.#publicationAuthority.recoverProjections()
+    const head = await this.#publicationAuthority.readHead()
+    const treeDigest = snapshotDigest(head.snapshot)
+    const publication = head.publication
+    if (publication && publication.receipt.publishedRevision !== treeDigest) throw new Error("EIDOLON_VFS_RESTORE_DIGEST_MISMATCH")
+    if (!publication && treeDigest !== this.#baseRevision) throw new Error("EIDOLON_VFS_RESTORE_PUBLICATION_MISSING")
+    const snapshot = publication ? effectiveSnapshot({
+      revision: treeDigest, baseRevision: publication.plan.baseRevision, overlays: publication.plan.overlays,
+      receiptId: publication.receipt.receiptId, admittedAt: publication.receipt.publishedAt,
+    }) : this.#current.snapshot
+    this.#current = Object.freeze({ snapshot, readPort: createReadPort(snapshot, head.snapshot) })
+    this.#currentNativeRevision = head.revision
+    return this.#current
+  }
+
   async prepare(input: MaterializeEffectiveEidolonVfsInput): Promise<PrepareEffectiveEidolonVfsResult> {
     const currentAtStart = this.#current
     const authorityBase = await this.#authority.read()
     const orderedMaterials = [...input.overlays].sort((left, right) => left.descriptor.order - right.descriptor.order)
     const descriptors = orderedMaterials.map((material) => material.descriptor)
 
-    if (input.expectedCurrentRevision !== currentAtStart.snapshot.revision) {
+    if (input.expectedCurrentRevision !== currentAtStart.snapshot.revision
+      || !this.#currentNativeRevision
+      || this.#currentNativeRevision.authorityId !== authorityBase.revision.authorityId
+      || this.#currentNativeRevision.value !== authorityBase.revision.value
+      || snapshotDigest(authorityBase.snapshot) !== currentAtStart.snapshot.revision) {
       const candidateDigest = snapshotDigest(this.#builtinSnapshot)
       const plan = this.#plan(input.expectedCurrentRevision, descriptors, candidateDigest)
       return this.#rejected(plan, [{
@@ -544,7 +587,7 @@ export class EffectiveEidolonVfsMaterializer {
     return Object.freeze({ status: "prepared" as const, plan, candidate })
   }
 
-  async admit(candidate: EffectiveEidolonVfsCandidate): Promise<EffectiveEidolonVfsMaterializationResult> {
+  async admit(candidate: EffectiveEidolonVfsCandidate, association?: EidolonVfsPublicationAssociation, workspaceWrite?: EidolonVfsWorkspaceWrite): Promise<EffectiveEidolonVfsMaterializationResult> {
     const prepared = this.#preparedCandidates.get(candidate)
     if (!prepared) {
       return this.#rejected(candidate.plan, [{
@@ -567,7 +610,10 @@ export class EffectiveEidolonVfsMaterializer {
     // diff may validly preserve an old root identity when an overlay replaces a
     // whole document, so materialization deliberately persists exact content.
     const mutations = exactPersistenceMutations(authorityBase.snapshot, overlayPlan.candidate)
-    const publish = await publishRevisionedVfsOverlayPlan(this.#authority, {
+    if (workspaceWrite && !this.#publicationAuthority) throw new Error("EIDOLON_VFS_DURABLE_WORKSPACE_AUTHORITY_REQUIRED")
+    const publicationContext = { plan, validators: evidence, ...(association ? { association } : {}), ...(workspaceWrite ? { workspaceWrite } : {}) }
+    const publicationKey = eidolonVfsPublicationKey(publicationContext)
+    const publish = await publishRevisionedVfsOverlayPlan(this.#publicationAuthority?.scopePublication(publicationContext) ?? this.#authority, {
       base: authorityBase,
       plan: {
         ...overlayPlan,
@@ -584,17 +630,18 @@ export class EffectiveEidolonVfsMaterializer {
       return this.#rejected(plan, diagnostics, this.#current.snapshot.revision)
     }
 
-    const readback = await this.#authority.read()
-    const readbackDigest = snapshotDigest(readback.snapshot)
+    const readbackDigest = snapshotDigest(publish.snapshot)
     if (readbackDigest !== plan.candidateTreeDigest) {
-      const residual = diffVfsSnapshots(readback.snapshot, overlayPlan.candidate)
+      const residual = diffVfsSnapshots(publish.snapshot, overlayPlan.candidate)
         .slice(0, 8)
         .map(({ type, path: mutationPath, expectedId }) => `${type}:${mutationPath}:${expectedId ?? ""}`)
         .join(",")
       throw new Error(`Effective VFS authority readback ${readbackDigest} did not match the admitted candidate digest ${plan.candidateTreeDigest}; residual=${residual}`)
     }
     const publishedAt = publish.status === "applied" ? publish.receipt.persistedAt : this.#clock()
-    const receipt = Object.freeze(assertEidolonVfsMaterializationReceipt(plan, {
+    const committedRecord = await this.lookupPublication(publicationKey)
+    if (this.#publicationAuthority && !committedRecord) throw new Error("EIDOLON_VFS_DURABLE_PUBLICATION_MISSING")
+    const receipt = committedRecord?.receipt ?? Object.freeze(assertEidolonVfsMaterializationReceipt(plan, {
       schemaVersion: EIDOLON_VFS_MATERIALIZATION_RECEIPT_SCHEMA,
       status: "admitted",
       receiptId: receiptId("admitted", plan.planId, publishedAt),
@@ -608,6 +655,7 @@ export class EffectiveEidolonVfsMaterializer {
       }),
       publishedAt,
     })) as Extract<EidolonVfsMaterializationReceipt, { status: "admitted" }>
+    this.#publications.set(publicationKey, committedRecord ?? Object.freeze({ publicationKey, ...(association ? { association } : {}), plan, receipt }))
     const snapshot = effectiveSnapshot({
       revision: plan.candidateTreeDigest,
       baseRevision: this.#baseRevision,
@@ -615,8 +663,11 @@ export class EffectiveEidolonVfsMaterializer {
       receiptId: receipt.receiptId,
       admittedAt: publishedAt,
     })
-    const effective = Object.freeze({ snapshot, readPort: createReadPort(snapshot, readback.snapshot) })
-    this.#current = effective
+    const effective = Object.freeze({ snapshot, readPort: createReadPort(snapshot, publish.snapshot) })
+    if (this.#current === currentAtStart) {
+      this.#current = effective
+      this.#currentNativeRevision = publish.status === "applied" ? publish.receipt.revision : publish.revision
+    }
     return Object.freeze({ status: "admitted" as const, plan, receipt, effective })
   }
 

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url"
 
 import {
   loadResourceTreeFromReadPort,
-  type LoadedResourceTree,
+  type AuthoredResourceTree,
   type ResourcePackageReadPort,
 } from "halfcode-compiler.xnl/resource-core"
 import type { DataElementNode } from "xnl-core"
@@ -64,7 +64,7 @@ export interface BuiltinEidolonVfs {
 
 export interface BuiltinEidolonResourceTree {
   readonly builtin: BuiltinEidolonVfs
-  readonly tree: LoadedResourceTree
+  readonly tree: AuthoredResourceTree
 }
 
 export interface EmbeddedBuiltinFile extends Blob {

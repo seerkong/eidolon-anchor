@@ -1,0 +1,47 @@
+<Track #implement-subgraph-worker-preparation-from-runtime-feedback apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "让运行中反馈驱动下一子图新 Worker 准备、冻结、执行与结果回流" description = "复用 child owner 与 native Agent admission，在子实例 Prepared 边界演进资源，不解冻旧 run" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-05T21:49:47.354Z" updated_at = "2026-09-05T22:46:16.136Z" modeling_base_commit = "8df4a6f61a6b77226189b7eb4e577ade6f39e202" engineering_base_commit = "8df4a6f61a6b77226189b7eb4e577ade6f39e202" gap_round = 3 } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_implement-subgraph-worker-preparation-from-runtime-feedback { name = "implement-subgraph-worker-preparation-from-runtime-feedback" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "子图准备与可恢复闭环" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "锁定 DEPA owner 与资源声明接缝" status = "DONE" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1SRZ01A5DS98NDDKBJT61Q1>
+              设计定位真实 controller、child identity、准备/发布/恢复 owner；无第二 admission 或 parent 解冻。
+              </?01M1SRZ01A5DS98NDDKBJT61Q1>
+            ]>
+          )>
+          <Task #P1-T2 { name = "TDD 接通运行中反馈到子图 Worker 准备" status = "DONE" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M1SRZ01A5DS98NDDKBJT61Q2>
+              真实父控制器根据运行失败准备下一 child 的新 Worker，经 native revision admission 发布后执行；旧 proof/prefix 保持，结果由原 verifier 判断。
+              </?01M1SRZ01A5DS98NDDKBJT61Q2>
+            ]>
+          )>
+          <Task #P1-T3 { name = "跨进程恢复与回归验证" status = "DONE" order = 2 } (
+            <Acceptance [
+              <Criterion #P1-T3-AC1 { checked = true } ?01M1SRZ01A5DS98NDDKBJT61Q3>
+              准备/发布/child start/result 窗口可从持久材料继续，lineage/receipt 可关联，无重复 authoring 或伪造成功。
+              </?01M1SRZ01A5DS98NDDKBJT61Q3>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P1-G1 { checked = true } ?01M1SRZ01A5DS98NDDKBJT61Q4>
+          运行中子图资源演进、失败反馈、冻结恢复及旧 create/select/child 路径实证通过。
+          </?01M1SRZ01A5DS98NDDKBJT61Q4>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" verify_round = true }>
+          )>
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

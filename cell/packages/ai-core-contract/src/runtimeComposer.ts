@@ -40,6 +40,7 @@ export type RuntimeSlashCommandNamespace = "actor" | "member" | "holon" | "goal"
 export type RuntimeSlashCommandActionParse =
   | { kind: "assign" }
   | { kind: "literal"; form: string }
+  | { kind: "json"; form: string }
   | { kind: "target"; form: string; argName?: string }
   | { kind: "name"; form: string; argName?: string }
   | { kind: "pair"; form: string; argNames: readonly [string, string] }

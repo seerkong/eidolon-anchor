@@ -10,6 +10,7 @@ import type {
 } from "@cell/ai-core-contract/runtime/ContextControl";
 import { TASK_PHASES, WORK_MODES } from "@cell/ai-core-contract/runtime/ContextControl";
 import { cloneAndFreezeAgentExecutionContract } from "./AgentExecutionContract";
+import { cloneAndFreezeAgentContextPipelineBinding } from "./AgentContextPipeline";
 import { normalizeActorRuntimeFacetIndex } from "./ActorRuntimeFacet";
 import type {
   ActorRuntimeFacetIndexInput,
@@ -158,6 +159,7 @@ export type CreateActorParams = {
   contextPolicy?: Partial<ActorContextPolicy>;
   executionContract?: AiAgentActor["executionContract"];
   contextPipeline?: AiAgentActor["contextPipeline"];
+  contextPipelineExecution?: AiAgentActor["contextPipelineExecution"];
   origin?: AiAgentActor["origin"];
   modelConfig?: ActorModelConfig;
   llmClient?: object | null;
@@ -308,8 +310,9 @@ export function createActor(params: CreateActorParams): AiAgentActor {
       ? cloneAndFreezeAgentExecutionContract(params.executionContract)
       : undefined,
     contextPipeline: params.contextPipeline
-      ? Object.freeze({ ...params.contextPipeline, stages: Object.freeze([...params.contextPipeline.stages]) })
+      ? cloneAndFreezeAgentContextPipelineBinding(params.contextPipeline)
       : undefined,
+    contextPipelineExecution: params.contextPipelineExecution,
     origin: normalizeActorOrigin(params.origin),
     modelConfig: params.modelConfig ?? {},
     llmClient: params.llmClient ?? null,

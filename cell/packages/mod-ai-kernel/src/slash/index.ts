@@ -137,6 +137,20 @@ function parseAction(
       return trimmed === descriptor.parse.form
         ? { kind: "direct_execute", command, namespace, action, args: {} }
         : null;
+    case "json": {
+      const form = descriptor.parse.form;
+      if (!trimmed.startsWith(form) || (trimmed.length > form.length && !/\s/u.test(trimmed[form.length]!))) return null;
+      let args: unknown;
+      try {
+        args = JSON.parse(trimmed.slice(form.length).trim());
+      } catch {
+        throw new Error(`SLASH_COMMAND_JSON_OBJECT_REQUIRED: ${command} ${form} <JSON object>`);
+      }
+      if (!args || typeof args !== "object" || Array.isArray(args)) {
+        throw new Error(`SLASH_COMMAND_JSON_OBJECT_REQUIRED: ${command} ${form} <JSON object>`);
+      }
+      return { kind: "direct_execute", command, namespace, action, args: args as Record<string, unknown> };
+    }
     case "target": {
       const prefix = `${descriptor.parse.form} `;
       if (!trimmed.startsWith(prefix)) return null;
@@ -210,6 +224,8 @@ function getPromptForms(descriptor: RuntimeSlashCommandActionDescriptor): string
       return ["assign", "assign:r", "assign:n", "assign:s"];
     case "literal":
       return [descriptor.parse.form];
+    case "json":
+      return [descriptor.parse.form];
     case "target":
       return [descriptor.parse.form];
     case "name":
@@ -259,7 +275,7 @@ export function resolveAiSlashCommand(
   const trimmed = input.trim();
   if (!trimmed.startsWith("/")) return null;
 
-  const namespaceMatch = trimmed.match(/^\/([a-z]+)(?:\s+(.*))?$/);
+  const namespaceMatch = trimmed.match(/^\/([a-z]+)(?:\s+([\s\S]*))?$/);
   if (!namespaceMatch) return null;
 
   const namespace = namespaceMatch[1] as RuntimeSlashCommandNamespace;

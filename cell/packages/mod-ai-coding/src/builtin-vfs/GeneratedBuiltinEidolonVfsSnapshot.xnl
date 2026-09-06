@@ -17,13 +17,31 @@
                     ]>
                   ]>
                 ]>
+                                <Folder id="eidolon_directory_2cce63782ccdd9cc36cdf848" name="Code" [
+                                    <Entries [
+                                        <File id="eidolon_file_1536acaffb4b9268402ed852" name="standard-context.ts" {
+                      fileType = "text"
+                    } [
+                                            <Content refId="c_2781e304013c" {
+                        hash = "sha256:2781e304013c6b2de33ce3c21fd2dbbdfc63f56d595be0cdc944102ec4d716fd"
+                      }>
+                    ]>
+                                        <File id="eidolon_file_ff561c1624dfde102f5a60c3" name="workspace-agents.ts" {
+                      fileType = "text"
+                    } [
+                                            <Content refId="c_6bee6c99501d" {
+                        hash = "sha256:6bee6c99501dce868e77149694e09e377695b20cf32cce488fbfff842b3ce37e"
+                      }>
+                    ]>
+                  ]>
+                ]>
                                 <Folder id="eidolon_directory_60b4a621533ebd8a48c32318" name="ContextPipelines" [
                                     <Entries [
                                         <File id="eidolon_file_fbd05ef815b969ac93bf3bb2" name="StandardContext.xnl" {
                       fileType = "xnl"
                     } [
-                                            <Content refId="c_ed4698f0653b" {
-                        hash = "sha256:ed4698f0653b7ccd541780d4df5a49c9b70229ab58f25fbe4c9d8c76ae222b9f"
+                                            <Content refId="c_3998badf0521" {
+                        hash = "sha256:3998badf0521e287dd8ff68641feaf7ad1af5c063fd4b5f5bb5d263284b0ecbe"
                       }>
                     ]>
                   ]>
@@ -35,8 +53,8 @@
                                                 <File id="eidolon_file_1f72869d5c4d2dcfec906963" name="manifest.xnl" {
                           fileType = "xnl"
                         } [
-                                                    <Content refId="c_9070b27efce9" {
-                            hash = "sha256:9070b27efce97a4646e69f1bf1071262c8c0c78128468d32bddfa29c1348592f"
+                                                    <Content refId="c_3ae43c5bb659" {
+                            hash = "sha256:3ae43c5bb659daff663961232f10fee3ced2b6d06348ba5a2a2270c9a37508ef"
                           }>
                         ]>
                       ]>
@@ -46,8 +64,8 @@
                                                 <File id="eidolon_file_c284470f41511a0b01d4b597" name="manifest.xnl" {
                           fileType = "xnl"
                         } [
-                                                    <Content refId="c_305a40c59a9a" {
-                            hash = "sha256:305a40c59a9aa1925395e74aa5189ce421531b5fff1ea541f87cf32ed825ef9b"
+                                                    <Content refId="c_25d5336f20a8" {
+                            hash = "sha256:25d5336f20a87aee8772d6846ac4ffa4af7a75684d9c908f9caa55e31eeefb36"
                           }>
                         ]>
                       ]>
@@ -110,8 +128,8 @@
                                         <File id="eidolon_file_76ccc9ae2a86c61afc4e81da" name="WorkspaceAgents.xnl" {
                       fileType = "xnl"
                     } [
-                                            <Content refId="c_b37fd682cdb0" {
-                        hash = "sha256:b37fd682cdb0f55d6c2880c8ffdc66116092df398f3dc1a3c0fc9a96936ab11a"
+                                            <Content refId="c_58209aa53b9f" {
+                        hash = "sha256:58209aa53b9f69a25fbbd358441514dce485f2fdebd1e329349d46e4e56a0fe0"
                       }>
                     ]>
                   ]>
@@ -195,9 +213,7 @@
     ]>
   ]>
     <Contents [
-        <Content id="c_26913c4831ee" kind="xnl" encoding="utf8" hash="sha256:26913c4831ee16a05ac9486edcad1065cb89f207a6174402ef90612cb15ecd7c" ?><Prompt #eidolon.coding.CodingPrompt envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" description = "Mature Eidolon coding identity, routing and execution rules" template = "# Agent\n\n你是当前工作区中的 coding agent。\n使用工具完成任务，并遵循已装配的 identity、routing、prompt modules 与 capability manifest。\n\n# Identity\n\n你是主编码代理，负责理解用户目标、直接完成可控工作，并在需要时协调专门的 delegate agent。\n\n你应保持改动聚焦，尊重现有代码结构、测试习惯和用户未提交的改动。\n\n# Routing\n\n路由规则：\n- 直接、狭窄、上下文充分的修改由你自己完成。\n- 大范围代码库发现交给 explorer。\n- 外部库、API、协议或当前文档查证交给 librarian。\n- 高风险架构判断、复杂根因分析或多次失败后的复盘交给 oracle。\n- 用户可见 UI/UX 打磨交给 designer。\n- 规格清晰、可并行、无需架构判断的实现切片交给 fixer 或 code。\n\n对 coding 任务，优先按“定位/复现 -> 按需规划 -> 修改 -> 验证 -> 收口”推进；不要在修改后回到泛化勘察。\n\n规则：\n- 当任务已经给出可能文件、失败测试或狭窄 bug 面时，不要从宽泛全仓扫描开始；先检查这个具体表面。\n- 前几步内，要么运行最窄复现/targeted test，要么打开最可能的实现文件。\n- 一旦有可信的修复位置，先修改，再决定是否需要下一轮探索。\n- 读过失败测试和最可能实现文件后，应快速进入 patch；除非当前假设被推翻，不要持续重读相邻文件。\n- targeted verification 通过后，不要继续探索，除非有具体反证。\n- 修改后官方测试命令或可信 benchmark 套件通过时，除非有明确未验证风险，否则收口。\n- 没有代码变化时，不要重复运行同一个测试文件或官方套件，除非上次失败且重跑能回答新的具体问题。\n- 如果已经反复读取同一组实现文件和失败测试但没有新假设，停止重读，选择最有证据支持的最小 patch，或明确切换策略。\n- 重复相同 targeted verification 或无代码变化地重读同一对文件，是卡住信号，不是进展。\n- 优先使用仓库相对路径检查文件；如果 workspace 外的绝对路径失败，不要继续猜测同一宿主目录下的兄弟绝对路径。\n- 一旦识别出仓库相对实现路径，持续使用该路径形式；不要退回裸文件名或猜测另一个根目录。\n- 从已知仓库相对路径退回裸文件名或猜测兄弟路径，视为需要立即纠正的路径回退错误。\n- 对窄 bugfix 和 benchmark 类任务，知道目标 hunk 后优先用 `apply_patch` 修改源码。\n- 只有在读过文件并复制了精确片段后，才用 `edit` 做小范围精确替换。\n- 修改已有可访问文本文件时，优先用 `edit` 或 `apply_patch`，不要用 shell 直接改。\n- 多处不连续修改或需要 hunk 上下文匹配时，优先用 `apply_patch`。\n- 使用 `edit` 或 `multiedit` 前，先读取目标文件并复制要替换的精确片段。\n- 创建或完整替换可访问目录里的文本文件时，优先用 `write`。\n- 检查可访问文件或目录时，优先用 `read`。\n- 当 `edit` 或 `write` 能表达修改时，不要用 bash 直接修改普通文本文件。\n- 不要使用 `git checkout --`、`git restore`、`git reset --hard` 或等价破坏性回退命令，除非用户明确要求。\n- 必须使用 shell 时，优先使用快速、聚焦、非交互、输出少且便于验证的命令。\n- 项目脚本或 task runner 能完成同一目标时，优先使用项目提供的方式，而不是手写 shell pipeline。\n- 当 targeted check 能更快回答下一步决策时，避免重复全仓搜索和重复宽泛测试套件。\n- `read`/`write`/`edit` 文件工具不局限于 workspace；当前 runtime 权限允许的路径都可以使用。\n- 将 `~/...` 理解为 home-directory 记法，不是 workspace 相对路径；判断路径范围前先解析它。\n- 不要把用户写的 `~/...` 改写成猜测的 workspace 相对路径，例如 `./tmp/...`。\n\n可以通过 RunDelegateActor 工具使用内置和用户配置的 delegate agent。在 AI 领域语境中，subagent/子代理就是 delegate；用户要求使用 subagent 时，应使用 RunDelegateActor。\n\n可用 delegate agent：\n- code: general coding delegate\n- explorer: repository discovery\n- librarian: current library and documentation research\n- oracle: architecture and root-cause analysis\n- designer: user-visible UI/UX design\n- fixer: focused implementation\n\n委派准则：\n- 只在聚焦子任务能节省时间或提升质量时使用 RunDelegateActor。\n- explorer：用于范围较广或不确定的代码库发现；要求返回路径、行号和简洁发现。\n- librarian：用于当前库/API/文档研究；要求给出有来源支撑的结论，并避免把具体 MCP 服务名写死。\n- oracle：用于高风险决策、重复修复失败、根因分析和架构权衡。\n- designer：用于用户可见 UI/UX 工作，尤其是布局、交互、视觉质量或响应式表现重要时。\n- fixer：用于上下文充分、规格明确的实现任务；适合拆成独立并行修改。\n- code：没有更合适专家时，用作通用 coding delegate。\n\n不要为很小的直接修改委派；如果解释任务比自己动手更慢，也不要委派；如果下一步依赖你当前的即时上下文，也不要委派。\n不要用 member 代替 delegate/subagent：member 是持久化的会话/team actor；subagent/子代理是 delegate 的别名，不是 member 的别名。\n验证时优先使用 targeted test、typecheck/build/lint、项目提供的检查命令，或运行环境中可用的诊断类工具/MCP。" }>
-</?>
-        <Content id="c_305a40c59a9a" kind="xnl" encoding="utf8" hash="sha256:305a40c59a9aa1925395e74aa5189ce421531b5fff1ea541f87cf32ed825ef9b" ?><KindDefinition #Depa.Flows.KindDefinition.AgentMessageSource envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
+        <Content id="c_25d5336f20a8" kind="xnl" encoding="utf8" hash="sha256:25d5336f20a87aee8772d6846ac4ffa4af7a75684d9c908f9caa55e31eeefb36" ?><KindDefinition #Depa.Flows.KindDefinition.AgentMessageSource envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Stable"
   resourceKind = "AgentMessageSource"
   subjectFqn = "Depa.Flows.KindDefinition.AgentMessageSource"
@@ -214,6 +230,65 @@
       semanticValidatorFingerprint = "sha256:9fc7ccdf2bed41f09a885f01ddd3a77421df401de228faca897210afe0fcd6cd"
       referenceProjectionFingerprint = "sha256:22f982e7b1e43625a45d0aa6cde3ba1b51a01d38302baaed5fde56cba2cb87e7"
       compilerInputFingerprint = "sha256:8f7cca887b983c41218281dc3695f917077eda54e401cc090b2c92fa860add7e"
+      stability = "stable"
+    }>
+    <SpecRevision #v2 {
+      specVersion = 2
+      schemaRef = "vfs://./spec-v2.schema.json"
+      schemaFingerprint = "sha256:cebace46161453d24029206b8faffe91d0a4d72d6fd385de90b9038eed8c70d1"
+      contractFingerprint = "sha256:fea0edac0df22fad2b8fa2697bc27232591053fc6ee5e03a358fe34563f7f429"
+      semanticValidatorFingerprint = "sha256:37ebb9b18de478738e7d916bad630435bdd543eb323516259c97171b8179e859"
+      referenceProjectionFingerprint = "sha256:9ba948a70bae62e792594fdc6654f2c2b1672e5208af4651a1009bfa39d7140b"
+      compilerInputFingerprint = "sha256:a620f92bfc98ad8953ff873d110e23f29737d2b295f51a5b8ad3e3bb6ad19347"
+      stability = "stable"
+    }>
+  ]>
+)>
+</?>
+        <Content id="c_26913c4831ee" kind="xnl" encoding="utf8" hash="sha256:26913c4831ee16a05ac9486edcad1065cb89f207a6174402ef90612cb15ecd7c" ?><Prompt #eidolon.coding.CodingPrompt envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" description = "Mature Eidolon coding identity, routing and execution rules" template = "# Agent\n\n你是当前工作区中的 coding agent。\n使用工具完成任务，并遵循已装配的 identity、routing、prompt modules 与 capability manifest。\n\n# Identity\n\n你是主编码代理，负责理解用户目标、直接完成可控工作，并在需要时协调专门的 delegate agent。\n\n你应保持改动聚焦，尊重现有代码结构、测试习惯和用户未提交的改动。\n\n# Routing\n\n路由规则：\n- 直接、狭窄、上下文充分的修改由你自己完成。\n- 大范围代码库发现交给 explorer。\n- 外部库、API、协议或当前文档查证交给 librarian。\n- 高风险架构判断、复杂根因分析或多次失败后的复盘交给 oracle。\n- 用户可见 UI/UX 打磨交给 designer。\n- 规格清晰、可并行、无需架构判断的实现切片交给 fixer 或 code。\n\n对 coding 任务，优先按“定位/复现 -> 按需规划 -> 修改 -> 验证 -> 收口”推进；不要在修改后回到泛化勘察。\n\n规则：\n- 当任务已经给出可能文件、失败测试或狭窄 bug 面时，不要从宽泛全仓扫描开始；先检查这个具体表面。\n- 前几步内，要么运行最窄复现/targeted test，要么打开最可能的实现文件。\n- 一旦有可信的修复位置，先修改，再决定是否需要下一轮探索。\n- 读过失败测试和最可能实现文件后，应快速进入 patch；除非当前假设被推翻，不要持续重读相邻文件。\n- targeted verification 通过后，不要继续探索，除非有具体反证。\n- 修改后官方测试命令或可信 benchmark 套件通过时，除非有明确未验证风险，否则收口。\n- 没有代码变化时，不要重复运行同一个测试文件或官方套件，除非上次失败且重跑能回答新的具体问题。\n- 如果已经反复读取同一组实现文件和失败测试但没有新假设，停止重读，选择最有证据支持的最小 patch，或明确切换策略。\n- 重复相同 targeted verification 或无代码变化地重读同一对文件，是卡住信号，不是进展。\n- 优先使用仓库相对路径检查文件；如果 workspace 外的绝对路径失败，不要继续猜测同一宿主目录下的兄弟绝对路径。\n- 一旦识别出仓库相对实现路径，持续使用该路径形式；不要退回裸文件名或猜测另一个根目录。\n- 从已知仓库相对路径退回裸文件名或猜测兄弟路径，视为需要立即纠正的路径回退错误。\n- 对窄 bugfix 和 benchmark 类任务，知道目标 hunk 后优先用 `apply_patch` 修改源码。\n- 只有在读过文件并复制了精确片段后，才用 `edit` 做小范围精确替换。\n- 修改已有可访问文本文件时，优先用 `edit` 或 `apply_patch`，不要用 shell 直接改。\n- 多处不连续修改或需要 hunk 上下文匹配时，优先用 `apply_patch`。\n- 使用 `edit` 或 `multiedit` 前，先读取目标文件并复制要替换的精确片段。\n- 创建或完整替换可访问目录里的文本文件时，优先用 `write`。\n- 检查可访问文件或目录时，优先用 `read`。\n- 当 `edit` 或 `write` 能表达修改时，不要用 bash 直接修改普通文本文件。\n- 不要使用 `git checkout --`、`git restore`、`git reset --hard` 或等价破坏性回退命令，除非用户明确要求。\n- 必须使用 shell 时，优先使用快速、聚焦、非交互、输出少且便于验证的命令。\n- 项目脚本或 task runner 能完成同一目标时，优先使用项目提供的方式，而不是手写 shell pipeline。\n- 当 targeted check 能更快回答下一步决策时，避免重复全仓搜索和重复宽泛测试套件。\n- `read`/`write`/`edit` 文件工具不局限于 workspace；当前 runtime 权限允许的路径都可以使用。\n- 将 `~/...` 理解为 home-directory 记法，不是 workspace 相对路径；判断路径范围前先解析它。\n- 不要把用户写的 `~/...` 改写成猜测的 workspace 相对路径，例如 `./tmp/...`。\n\n可以通过 RunDelegateActor 工具使用内置和用户配置的 delegate agent。在 AI 领域语境中，subagent/子代理就是 delegate；用户要求使用 subagent 时，应使用 RunDelegateActor。\n\n可用 delegate agent：\n- code: general coding delegate\n- explorer: repository discovery\n- librarian: current library and documentation research\n- oracle: architecture and root-cause analysis\n- designer: user-visible UI/UX design\n- fixer: focused implementation\n\n委派准则：\n- 只在聚焦子任务能节省时间或提升质量时使用 RunDelegateActor。\n- explorer：用于范围较广或不确定的代码库发现；要求返回路径、行号和简洁发现。\n- librarian：用于当前库/API/文档研究；要求给出有来源支撑的结论，并避免把具体 MCP 服务名写死。\n- oracle：用于高风险决策、重复修复失败、根因分析和架构权衡。\n- designer：用于用户可见 UI/UX 工作，尤其是布局、交互、视觉质量或响应式表现重要时。\n- fixer：用于上下文充分、规格明确的实现任务；适合拆成独立并行修改。\n- code：没有更合适专家时，用作通用 coding delegate。\n\n不要为很小的直接修改委派；如果解释任务比自己动手更慢，也不要委派；如果下一步依赖你当前的即时上下文，也不要委派。\n不要用 member 代替 delegate/subagent：member 是持久化的会话/team actor；subagent/子代理是 delegate 的别名，不是 member 的别名。\n验证时优先使用 targeted test、typecheck/build/lint、项目提供的检查命令，或运行环境中可用的诊断类工具/MCP。" }>
+</?>
+        <Content id="c_2781e304013c" kind="text" encoding="utf8" hash="sha256:2781e304013c6b2de33ce3c21fd2dbbdfc63f56d595be0cdc944102ec4d716fd" ?>/** Frozen compatibility implementation of the mature conversation-domain chain. */
+export function buildContext(runtime, input, config) {
+  const plan = runtime.plan();
+  const materialization = runtime.materialize(plan);
+  const complete = input.mode === "estimate"
+    ? runtime.completeEstimate(materialization)
+    : materialization;
+  return runtime.convert(complete);
+}
+</?>
+        <Content id="c_3998badf0521" kind="xnl" encoding="utf8" hash="sha256:3998badf0521e287dd8ff68641feaf7ad1af5c063fd4b5f5bb5d263284b0ecbe" ?><AgentContextPipeline #eidolon.coding.StandardContext envelopeVersion="halfcode.resource-envelope/v1" specVersion=2 { lifecycle = "Active" description = "Canonical Eidolon history and provider context pipeline" } (
+  <CodeBinding { packageName = "eidolon.coding" module = "./Code/standard-context.ts" exportName = "buildContext" }>
+  <Config { value = {} }>
+)>
+</?>
+        <Content id="c_3ae43c5bb659" kind="xnl" encoding="utf8" hash="sha256:3ae43c5bb659daff663961232f10fee3ced2b6d06348ba5a2a2270c9a37508ef" ?><KindDefinition #Depa.Flows.KindDefinition.AgentContextPipeline envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
+  lifecycle = "Stable"
+  resourceKind = "AgentContextPipeline"
+  subjectFqn = "Depa.Flows.KindDefinition.AgentContextPipeline"
+  sourceShapes = ["single-file"]
+  documentCardinality = "one"
+  description = "Canonical depa-flows AgentContextPipeline resource contract."
+} (
+  <SpecRevisions [
+    <SpecRevision #v1 {
+      specVersion = 1
+      schemaRef = "vfs://./spec-v1.schema.json"
+      schemaFingerprint = "sha256:29ef0e740cf4b64a16a72a6ba4d2cb11ef419d4d7bc2e75f38878fd7b085b678"
+      contractFingerprint = "sha256:4dbd57579a67676cc5e4d566cd4f29875b75ea4fc5769226458653d523ea9c2d"
+      semanticValidatorFingerprint = "sha256:bc8b5b9c27cd35edd5fc96ba75b2a6f7b70466bdff04131cdccedc84f88a1d49"
+      referenceProjectionFingerprint = "sha256:f325dd85afd4ef0cf8e27f0c0c68e585ff7164a69aa110a7efc75f99e0591ba5"
+      compilerInputFingerprint = "sha256:ca98ba1de5f1d1f68f546a8dcdf74b9cfc88ffb9d9f40c279a551fb0c3a5b734"
+      stability = "stable"
+    }>
+    <SpecRevision #v2 {
+      specVersion = 2
+      schemaRef = "vfs://./spec-v2.schema.json"
+      schemaFingerprint = "sha256:cebace46161453d24029206b8faffe91d0a4d72d6fd385de90b9038eed8c70d1"
+      contractFingerprint = "sha256:ed047bdb3e4a69483648981aaf8cad3db6f27f77337280be2ec07e0b46e45b48"
+      semanticValidatorFingerprint = "sha256:5cde86a57ed129cb67378fa10bae1f99c09c40e2155037e908908ea25ea8156b"
+      referenceProjectionFingerprint = "sha256:ff3115699232468a805688c5108d7f39ef520817c1145ffcbec3c18bc0c960bb"
+      compilerInputFingerprint = "sha256:4ca9bacdcc50b31d9a4f1514666bb169606e23436c8c6cedb42fc4ba37f2839b"
       stability = "stable"
     }>
   ]>
@@ -243,29 +318,17 @@
 </?>
         <Content id="c_5046ec0ea9c2" kind="xnl" encoding="utf8" hash="sha256:5046ec0ea9c2a3d68d075acf1c052d52b578399c1cd9c507446aad3afc34d0e7" ?><Tool #ls envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" description = "Eidolon ls execution capability" }>
 </?>
-        <Content id="c_8196e384dd0e" kind="xnl" encoding="utf8" hash="sha256:8196e384dd0ee52a9f0f09d9d7efac1856acacc67b2c40f9d6e01b58f374f907" ?><Tool #read envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" description = "Eidolon read execution capability" }>
-</?>
-        <Content id="c_9070b27efce9" kind="xnl" encoding="utf8" hash="sha256:9070b27efce97a4646e69f1bf1071262c8c0c78128468d32bddfa29c1348592f" ?><KindDefinition #Depa.Flows.KindDefinition.AgentContextPipeline envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
-  lifecycle = "Stable"
-  resourceKind = "AgentContextPipeline"
-  subjectFqn = "Depa.Flows.KindDefinition.AgentContextPipeline"
-  sourceShapes = ["single-file"]
-  documentCardinality = "one"
-  description = "Canonical depa-flows AgentContextPipeline resource contract."
-} (
-  <SpecRevisions [
-    <SpecRevision #v1 {
-      specVersion = 1
-      schemaRef = "vfs://./spec-v1.schema.json"
-      schemaFingerprint = "sha256:29ef0e740cf4b64a16a72a6ba4d2cb11ef419d4d7bc2e75f38878fd7b085b678"
-      contractFingerprint = "sha256:4dbd57579a67676cc5e4d566cd4f29875b75ea4fc5769226458653d523ea9c2d"
-      semanticValidatorFingerprint = "sha256:bc8b5b9c27cd35edd5fc96ba75b2a6f7b70466bdff04131cdccedc84f88a1d49"
-      referenceProjectionFingerprint = "sha256:f325dd85afd4ef0cf8e27f0c0c68e585ff7164a69aa110a7efc75f99e0591ba5"
-      compilerInputFingerprint = "sha256:ca98ba1de5f1d1f68f546a8dcdf74b9cfc88ffb9d9f40c279a551fb0c3a5b734"
-      stability = "stable"
-    }>
-  ]>
+        <Content id="c_58209aa53b9f" kind="xnl" encoding="utf8" hash="sha256:58209aa53b9f69a25fbbd358441514dce485f2fdebd1e329349d46e4e56a0fe0" ?><AgentMessageSource #eidolon.coding.WorkspaceAgents envelopeVersion="halfcode.resource-envelope/v1" specVersion=2 { lifecycle = "Active" description = "Workspace AGENTS.md instruction source" } (
+  <CodeBinding { packageName = "eidolon.coding" module = "./Code/workspace-agents.ts" exportName = "loadMessages" }>
+  <Config { value = {} }>
 )>
+</?>
+        <Content id="c_6bee6c99501d" kind="text" encoding="utf8" hash="sha256:6bee6c99501dce868e77149694e09e377695b20cf32cce488fbfff842b3ce37e" ?>export function loadMessages(runtime, input, config) {
+  const instructions = runtime.readWorkspaceInstructions();
+  return instructions ? [{ role: "system", content: instructions }] : [];
+}
+</?>
+        <Content id="c_8196e384dd0e" kind="xnl" encoding="utf8" hash="sha256:8196e384dd0ee52a9f0f09d9d7efac1856acacc67b2c40f9d6e01b58f374f907" ?><Tool #read envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" description = "Eidolon read execution capability" }>
 </?>
         <Content id="c_934def9e31be" kind="xnl" encoding="utf8" hash="sha256:934def9e31be2da9c0e337c23a02f6f24af45a473bc3fecbfa6cfea88772508a" ?><KindDefinition #Eidolon.AI.KindDefinition.HolonTaskRuntimeDefinition envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Stable"
@@ -315,10 +378,6 @@
 </?>
         <Content id="c_9ef7f4a7df02" kind="xnl" encoding="utf8" hash="sha256:9ef7f4a7df021fa919c1d9f95e90fd11f76177d6c37207625de7759bf862fa36" ?><Tool #glob envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" description = "Eidolon glob execution capability" }>
 </?>
-        <Content id="c_b37fd682cdb0" kind="xnl" encoding="utf8" hash="sha256:b37fd682cdb0f55d6c2880c8ffdc66116092df398f3dc1a3c0fc9a96936ab11a" ?><AgentMessageSource #eidolon.coding.WorkspaceAgents envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" description = "Workspace AGENTS.md instruction source" } (
-  <Content ?json>{"implementation":"eidolon.workspace-agents/v1"}</?json>
-)>
-</?>
         <Content id="c_bfeac1f7170e" kind="xnl" encoding="utf8" hash="sha256:bfeac1f7170e7fc893f0722d6be00286f88b646237e416c0d3fe085a7d9635e7" ?><Tool #edit envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" description = "Eidolon edit execution capability" }>
 </?>
         <Content id="c_ca2c191b4a43" kind="xnl" encoding="utf8" hash="sha256:ca2c191b4a433a528aa7917353382367fc0e107e945865ce0e31701365e32e42" ?><Tool #bash envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" description = "Eidolon bash execution capability" }>
@@ -365,10 +424,6 @@
 )>
 </?>
         <Content id="c_e30213402775" kind="xnl" encoding="utf8" hash="sha256:e3021340277576189df53006f1888ebfbe8f28a2c6939c3babd4842d1099ece8" ?><Prompt #eidolon.coding.KernelPrompt envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" description = "Mature Eidolon kernel work loop and rules" template = "工作循环：\n  确定目标和成功条件 -> 行动 -> 观察 -> 评估剩余 gap -> 决策：已达成则完成；下一步明确且 gap 在收敛则继续；新证据推翻当前假设则重规划；无进展、受阻或超出预算则升级\n\n**Workspace 配置的 delegate-task agents**（coding profile 可能会添加内置 delegate；聚焦子任务可调用 delegate task 工具）:\n- Halfcode CodeAgent uses the exact ToolRefs and delegate capabilities frozen with its execution plan.\n\n规则：\n- 本地文本资源按完整 content-addressed resource revision、requested fragment 与 current provider context visibility 复用；同 revision 且片段仍完整可见时使用 already-visible 引用，不重复正文。\n- 资源 revision 变化，或原 delivery 已移除、compacted、persisted 而不再完整可见时，重新加载所需 fragment。\n- 对需要探索或实现的聚焦子任务，使用 RunDelegateActor 工具；在 AI 领域语境中，subagent/子代理指的就是 delegate。\n- 只有当工作确实包含多个依赖步骤、分支决策或有意义的可恢复状态时，才使用 TaskTreeWrite；小型直接修复不要使用。\n- 需要完整 task-tree JSON 时，使用 TaskTreeRead。\n- member 是持久化的会话/team actor，按 member id/name 查找；subagent/子代理是 delegate 的别名，不是 member 的别名。\n- 优先使用正式 actor 模型：member / holon(governance=autonomous|leader_led)。\n- 优先使用正式任务表面：`assign`、`assign:r`、`assign:n`、`assign:s`（`assign`/`assign:r` => `final`；`assign:n` => `none`；`assign:s` => `stream`）。\n- 优先使用正式 watch 控制：watch / unwatch。\n- 优先使用工具，不要只用文字解释；要行动。\n- AI Workflow 产品请求只把完整原始请求和显式的 publish/execute 授权交给 `WorkflowFulfill`；DevOps stage、场景、form 和 topology 的语义决策由该工具启动的专属 actor 依据 global `sys-eidolon-anchor-devops` 处理。本 kernel 不复制 AI Workflow 的业务语义或 DSL 规则。\n- `WorkflowAuthor` 和其他 workflow lifecycle tools 是专属 workflow actor 的原生工具面；普通 actor 不用 shell、通用文件写入、MCP 或外部 agent CLI 绕过该入口。\n- MCP 工具调用没有默认的单次超时。某次 MCP 调用需要有边界时，在工具参数里加入 `_eidolon: { \"timeoutMs\": <milliseconds> }`。使用合理的最小超时；runtime 会将上限限制为 300000ms，并在转发给 MCP server 前移除 `_eidolon`。\n- 完成后总结变更。\n- 将 /goal、/actor、/member、/holon 用户输入识别为正式快捷命令表面。\n- 使用 get_goal 查看持久化 thread goal。只有用户明确要求跟踪 goal 时才使用 create_goal。只有基于证据确认 complete/blocked 状态时才使用 update_goal。" }>
-</?>
-        <Content id="c_ed4698f0653b" kind="xnl" encoding="utf8" hash="sha256:ed4698f0653b7ccd541780d4df5a49c9b70229ab58f25fbe4c9d8c76ae222b9f" ?><AgentContextPipeline #eidolon.coding.StandardContext envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Active" description = "Canonical Eidolon history and provider context pipeline" } (
-  <Content ?json>{"implementation":"eidolon.standard-context-pipeline/v1","stages":["prompt-plan","conversation-prelude","provider-context-facts-at-history-anchors","stable-message-prefix","conversation-boundary-overlays","provider-conversion"]}</?json>
-)>
 </?>
         <Content id="c_f20bcf441699" kind="xnl" encoding="utf8" hash="sha256:f20bcf44169973cfd347be2ae787bcf43c4aa4f1723b7c4ee89e8d67141cf354" ?><Tool #write envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { lifecycle = "Stable" description = "Eidolon write execution capability" }>
 </?>

@@ -1,0 +1,9 @@
+/** Frozen compatibility implementation of the mature conversation-domain chain. */
+export function buildContext(runtime, input, config) {
+  const plan = runtime.plan();
+  const materialization = runtime.materialize(plan);
+  const complete = input.mode === "estimate"
+    ? runtime.completeEstimate(materialization)
+    : materialization;
+  return runtime.convert(complete);
+}

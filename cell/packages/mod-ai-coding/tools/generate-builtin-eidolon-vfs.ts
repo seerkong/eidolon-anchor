@@ -18,6 +18,8 @@ import primaryAgent from "../src/agent/primary/AGENT.md" with { type: "text" }
 import primaryIdentity from "../src/agent/primary/IDENTITY.md" with { type: "text" }
 import primaryRouting from "../src/agent/primary/ROUTING.md" with { type: "text" }
 import primaryCodingRules from "../src/prompt/primary-coding-rules.md" with { type: "text" }
+import standardContextSource from "../../ai-organ-logic/src/resources/compat/standard-context.ts.txt" with { type: "text" }
+import workspaceAgentsSource from "../../ai-organ-logic/src/resources/compat/workspace-agents.ts.txt" with { type: "text" }
 import {
   BUILTIN_EIDOLON_AGENT_REF,
   BUILTIN_EIDOLON_SNAPSHOT_FILE_NAME,
@@ -35,17 +37,6 @@ const snapshotPath = path.join(packageRoot, "src", "builtin-vfs", BUILTIN_EIDOLO
 const check = process.argv.includes("--check")
 
 const TOOL_NAMES = Object.freeze(["bash", "edit", "glob", "grep", "ls", "read", "write"] as const)
-const CONTEXT_PIPELINE = Object.freeze({
-  implementation: "eidolon.standard-context-pipeline/v1",
-  stages: Object.freeze([
-    "prompt-plan",
-    "conversation-prelude",
-    "provider-context-facts-at-history-anchors",
-    "stable-message-prefix",
-    "conversation-boundary-overlays",
-    "provider-conversion",
-  ]),
-})
 
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex")
@@ -65,7 +56,7 @@ function promptResource(id: string, description: string, content: string): strin
 }
 
 function kindDefinition(kind: DepaAIResourceKind): string {
-  return depaAIResourceKindContract(kind).kindDefinitionSource
+  return depaAIResourceKindContract(kind, kind === "AgentContextPipeline" || kind === "AgentMessageSource" ? 2 : 1).kindDefinitionSource
 }
 
 function maturePromptSections(): Readonly<{ kernel: string; coding: string }> {
@@ -109,8 +100,10 @@ export function builtinEidolonResourceFiles(): Readonly<Record<string, string>> 
       "Mature Eidolon coding identity, routing and execution rules",
       prompt.coding,
     ),
-    "MessageSources/WorkspaceAgents.xnl": `<AgentMessageSource #eidolon.coding.WorkspaceAgents envelopeVersion="${DEPA_AI_RESOURCE_ENVELOPE_VERSION}" specVersion=${DEPA_AI_RESOURCE_SPEC_VERSION} { lifecycle = "Active" description = "Workspace AGENTS.md instruction source" } (\n  <Content ?json>${JSON.stringify({ implementation: "eidolon.workspace-agents/v1" })}</?json>\n)>\n`,
-    "ContextPipelines/StandardContext.xnl": `<AgentContextPipeline #eidolon.coding.StandardContext envelopeVersion="${DEPA_AI_RESOURCE_ENVELOPE_VERSION}" specVersion=${DEPA_AI_RESOURCE_SPEC_VERSION} { lifecycle = "Active" description = "Canonical Eidolon history and provider context pipeline" } (\n  <Content ?json>${JSON.stringify(CONTEXT_PIPELINE)}</?json>\n)>\n`,
+    "MessageSources/WorkspaceAgents.xnl": `<AgentMessageSource #eidolon.coding.WorkspaceAgents envelopeVersion="${DEPA_AI_RESOURCE_ENVELOPE_VERSION}" specVersion=2 { lifecycle = "Active" description = "Workspace AGENTS.md instruction source" } (\n  <CodeBinding { packageName = "eidolon.coding" module = "./Code/workspace-agents.ts" exportName = "loadMessages" }>\n  <Config { value = {} }>\n)>\n`,
+    "ContextPipelines/StandardContext.xnl": `<AgentContextPipeline #eidolon.coding.StandardContext envelopeVersion="${DEPA_AI_RESOURCE_ENVELOPE_VERSION}" specVersion=2 { lifecycle = "Active" description = "Canonical Eidolon history and provider context pipeline" } (\n  <CodeBinding { packageName = "eidolon.coding" module = "./Code/standard-context.ts" exportName = "buildContext" }>\n  <Config { value = {} }>\n)>\n`,
+    "Code/standard-context.ts": standardContextSource,
+    "Code/workspace-agents.ts": workspaceAgentsSource,
   }
   for (const kind of ["AIAgentDefinition", "Prompt", "AgentMessageSource", "AgentContextPipeline", "Tool"] as const) {
     files[`KindDefinitions/${kind}/manifest.xnl`] = kindDefinition(kind)

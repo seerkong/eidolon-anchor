@@ -1,0 +1,16 @@
+<BehaviorPatch #track.verify-holon-task-recovery-across-os-processes.behavior_patch.eidolon-holon-e2e-resource apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-holon-e2e-resource" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-holon-e2e-resource/requirements/os-process-recovery" } (
+      <Requirement #os-process-recovery (
+        <Statement ?>独立 Holon runtime SHALL 仅凭持久 TaskSpace、subscription、journal 与外部幂等协议在新 OS 进程恢复任务。</?>
+        <Suites [<Suite #crash-windows { name = "进程中断" } (<Cases [
+          <Case #durable-recovery (
+            <Given ?>进程 A 在 pending、intent、accepted-before-result 或 settlement-before-observation 窗口退出。</?>
+            <When ?>不同 PID 的 B 从同一持久资源恢复并再次 replay。</?>
+            <Then ?>任务完成、输出一致，同外部 idempotency key 仅接受一次；不共用 JS Map 或 closure。</?>
+          )>
+        ]>)>]>
+      )>
+    )>
+  ]>
+)>

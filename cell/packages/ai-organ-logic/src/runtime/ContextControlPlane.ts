@@ -17,6 +17,7 @@ import {
   getConversationActorRawStateFromVm,
   getVmConversationDomainRuntime,
   recordPromptRequestToConversationDomainRuntime,
+  resolveConversationSessionIdFromVm,
 } from "../conversation/ConversationDomainRuntime";
 
 const DEFAULT_WORK_MODE: WorkMode = WORK_MODES.build;
@@ -112,10 +113,6 @@ function countRecentToolEvidence(messages: Array<{ role?: string }>): number {
   return messages.slice(-8).filter((message) => String(message?.role ?? "") === "tool").length;
 }
 
-function resolveSessionId(vm: AiAgentVm): string {
-  const sessionId = (vm.outerCtx?.metadata as Record<string, unknown> | undefined)?.sessionId;
-  return typeof sessionId === "string" && sessionId.trim() ? sessionId : "__unsessioned__";
-}
 
 function insertDynamicOverlayAtConversationBoundary(
   messages: ChatMessage[],
@@ -502,7 +499,7 @@ export function recordPromptPlanForActorExecution(params: {
   occurredAt?: string;
 }): { promptGenerationId: string | null; promptPlan: PromptPlanData } {
   const runtime = getVmConversationDomainRuntime(params.vm);
-  const sessionId = resolveSessionId(params.vm);
+  const sessionId = resolveConversationSessionIdFromVm(params.vm);
   const promptPlan = buildPromptPlanForActorExecution({
     actor: params.actor,
     messages: params.messages,

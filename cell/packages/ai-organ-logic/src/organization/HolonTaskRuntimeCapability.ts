@@ -13,6 +13,7 @@ import type {
   HolonTaskRuntimeSettlementPort,
   HolonTaskRuntimeTaskSpacePort,
   HolonTaskSelector,
+  HolonTaskInspectionPort,
 } from "@cell/ai-organ-contract"
 
 import {
@@ -47,6 +48,7 @@ export interface HolonTaskRuntimeCapabilityScope {
  * implementations; it never owns a second service, catalog, or task state.
  */
 export interface HolonTaskRuntimeCapabilityRoute {
+  readonly inspection?: HolonTaskInspectionPort
   readonly routeRef: `resource://${string}`
   readonly deployment: HolonTaskRuntimeDeploymentPort
   readonly taskSpace: HolonTaskRuntimeTaskSpacePort
@@ -55,6 +57,7 @@ export interface HolonTaskRuntimeCapabilityRoute {
 }
 
 export interface HolonTaskRuntimeCapabilityBinding {
+  readonly currentAssignment?: boolean
   readonly admission: FrozenHolonTaskRuntimeAdmission
   readonly route: HolonTaskRuntimeCapabilityRoute
   readonly processorConfig: HolonTaskRuntimeProcessorConfig
@@ -171,6 +174,7 @@ function normalizeRoute(value: HolonTaskRuntimeCapabilityRoute): HolonTaskRuntim
     taskSpace: value.taskSpace,
     coordinatorMailbox: value.coordinatorMailbox,
     settlement: value.settlement,
+    ...(value.inspection ? { inspection: value.inspection } : {}),
   })
 }
 
@@ -222,6 +226,18 @@ function createFacet(scope: HolonTaskRuntimeCapabilityScope): HolonTaskRuntimeCa
   } as unknown as HolonTaskRuntimeCapabilityFacet
 
   const runtime: HolonTaskRuntime = {
+    inspection: {
+      observe: (selector) => {
+        const port = bindingFor(state, selector?.admissionId, "inspection.observe").route.inspection
+        if (!port) return invalid("EIDOLON_HOLON_TASK_INSPECTION_UNBOUND", "Task inspection route is missing.")
+        return port.observe(selector)
+      },
+      repair: (input) => {
+        const port = bindingFor(state, input.selector?.admissionId, "inspection.repair").route.inspection
+        if (!port) return invalid("EIDOLON_HOLON_TASK_INSPECTION_UNBOUND", "Task inspection route is missing.")
+        return port.repair(input)
+      },
+    },
     catalog: {
       read: async () => state.catalog,
       async compareAndSet({ expectedRevision, next }) {
@@ -383,7 +399,7 @@ export function registerHolonTaskRuntimeCapabilityBinding(
   const existing = state.bindings.get(admission.admissionId)
   if (existing && (!sameJson(existing.admission, admission)
     || existing.route.routeRef !== route.routeRef
-    || !sameJson(existing.processorConfig, processorConfig))) {
+    || (value.currentAssignment !== false && !sameJson(existing.processorConfig, processorConfig)))) {
     return invalid(
       "EIDOLON_HOLON_TASK_CAPABILITY_ADMISSION_CONFLICT",
       `Admission '${admission.admissionId}' is already mounted with different frozen facts or effect route.`,
@@ -396,7 +412,7 @@ export function registerHolonTaskRuntimeCapabilityBinding(
       serviceRuntimeRef: state.serviceRuntimeRef,
     })
   }
-  const next = transitionHolonTaskRuntimeCatalog(state.catalog, admission)
+  const next = value.currentAssignment === false ? state.catalog : transitionHolonTaskRuntimeCatalog(state.catalog, admission)
   state.bindings.set(admission.admissionId, Object.freeze({ admission, route, processorConfig }))
   state.catalog = next
   return Object.freeze({

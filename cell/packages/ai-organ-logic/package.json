@@ -20,6 +20,9 @@
     "typecheck:holon-task-runtime": "tsc -p ../../tsconfig.holon-task-runtime.json",
     "typecheck:step-space-adoption": "tsc -p ../../tsconfig.step-space-adoption.json"
   },
+  "devDependencies": {
+    "xnl-vfs": "0.1.3"
+  },
   "dependencies": {
     "@cell/ai-support": "workspace:*",
     "@cell/ai-core-contract": "workspace:*",

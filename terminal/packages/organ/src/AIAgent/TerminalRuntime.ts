@@ -66,7 +66,6 @@ import {
   setActorWorkMode,
   getActorWorkContext,
   invokeAddressedChildExecutionActor,
-  type HolonExecutionAdapterPorts,
   type HolonGenericActorOwnerPort,
   type LlmAdapterType,
   type LlmProviderRuntime,
@@ -101,6 +100,7 @@ import {
 } from "@cell/membrane/runtime-composition"
 import { aiCodingRuntimeProfile, resolveRuntimeProfileById } from "@cell/mod-profiles"
 import { prepareEffectiveEidolonVfs } from "@cell/mod-ai-coding/builtin-vfs"
+import { withTerminalEffectiveVfsLifetime } from "./TerminalEffectiveVfsLifetime"
 import type { ActorSurfaceProjectionData } from "@cell/ai-core-contract/runtime/ActorSurface"
 import type { ActorModelConfig, AiAgentMailboxSchema } from "@cell/ai-core-contract/runtime/AiAgentActor"
 import { WORK_MODES } from "@cell/ai-core-contract/runtime/ContextControl"
@@ -119,6 +119,7 @@ import {
   loadRuntimeConfigFromVfs,
 } from "@cell/ai-support"
 import { openLocalHolonTaskRuntime } from "./LocalHolonTaskRuntimeBootstrap"
+import { createStandaloneHolonExecutionAdapters } from "./StandaloneHolonExecutionAdapters"
 import type {
   ConversationSessionForkCommand,
   ConversationSessionForkResult,
@@ -812,6 +813,7 @@ async function createRuntimeBridge(
     homeEidolonRoot: resolveRuntimeAuthorityRoot(paths.WORKDIR),
     workspaceEidolonRoot: path.join(paths.WORKDIR, ".eidolon"),
   })
+  return withTerminalEffectiveVfsLifetime<TuiRuntimeBridge>(preparedEffectiveVfs, async () => {
   const resourcePackages = isPlainRecord(normalizedRuntimeMetadata.resourcePackages)
     ? normalizedRuntimeMetadata.resourcePackages
     : {}
@@ -1181,47 +1183,26 @@ async function createRuntimeBridge(
       }
       return Object.freeze(owner)
     },
-    createExecutionAdapters: () => {
-      const adapters: HolonExecutionAdapterPorts = {
-        aiAgent: {
-          executeIdempotent: async ({ binding, invocation, sessionRef, idempotencyKey }) => {
-            if (binding.binding.adapter.kind !== "ai-agent") {
-              throw new Error("EIDOLON_HOLON_AI_ADAPTER_BINDING_MISMATCH")
-            }
-            const agentDefinitionRef = binding.binding.adapter.agentDefinitionRef
-            const resolvedConfig = AgentRegistry.get(vm.registries.agentRegistry, agentDefinitionRef)
-            if (!resolvedConfig) {
-              throw new Error(`EIDOLON_HOLON_AGENT_DEFINITION_NOT_LOADED: ${agentDefinitionRef}`)
-            }
-            return runtimeCoordinator.enqueue(async () => {
-              const target = holonActorReferences.get(sessionRef)
-                ?? recoveredHolonActorReference(sessionRef, agentDefinitionRef)
-              const invoked = await invokeAddressedChildExecutionActor(vm, actor, {
-                description: `Holon task ${invocation.taskRef}`,
-                prompt: JSON.stringify(invocation.input),
-                agentType: agentDefinitionRef,
-                resolvedConfig,
-                toolCallId: idempotencyKey,
-                ...(target ? { target } : { sessionId: sessionRef }),
-              })
-              holonActorReferences.set(sessionRef, invoked.reference)
-              activateSessionMaterialization()
-              return invoked.output
-            })
-          },
-        },
-        humanEndpoint: {
-          executeIdempotent: () => { throw new Error("EIDOLON_HOLON_HUMAN_ENDPOINT_NOT_BOUND") },
-        },
-        service: {
-          executeIdempotent: () => { throw new Error("EIDOLON_HOLON_SERVICE_ADAPTER_NOT_BOUND") },
-        },
-        hybrid: {
-          executeIdempotent: () => { throw new Error("EIDOLON_HOLON_HYBRID_ADAPTER_NOT_BOUND") },
-        },
-      }
-      return Object.freeze(adapters)
-    },
+    createExecutionAdapters: ({ deployment }) => createStandaloneHolonExecutionAdapters({
+      deployment,
+      executeAddressedAgent: async ({ agentDefinitionRef, resolvedConfig, invocation, sessionRef, idempotencyKey }) => {
+        return runtimeCoordinator.enqueue(async () => {
+          const target = holonActorReferences.get(sessionRef)
+            ?? recoveredHolonActorReference(sessionRef, agentDefinitionRef)
+          const invoked = await invokeAddressedChildExecutionActor(vm, actor, {
+            description: `Holon task ${invocation.taskRef}`,
+            prompt: JSON.stringify(invocation.input),
+            agentType: agentDefinitionRef,
+            resolvedConfig,
+            toolCallId: idempotencyKey,
+            ...(target ? { target } : { sessionId: sessionRef }),
+          })
+          holonActorReferences.set(sessionRef, invoked.reference)
+          activateSessionMaterialization()
+          return invoked.output
+        })
+      },
+    }),
   })
   const emitHeartbeatWakeSignal = (event: { schedule: HeartbeatSchedule; wake: HeartbeatWakePayload }) => {
     const fiberId = `${event.schedule.targetActorKey}:${event.schedule.targetActorId}`
@@ -2312,6 +2293,7 @@ async function createRuntimeBridge(
     readProviderCacheObservations,
     readWorkflowExecutions,
   }
+  })
 }
 
 const sessionRuntimePromises = new Map<string, Promise<TuiRuntimeBridge | null>>()

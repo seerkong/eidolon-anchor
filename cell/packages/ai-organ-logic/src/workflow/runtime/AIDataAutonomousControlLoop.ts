@@ -63,6 +63,12 @@ export type AIDataAutonomousControlTerminal = Readonly<{
   code: string
 }>
 
+export type AIDataExecutionFailure = Readonly<{
+  nodeId: string
+  generation: number
+  message: string
+}>
+
 export type AIDataAutonomousControlState = Readonly<{
   schemaVersion: typeof AI_DATA_AUTONOMOUS_CONTROL_SCHEMA_VERSION
   binding: AIDataAutonomousControlBinding
@@ -74,6 +80,7 @@ export type AIDataAutonomousControlState = Readonly<{
   receipts: readonly AIDataControlIterationReceipt[]
   latestObservation?: AIDataControlObservation
   latestVerifier?: AIDataControlVerifierFact
+  executionFailures?: readonly AIDataExecutionFailure[]
   terminal?: AIDataAutonomousControlTerminal
 }>
 
@@ -148,6 +155,20 @@ export function normalizeAIDataAutonomousControlState(value: unknown): AIDataAut
   "AI_DATA_CONTROL_BUDGET_CURSOR_MISMATCH", "Control cursor and budget usage are not reciprocal")
   invariant(Array.isArray(state.feedback) && Array.isArray(state.receipts),
     "AI_DATA_CONTROL_STATE_INVALID", "Control feedback and receipts must be arrays")
+  if (state.executionFailures !== undefined) {
+    invariant(Array.isArray(state.executionFailures), "AI_DATA_CONTROL_FAILURES_INVALID", "Execution failures must be an array")
+    const attempts = new Set<string>()
+    for (const value of state.executionFailures) {
+      const failure = record(value)
+      invariant(Object.keys(failure).sort().join(",") === "generation,message,nodeId"
+        && typeof failure.message === "string", "AI_DATA_CONTROL_FAILURES_INVALID", "Execution failure must be an exact typed observation")
+      const nodeId = exactIdentity(failure.nodeId, "AI_DATA_CONTROL_FAILURES_INVALID", "failure.nodeId")
+      const generation = nonNegativeInteger(failure.generation, "AI_DATA_CONTROL_FAILURES_INVALID", "failure.generation")
+      const key = `${nodeId}#${generation}`
+      invariant(!attempts.has(key), "AI_DATA_CONTROL_FAILURES_INVALID", "Execution failure attempts must be unique")
+      attempts.add(key)
+    }
+  }
   invariant(state.receipts.length === iteration,
     "AI_DATA_CONTROL_RECEIPT_CURSOR_MISMATCH", "Control receipt count must equal the iteration cursor")
   const phase = state.phase
@@ -527,7 +548,7 @@ export function transitionAIDataAutonomousControlCheckpoint(
       nodeId: barrier.id,
       generation: barrier.generation,
       status: "Failed",
-      semanticFingerprint: barrier.semanticFingerprint,
+      ...(barrier.semanticFingerprint === undefined ? {} : { semanticFingerprint: barrier.semanticFingerprint }),
     })
     phase = "failed"
     terminal = Object.freeze({ kind: "failed", code: input.admission.failureCode })
@@ -543,7 +564,7 @@ export function transitionAIDataAutonomousControlCheckpoint(
         nodeId: barrier.id,
         generation: barrier.generation,
         status: "Failed",
-        semanticFingerprint: barrier.semanticFingerprint,
+        ...(barrier.semanticFingerprint === undefined ? {} : { semanticFingerprint: barrier.semanticFingerprint }),
       })
       terminal = Object.freeze({ kind: "failed", code: "BUDGET_EXHAUSTED" })
     }

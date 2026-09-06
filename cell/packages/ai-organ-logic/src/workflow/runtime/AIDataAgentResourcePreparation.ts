@@ -1,5 +1,5 @@
 import path from "node:path"
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises"
+import { link, mkdir, open, readFile, readdir, unlink } from "node:fs/promises"
 
 import type {
   AIDataControlCapability,
@@ -18,6 +18,8 @@ import type {
   FrozenAIAgentTaskBinding,
   RejectedAIAgentDefinitionAdmission,
 } from "ai-workflow-contract"
+import { normalizeAIAgentTaskRequirement } from "ai-workflow-logic"
+import { frozenAIAgentTaskAgentContentDigest } from "ai-workflow-logic/run-freeze"
 import type {
   DefinitionStepExtensionCodecRegistryPort,
   DefinitionStepValue,
@@ -28,10 +30,13 @@ import {
   EidolonAutonomousAgentResourceHost,
   type EidolonAIAgentDefinitionSelectionObservation,
   type EidolonPreparedAIAgentDefinition,
+  type EidolonAgentPreparationObservationMaterial,
+  type EidolonAgentObservationDescription,
 } from "../../resources/EidolonAutonomousAgentResourceHost"
-import type {
+import {
   EidolonAppResourceRegistryAdapter,
-  EidolonPreparedWorkflowAgentExecution,
+  type EidolonPreparedWorkflowAgentExecution,
+  type EidolonFrozenAgentExecutionBundle,
 } from "../../resources/EidolonAppResourceRegistryAdapter"
 import {
   findAIDataAutonomousControlStateInExtensions,
@@ -39,7 +44,8 @@ import {
   writeAIDataAutonomousControlExtension,
 } from "./AIDataAutonomousControlLoop"
 
-export const AI_DATA_AGENT_PREPARATION_SCHEMA_VERSION = "eidolon.ai-data-agent-preparation/v1" as const
+export const AI_DATA_AGENT_PREPARATION_SCHEMA_VERSION = "eidolon.ai-data-agent-preparation/v2" as const
+const LEGACY_AI_DATA_AGENT_PREPARATION_SCHEMA_VERSION = "eidolon.ai-data-agent-preparation/v1" as const
 export const AI_DATA_AGENT_PREPARATION_EXTENSION_KIND = "eidolon.ai-data-agent-preparation" as const
 export const AI_DATA_AGENT_PREPARATION_EXTENSION_SCHEMA_REF = "schema://eidolon.ai-data-agent-preparation/v1" as const
 export const AI_DATA_AGENT_PREPARATION_EXTENSION_VALUE_SCHEMA_VERSION = "eidolon.ai-data-agent-preparations/v1" as const
@@ -63,7 +69,7 @@ type AIDataControlAgentCapability = AIDataControlCapability & Readonly<{
 }>
 
 export type AIDataAgentPreparationReceipt = Readonly<{
-  schemaVersion: typeof AI_DATA_AGENT_PREPARATION_SCHEMA_VERSION
+  schemaVersion: typeof AI_DATA_AGENT_PREPARATION_SCHEMA_VERSION | typeof LEGACY_AI_DATA_AGENT_PREPARATION_SCHEMA_VERSION
   instanceId: string
   requirement: AIAgentTaskRequirement
   requirementDigest: `sha256:${string}`
@@ -77,10 +83,16 @@ export type AIDataAgentPreparationReceipt = Readonly<{
   closureResourceIds: readonly string[]
   instanceName: string
   capability: AIDataControlAgentCapability
+  frozenExecution?: EidolonFrozenAgentExecutionBundle
   authoring?: Readonly<{
     planDigest: `sha256:${string}`
     transactionId: string
     receiptDigest: `sha256:${string}`
+  }>
+  preparation?: Readonly<{
+    intentDigest: `sha256:${string}`
+    decisionDigest: `sha256:${string}`
+    targetDigest: `sha256:${string}`
   }>
   receiptDigest: `sha256:${string}`
 }>
@@ -88,11 +100,30 @@ export type AIDataAgentPreparationReceipt = Readonly<{
 export type AIDataPreparedAgentResource = Readonly<{
   receipt: AIDataAgentPreparationReceipt
   proof: FrozenAIAgentTaskBinding
+  executionRegistry?: AgentExecutionRegistry
 }>
 
 export type AIDataAgentPreparationExtensionValue = Readonly<{
   schemaVersion: typeof AI_DATA_AGENT_PREPARATION_EXTENSION_VALUE_SCHEMA_VERSION
   receipts: readonly AIDataAgentPreparationReceipt[]
+}>
+
+export type AIDataAgentPreparationIntent = Readonly<{
+  schemaVersion: "eidolon.ai-data-agent-preparation-intent/v1"
+  instanceId: string
+  nodeId: string
+  identity: FlowClosedObject
+  requirement: AIAgentTaskRequirement
+  observationMaterial: EidolonAgentPreparationObservationMaterial
+  intentDigest: `sha256:${string}`
+}>
+
+type AIDataAgentPreparationDecisionRecord = Readonly<{
+  schemaVersion: "eidolon.ai-data-agent-preparation-decision/v1"
+  intentDigest: `sha256:${string}`
+  targetDigest: `sha256:${string}`
+  decision: AIAgentDefinitionSelectionDecision
+  decisionDigest: `sha256:${string}`
 }>
 
 type AgentExecutionRegistry = Pick<EidolonAppResourceRegistryAdapter, "prepareWorkflowAgentExecution">
@@ -102,17 +133,7 @@ export class FileAIDataAgentPreparationStore {
 
   async save(receiptValue: AIDataAgentPreparationReceipt): Promise<void> {
     const receipt = normalizeAIDataAgentPreparationReceipt(receiptValue)
-    const filePath = this.filePath(receipt.instanceId, receipt.task.nodeId)
-    await mkdir(path.dirname(filePath), { recursive: true })
-    const bytes = `${canonicalJson(receipt)}\n`
-    try {
-      await writeFile(filePath, bytes, { encoding: "utf8", flag: "wx", mode: 0o600 })
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
-      if (await readFile(filePath, "utf8") !== bytes) {
-        throw new Error("AI_DATA_AGENT_PREPARATION_IMMUTABLE_CONFLICT")
-      }
-    }
+    await writeImmutablePreparationJson(this.filePath(receipt.instanceId, receipt.task.nodeId), receipt)
   }
 
   async list(instanceId: string): Promise<readonly AIDataAgentPreparationReceipt[]> {
@@ -136,6 +157,67 @@ export class FileAIDataAgentPreparationStore {
     )))
   }
 
+  async loadIntent(instanceId: string, nodeId: string): Promise<AIDataAgentPreparationIntent | undefined> {
+    const value = await readOptionalPreparationJson(this.pendingPath(instanceId, nodeId, "intent"))
+    if (value === undefined) return undefined
+    const intent = value as AIDataAgentPreparationIntent
+    if (intent.schemaVersion !== "eidolon.ai-data-agent-preparation-intent/v1"
+      || intent.instanceId !== instanceId || intent.nodeId !== nodeId
+      || Object.keys(intent).sort().join(",") !== "identity,instanceId,intentDigest,nodeId,observationMaterial,requirement,schemaVersion") {
+      throw new Error("AI_DATA_AGENT_PREPARATION_INTENT_INVALID")
+    }
+    const { intentDigest, ...unsigned } = intent
+    if (sha256Digest(canonicalJson(unsigned)) !== intentDigest) throw new Error("AI_DATA_AGENT_PREPARATION_INTENT_DIGEST_MISMATCH")
+    return Object.freeze(intent)
+  }
+
+  async saveIntent(input: Omit<AIDataAgentPreparationIntent, "schemaVersion" | "intentDigest">): Promise<AIDataAgentPreparationIntent> {
+    const unsigned = { schemaVersion: "eidolon.ai-data-agent-preparation-intent/v1" as const, ...clone(input) }
+    const intent = { ...unsigned, intentDigest: sha256Digest(canonicalJson(unsigned)) }
+    await writeImmutablePreparationJson(this.pendingPath(input.instanceId, input.nodeId, "intent"), intent)
+    return (await this.loadIntent(input.instanceId, input.nodeId))!
+  }
+
+  async loadDecision(instanceId: string, nodeId: string): Promise<AIAgentDefinitionSelectionDecision | undefined> {
+    return (await this.loadDecisionRecord(instanceId, nodeId))?.decision
+  }
+
+  async assertReceiptBinding(value: AIDataAgentPreparationReceipt): Promise<void> {
+    const receipt = normalizeAIDataAgentPreparationReceipt(value)
+    const record = await this.loadDecisionRecord(receipt.instanceId, receipt.task.nodeId)
+    if (!record || canonicalJson(receipt.preparation ?? null) !== canonicalJson({
+      intentDigest: record.intentDigest, decisionDigest: record.decisionDigest, targetDigest: record.targetDigest,
+    })) throw new Error("AI_DATA_AGENT_PREPARATION_RECEIPT_INTENT_MISMATCH")
+  }
+
+  async saveDecision(instanceId: string, nodeId: string, decision: AIAgentDefinitionSelectionDecision, targetDigest: `sha256:${string}`): Promise<AIDataAgentPreparationDecisionRecord> {
+    const intent = await this.loadIntent(instanceId, nodeId)
+    if (!intent) throw new Error("AI_DATA_AGENT_PREPARATION_INTENT_MISSING")
+    const unsigned = { schemaVersion: "eidolon.ai-data-agent-preparation-decision/v1" as const,
+      intentDigest: intent.intentDigest, targetDigest, decision: clone(decision) }
+    const value = { ...unsigned, decisionDigest: sha256Digest(canonicalJson(unsigned)) }
+    await writeImmutablePreparationJson(this.pendingPath(instanceId, nodeId, "decision"), value)
+    return Object.freeze(value)
+  }
+
+  private async loadDecisionRecord(instanceId: string, nodeId: string): Promise<AIDataAgentPreparationDecisionRecord | undefined> {
+    const value = await readOptionalPreparationJson(this.pendingPath(instanceId, nodeId, "decision"))
+    if (value === undefined) return undefined
+    const record = value as AIDataAgentPreparationDecisionRecord
+    const intent = await this.loadIntent(instanceId, nodeId)
+    if (!intent || record.schemaVersion !== "eidolon.ai-data-agent-preparation-decision/v1"
+      || record.intentDigest !== intent.intentDigest || !isDigest(record.targetDigest)
+      || Object.keys(record).sort().join(",") !== "decision,decisionDigest,intentDigest,schemaVersion,targetDigest") throw new Error("AI_DATA_AGENT_PREPARATION_DECISION_INVALID")
+    const { decisionDigest, ...unsigned } = record
+    if (sha256Digest(canonicalJson(unsigned)) !== decisionDigest) throw new Error("AI_DATA_AGENT_PREPARATION_DECISION_DIGEST_MISMATCH")
+    return Object.freeze(record)
+  }
+
+  private pendingPath(instanceId: string, nodeId: string, kind: "intent" | "decision"): string {
+    return path.join(this.instanceDirectory(exactIdentity(instanceId, "instanceId")), ".preparation",
+      sha256Digest(exactIdentity(nodeId, "nodeId")).slice("sha256:".length), `${kind}.json`)
+  }
+
   private instanceDirectory(instanceId: string): string {
     return path.join(this.root, sha256Digest(instanceId).slice("sha256:".length))
   }
@@ -148,7 +230,7 @@ export class FileAIDataAgentPreparationStore {
   }
 }
 
-/** Routes prepared tasks to the live registry but rejects any closure drift. */
+/** Prepared tasks execute their admitted frozen resources; legacy receipts detect drift. */
 export class EidolonFixedAgentExecutionRegistry implements AgentExecutionRegistry {
   private readonly byTask = new Map<string, AIDataPreparedAgentResource>()
 
@@ -158,9 +240,10 @@ export class EidolonFixedAgentExecutionRegistry implements AgentExecutionRegistr
     prepared: readonly AIDataPreparedAgentResource[],
   ) {
     for (const item of prepared) {
-      const key = taskKey(item.receipt.task)
+      const receipt = normalizeAIDataAgentPreparationReceipt(item.receipt)
+      const key = taskKey(receipt.task)
       if (this.byTask.has(key)) throw new Error("AI_DATA_AGENT_PREPARATION_TASK_DUPLICATE")
-      this.byTask.set(key, item)
+      this.byTask.set(key, Object.freeze({ ...item, receipt }))
     }
   }
 
@@ -169,7 +252,11 @@ export class EidolonFixedAgentExecutionRegistry implements AgentExecutionRegistr
     input: { readonly payload?: unknown } = {},
   ): Promise<EidolonPreparedWorkflowAgentExecution> {
     const prepared = this.byTask.get(taskKey(task))
-    const registry = prepared ? this.live : this.frozen
+    const registry = prepared
+      ? prepared.executionRegistry ?? (prepared.receipt.frozenExecution
+        ? await EidolonAppResourceRegistryAdapter.restoreFrozenAgentExecution(prepared.receipt.frozenExecution)
+        : this.live)
+      : this.frozen
     if (!registry) throw new Error("AI_DATA_AGENT_PREPARATION_EXECUTION_REGISTRY_MISSING")
     const execution = await registry.prepareWorkflowAgentExecution(task, input)
     if (prepared && (execution.receipt.semanticFingerprint !== prepared.receipt.semanticFingerprint
@@ -219,6 +306,69 @@ export class AIDataAgentResourcePreparationService {
     return this.host.observe(requirement)
   }
 
+  describeObservation(observation: EidolonAIAgentDefinitionSelectionObservation): Promise<EidolonAgentObservationDescription> {
+    return this.host.describeObservation(observation)
+  }
+
+  async observeDurably(input: Readonly<{
+    store: FileAIDataAgentPreparationStore
+    instanceId: string
+    nodeId: string
+    requirement: AIAgentTaskRequirement
+    identity: FlowClosedObject
+  }>): Promise<EidolonAIAgentDefinitionSelectionObservation> {
+    const prior = await input.store.loadIntent(input.instanceId, input.nodeId)
+    if (prior) {
+      assertPreparationIntentInput(prior, input)
+      return this.host.restoreObservation(prior.observationMaterial)
+    }
+    const observation = await this.host.observe(input.requirement)
+    const observationMaterial = await this.host.captureObservation(observation)
+    await input.store.saveIntent({ instanceId: input.instanceId, nodeId: input.nodeId,
+      requirement: input.requirement, identity: input.identity, observationMaterial })
+    return observation
+  }
+
+  async prepareDurably(input: Parameters<AIDataAgentResourcePreparationService["prepare"]>[0] & Readonly<{
+    store: FileAIDataAgentPreparationStore
+    identity: FlowClosedObject
+  }>): Promise<AIDataAgentPreparationResult> {
+    const intent = await input.store.loadIntent(input.instanceId, input.nodeId)
+    if (!intent) throw new Error("AI_DATA_AGENT_PREPARATION_INTENT_MISSING")
+    assertPreparationIntentInput(intent, { ...input, requirement: input.observation.requirement.requirement })
+    if (input.observation.requirement.requirementDigest !== intent.observationMaterial.requirementDigest
+      || input.observation.candidateSet.candidateSetDigest !== intent.observationMaterial.candidateSetDigest
+      || input.observation.candidateSet.registryRevision !== intent.observationMaterial.registryRevision) {
+      throw new Error("AI_DATA_AGENT_PREPARATION_INTENT_OBSERVATION_MISMATCH")
+    }
+    const targetDigest = sha256Digest(canonicalJson({ workflowRef: input.workflowRef, nodeId: input.nodeId,
+      instanceName: input.instanceName, capability: input.capability,
+      previousExecutionFingerprint: input.previousExecution?.semanticFingerprint ?? null }))
+    const decision = await input.store.saveDecision(input.instanceId, input.nodeId, input.decision, targetDigest)
+    const preparation = { intentDigest: intent.intentDigest, decisionDigest: decision.decisionDigest, targetDigest }
+    const prior = (await input.store.list(input.instanceId)).find(receipt => receipt.task.nodeId === input.nodeId)
+    if (prior) {
+      const expectedCapability = { ...input.capability, fixedConfig: { ...input.capability.fixedConfig, instanceName: input.instanceName } }
+      const { implementation: _implementation, nodeType: _nodeType, ...actualCapability } = prior.capability
+      if (prior.task.workflowRef !== input.workflowRef || prior.instanceName !== input.instanceName
+        || prior.requirementDigest !== input.observation.requirement.requirementDigest
+        || canonicalJson(actualCapability) !== canonicalJson(expectedCapability)) {
+        throw new Error("AI_DATA_AGENT_PREPARATION_RECEIPT_TARGET_MISMATCH")
+      }
+      if (canonicalJson(prior.preparation ?? null) !== canonicalJson(preparation)) {
+        throw new Error("AI_DATA_AGENT_PREPARATION_RECEIPT_INTENT_MISMATCH")
+      }
+      return this.recover(prior)
+    }
+    const result = await this.prepare(input)
+    if (!("receipt" in result)) return result
+    const { receiptDigest: _digest, ...fields } = result.receipt
+    const unsigned = { ...fields, preparation }
+    const receipt = normalizeAIDataAgentPreparationReceipt({ ...unsigned, receiptDigest: sha256Digest(canonicalJson(unsigned)) })
+    await input.store.save(receipt)
+    return Object.freeze({ ...result, receipt })
+  }
+
   async prepare(input: Readonly<{
     instanceId: string
     observation: EidolonAIAgentDefinitionSelectionObservation
@@ -227,10 +377,12 @@ export class AIDataAgentResourcePreparationService {
     nodeId: string
     instanceName: string
     capability: AIDataPreparedAgentCapabilityInput
+    previousExecution?: FrozenAIAgentTaskBinding
   }>): Promise<AIDataAgentPreparationResult> {
     const prepared = await this.host.prepare({
       observation: input.observation,
       decision: input.decision,
+      previousExecution: input.previousExecution,
       target: {
         workflowKind: "AIDataWorkflow",
         workflowRef: exactResourceRef(input.workflowRef, "workflowRef"),
@@ -238,9 +390,14 @@ export class AIDataAgentResourcePreparationService {
       },
     })
     if (prepared.status === "rejected") return prepared
+    const receipt = preparationReceipt(prepared, input)
+    const executionRegistry = await EidolonAppResourceRegistryAdapter.restoreFrozenAgentExecution(prepared.frozenExecution)
+    const proof = await executionRegistry.freezeWorkflowAgentTaskBinding(receipt.task)
+    assertFrozenRecoveredProof(receipt, proof)
     return Object.freeze({
-      receipt: preparationReceipt(prepared, input),
-      proof: prepared.taskBinding,
+      receipt,
+      proof,
+      executionRegistry,
     })
   }
 
@@ -248,6 +405,15 @@ export class AIDataAgentResourcePreparationService {
     value: AIDataAgentPreparationReceipt,
   ): Promise<AIDataPreparedAgentResource> {
     const receipt = normalizeAIDataAgentPreparationReceipt(value)
+    if (receipt.schemaVersion === AI_DATA_AGENT_PREPARATION_SCHEMA_VERSION) {
+      if (normalizeAIAgentTaskRequirement(receipt.requirement).requirementDigest !== receipt.requirementDigest) {
+        throw new Error("AI_DATA_AGENT_PREPARATION_REQUIREMENT_DRIFT")
+      }
+      const executionRegistry = await EidolonAppResourceRegistryAdapter.restoreFrozenAgentExecution(receipt.frozenExecution!)
+      const proof = await executionRegistry.freezeWorkflowAgentTaskBinding(receipt.task)
+      assertFrozenRecoveredProof(receipt, proof)
+      return Object.freeze({ receipt, proof, executionRegistry })
+    }
     const observation = await this.host.observe(receipt.requirement)
     if (observation.requirement.requirementDigest !== receipt.requirementDigest) {
       throw new Error("AI_DATA_AGENT_PREPARATION_REQUIREMENT_DRIFT")
@@ -293,7 +459,7 @@ export function normalizeAIDataAgentPreparationReceipt(
   value: AIDataAgentPreparationReceipt,
 ): AIDataAgentPreparationReceipt {
   const receipt = clone(value)
-  if (receipt.schemaVersion !== AI_DATA_AGENT_PREPARATION_SCHEMA_VERSION
+  if (![AI_DATA_AGENT_PREPARATION_SCHEMA_VERSION, LEGACY_AI_DATA_AGENT_PREPARATION_SCHEMA_VERSION].includes(receipt.schemaVersion)
     || !exactString(receipt.instanceId)
     || !exactString(receipt.instanceName)
     || !isDigest(receipt.requirementDigest)
@@ -313,9 +479,19 @@ export function normalizeAIDataAgentPreparationReceipt(
     || !Array.isArray(receipt.closureResourceIds)) {
     throw new Error("AI_DATA_AGENT_PREPARATION_RECEIPT_INVALID")
   }
+  if (receipt.schemaVersion === AI_DATA_AGENT_PREPARATION_SCHEMA_VERSION
+    && (receipt.frozenExecution?.schemaVersion !== "eidolon.frozen-agent-execution/v1"
+      || receipt.frozenExecution.agentDefinitionRef !== receipt.agentDefinitionRef)) {
+    throw new Error("AI_DATA_AGENT_PREPARATION_FROZEN_EXECUTION_MISSING")
+  }
   if (receipt.authoring && (!isDigest(receipt.authoring.planDigest)
     || !isDigest(receipt.authoring.receiptDigest)
     || !exactString(receipt.authoring.transactionId))) {
+    throw new Error("AI_DATA_AGENT_PREPARATION_RECEIPT_INVALID")
+  }
+  if (receipt.preparation && (Object.keys(receipt.preparation).sort().join(",") !== "decisionDigest,intentDigest,targetDigest"
+    || !isDigest(receipt.preparation.intentDigest) || !isDigest(receipt.preparation.decisionDigest)
+    || !isDigest(receipt.preparation.targetDigest))) {
     throw new Error("AI_DATA_AGENT_PREPARATION_RECEIPT_INVALID")
   }
   const { receiptDigest, ...unsigned } = receipt
@@ -374,7 +550,9 @@ export function writeAIDataPreparedAgentCapabilities(
   if (receipts.length === 0) return current
   if (!current) throw new Error("AI_DATA_AGENT_PREPARATION_CONTROL_STATE_REQUIRED")
   const control = findAIDataAutonomousControlStateInExtensions(current)
-  if (!control) throw new Error("AI_DATA_AGENT_PREPARATION_CONTROL_STATE_REQUIRED")
+  // A resource-declared child slot can consume the same preparation without
+  // owning an autonomous controller/catalog; the parent still owns its loop.
+  if (!control) return current
   const capabilities = { ...control.binding.catalog.capabilities }
   for (const value of receipts) {
     const receipt = normalizeAIDataAgentPreparationReceipt(value)
@@ -516,6 +694,7 @@ function preparationReceipt(
     closureResourceIds: prepared.taskBinding.closureResourceIds,
     instanceName,
     capability,
+    frozenExecution: clone(prepared.frozenExecution),
     ...(prepared.authoringReceipt === undefined ? {} : {
       authoring: Object.freeze({
         planDigest: prepared.authoringReceipt.planDigest as `sha256:${string}`,
@@ -540,6 +719,17 @@ function assertRecoveredProof(
     proof.semanticFingerprint === receipt.semanticFingerprint ? undefined : "semanticFingerprint",
     canonicalJson(proof.closureResourceIds) === canonicalJson(receipt.closureResourceIds) ? undefined : "closureResourceIds",
     recovered.admission.candidate.contentDigest === receipt.agentContentDigest ? undefined : "agentContentDigest",
+  ].filter((value): value is string => value !== undefined)
+  if (drift.length > 0) throw new Error(`AI_DATA_AGENT_PREPARATION_PROOF_DRIFT: ${drift.join(",")}`)
+}
+
+function assertFrozenRecoveredProof(receipt: AIDataAgentPreparationReceipt, proof: FrozenAIAgentTaskBinding): void {
+  const drift = [
+    canonicalJson(proof.task) === canonicalJson(receipt.task) ? undefined : "task",
+    proof.semanticFingerprint === receipt.semanticFingerprint ? undefined : "semanticFingerprint",
+    proof.snapshotRevision === receipt.snapshotRevision ? undefined : "snapshotRevision",
+    canonicalJson(proof.closureResourceIds) === canonicalJson(receipt.closureResourceIds) ? undefined : "closureResourceIds",
+    frozenAIAgentTaskAgentContentDigest(proof) === receipt.agentContentDigest ? undefined : "agentContentDigest",
   ].filter((value): value is string => value !== undefined)
   if (drift.length > 0) throw new Error(`AI_DATA_AGENT_PREPARATION_PROOF_DRIFT: ${drift.join(",")}`)
 }
@@ -581,4 +771,38 @@ function canonicalJson(value: unknown): string {
 
 function taskKey(task: AIWorkflowAgentTaskRef): string {
   return canonicalJson(task)
+}
+
+function assertPreparationIntentInput(intent: AIDataAgentPreparationIntent, input: Readonly<{
+  instanceId: string; nodeId: string; identity: FlowClosedObject; requirement: AIAgentTaskRequirement
+}>): void {
+  if (intent.instanceId !== input.instanceId || intent.nodeId !== input.nodeId
+    || canonicalJson(intent.identity) !== canonicalJson(input.identity)
+    || normalizeAIAgentTaskRequirement(intent.requirement).requirementDigest !== normalizeAIAgentTaskRequirement(input.requirement).requirementDigest) {
+    throw new Error("AI_DATA_AGENT_PREPARATION_INTENT_IDENTITY_MISMATCH")
+  }
+}
+
+async function readOptionalPreparationJson(file: string): Promise<unknown | undefined> {
+  try { return JSON.parse(await readFile(file, "utf8")) }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined
+    throw error
+  }
+}
+
+async function writeImmutablePreparationJson(file: string, value: unknown): Promise<void> {
+  const bytes = `${canonicalJson(value)}\n`
+  await mkdir(path.dirname(file), { recursive: true })
+  const temporary = `${file}.${crypto.randomUUID()}.tmp`
+  const handle = await open(temporary, "wx", 0o600)
+  try { await handle.writeFile(bytes, "utf8"); await handle.sync() } finally { await handle.close() }
+  try {
+    await link(temporary, file)
+    const directory = await open(path.dirname(file), "r")
+    try { await directory.sync() } finally { await directory.close() }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
+    if (await readFile(file, "utf8") !== bytes) throw new Error("AI_DATA_AGENT_PREPARATION_IMMUTABLE_CONFLICT")
+  } finally { await unlink(temporary).catch(() => undefined) }
 }

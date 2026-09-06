@@ -3,6 +3,8 @@
  * Reads explicit values only; durable authority and live transitions remain with their owners.
  */
 import { createHash } from "node:crypto";
+import type { AgentContextFactPresentationRecipe } from "@cell/ai-core-contract/runtime/AgentContextFactPresentation";
+import { normalizeAgentContextFactPresentationRecipe } from "@cell/ai-core-logic/runtime/AgentContextFactPresentation";
 import { normalizeInputContent, type ChatMessage, type InputContent, type ToolCall } from "@shared/composer";
 import type {
   ActorCommittedMessageRef,
@@ -273,12 +275,20 @@ function canonicalContextFactJson(value: unknown): string {
   )).join(",")}}`;
 }
 
-function providerContextFactWireText(fact: ActorProviderContextFact): string {
-  return `eidolon-context-fact/v1\n${canonicalContextFactJson({
+function providerContextFactWireText(fact: ActorProviderContextFact, presentation?: AgentContextFactPresentationRecipe): string {
+  const rule = presentation?.rules.find((rule) => rule.namespace === fact.namespace);
+  const payload = rule?.payloadKeys
+    ? Object.fromEntries(rule.payloadKeys
+        .filter((key) => Object.prototype.hasOwnProperty.call(fact.payload, key))
+        .map((key) => [key, fact.payload[key]]))
+    : fact.payload;
+  const canonical = canonicalContextFactJson({
     namespace: fact.namespace,
     revision: fact.namespaceRevision,
-    payload: fact.payload,
-  })}`;
+    payload,
+  });
+  const text = rule?.jsonLayout === "pretty" ? JSON.stringify(JSON.parse(canonical), null, 2) : canonical;
+  return `eidolon-context-fact/v1\n${text}`;
 }
 
 function currentActorProviderContextFacts(rawState: ConversationActorRawState): ActorProviderContextFact[] {
@@ -315,6 +325,7 @@ function insertProviderContextFactsAtHistoryAnchors(params: {
   generation: ActorHistoryGenerationData | null | undefined;
   messages: ChatMessage[];
   facts: ActorProviderContextFact[];
+  factPresentation?: AgentContextFactPresentationRecipe;
 }): ChatMessage[] {
   if (params.facts.length === 0) return params.messages;
   const generationId = params.generation?.generationId ?? "__empty_history__";
@@ -344,7 +355,7 @@ function insertProviderContextFactsAtHistoryAnchors(params: {
   const next: ChatMessage[] = [];
   const appendFacts = (messageCount: number) => {
     for (const fact of byCount.get(messageCount) ?? []) {
-      next.push({ role: "user", content: providerContextFactWireText(fact) } as ChatMessage);
+      next.push({ role: "user", content: providerContextFactWireText(fact, params.factPresentation) } as ChatMessage);
     }
   };
   appendFacts(0);
@@ -640,7 +651,11 @@ function materializeSystemPromptStage(
   ];
 }
 
-export function materializeConversationRuntimePrompt(rawState: ConversationActorRawState): ChatMessage[] {
+export function materializeConversationRuntimePrompt(
+  rawState: ConversationActorRawState,
+  factPresentation?: AgentContextFactPresentationRecipe,
+): ChatMessage[] {
+  const presentation = factPresentation === undefined ? undefined : normalizeAgentContextFactPresentationRecipe(factPresentation);
   const providerContextFacts = currentActorProviderContextFacts(rawState)
     .filter(isProviderVisibleContextFact);
   const activeTailMessages = rawState.activeHistoryGeneration
@@ -650,6 +665,7 @@ export function materializeConversationRuntimePrompt(rawState: ConversationActor
     generation: rawState.activeHistoryGeneration,
     messages: activeTailMessages,
     facts: providerContextFacts,
+    factPresentation: presentation,
   });
   const materialized = materializeSystemPromptStage(rawState, [
     ...materializePromptTransformPrelude({ rawState }),

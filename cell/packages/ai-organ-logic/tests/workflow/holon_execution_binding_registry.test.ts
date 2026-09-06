@@ -795,7 +795,25 @@ describe("HolonExecutionBinding shared registry projection", () => {
     expect((await readdir(supportRoot, { recursive: true })).some((entry) => (
       /workflow|checkpoint/i.test(String(entry))
     ))).toBe(false)
+    const observationSelector = {
+      admissionId: final.admissionId,
+      taskSpaceId: final.task.taskSpaceId,
+      taskId: final.task.taskId,
+    }
+    const observed = await host.capability.service.observe(observationSelector)
+    expect(observed.memberRef).toBe("member-reviewer")
+    expect(observed.sessionRef).toStartWith("physical-session:")
+    expect(observed.sessionUnavailableReason).toBeNull()
     host.close()
+    const reopened = await openPhysicalStandaloneHost({ packageRoot, supportRoot, effects })
+    try {
+      const recoveredObservation = await reopened.capability.service.observe(observationSelector)
+      expect(recoveredObservation.sessionRef).toBe(observed.sessionRef)
+      expect(recoveredObservation.memberRuntimeRef).toBe(observed.memberRuntimeRef)
+      expect(effects.acceptedCount).toBe(3)
+    } finally {
+      reopened.close()
+    }
   })
 
   it("recovers a physical standalone effect in a fresh VM without accepting it twice", async () => {

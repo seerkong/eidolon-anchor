@@ -29,6 +29,7 @@
     "ai-workflow-flow-dsl-reference": "0.2.0",
     "halfcode-compiler.xnl": "0.3.0",
     "holarchy-eidolon-adapter": "0.2.0",
-    "xnl-core": "^0.1.10"
+    "xnl-core": "^0.1.10",
+    "xnl-vfs": "0.1.3"
   }
 }

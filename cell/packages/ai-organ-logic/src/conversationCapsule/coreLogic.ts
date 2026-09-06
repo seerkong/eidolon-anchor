@@ -58,6 +58,7 @@ export {
   materializeConversationRuntimeMessagesFromVm,
   recordConversationTranscriptEvidenceInRuntime,
   recordPromptRequestToConversationDomainRuntime,
+  resolveSessionIdFromVm as resolveConversationSessionIdFromVm,
   registerPendingMessageDeliveryToConversationDomainRuntime,
   registerPendingToolResultDeliveryToConversationDomainRuntime,
   registerContextBlockToConversationDomainRuntime,

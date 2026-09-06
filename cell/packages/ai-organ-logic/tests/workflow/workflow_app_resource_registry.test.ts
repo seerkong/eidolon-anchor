@@ -265,7 +265,7 @@ describe("Eidolon Halfcode App resource registry", () => {
     expect(plan.messages.map((message) => message.contentDigest)).toHaveLength(3)
     expect(plan.contextPipeline).toMatchObject({
       resourceId: "eidolon.fixture.StandardContext",
-      implementation: "eidolon.standard-context-pipeline/v1",
+      schemaVersion: "eidolon.agent-context-pipeline-binding/v2",
     })
     expect(plan.agentConfig.contextPipeline).toEqual(plan.contextPipeline)
   })

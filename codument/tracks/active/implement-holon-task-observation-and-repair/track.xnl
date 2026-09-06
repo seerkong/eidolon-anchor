@@ -1,0 +1,40 @@
+<Track #implement-holon-task-observation-and-repair apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "让人和 AI 经同一 owner-backed 服务观察与修复 Holon task" description = "任务诊断、停滞原因、恢复唤醒、后继重试或改派，保留原失败与因果证据" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-05T18:24:46.445Z" updated_at = "2026-09-05T19:06:41.469Z" modeling_base_commit = "8df4a6f61a6b77226189b7eb4e577ade6f39e202" engineering_base_commit = "8df4a6f61a6b77226189b7eb4e577ade6f39e202" gap_round = 2 } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_implement-holon-task-observation-and-repair { name = "implement-holon-task-observation-and-repair" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "任务观察与修复闭包" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "TDD 实现 observation 和 repair" status = "DONE" order = 0 } (
+            <Description ?01M1SDR73FVM11DMVAWTGTXKCF>
+            HolonTaskRuntimeService 增加任务身份 selector 的观察/修复方法，Capability 路由到原 owner；只读诊断及恢复/后继修复不复制任务 authority；测试先行。
+            </?01M1SDR73FVM11DMVAWTGTXKCF>
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1SDR73FVM11DMVAWTGTXKCG>
+              任务状态、claim/member/session、最近进展/错误、建议动作可观察；恢复和后继修复幂等、CAS、旧失败保留、重启可恢复。
+              </?01M1SDR73FVM11DMVAWTGTXKCG>
+            ]>
+          )>
+          <Task #P1-T2 { name = "接入人和 AI 的同一产品入口并回归" status = "DONE" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M1SDR73FVM11DMVAWTGTXKCH>
+              正式工具调用及服务调用走相同 owner-backed 逻辑，诊断不派发模型调用；文档可操作，final/none/stream 回归通过。
+              </?01M1SDR73FVM11DMVAWTGTXKCH>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P1-G1 { checked = true } ?01M1SDR73FVM11DMVAWTGTXKCJ>
+          观察/修复测试、既有 runtime 测试和 fresh GapLoop 收敛。
+          </?01M1SDR73FVM11DMVAWTGTXKCJ>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" verify_round = true }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

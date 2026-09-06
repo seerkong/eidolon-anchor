@@ -44,6 +44,16 @@ describe("Builtin mature Coding Agent resources", () => {
     expect(agent).not.toContain("local.codument.proposition")
   })
 
+  it("ships editable native Context and MessageSource code inside the managed resource package", () => {
+    const files = builtinEidolonResourceFiles()
+    expect(files["ContextPipelines/StandardContext.xnl"]).toContain("specVersion=2")
+    expect(files["ContextPipelines/StandardContext.xnl"]).toContain('module = "./Code/standard-context.ts"')
+    expect(files["MessageSources/WorkspaceAgents.xnl"]).toContain('module = "./Code/workspace-agents.ts"')
+    expect(files["Code/standard-context.ts"]).toContain("runtime.materialize")
+    expect(files["Code/workspace-agents.ts"]).toContain("runtime.readWorkspaceInstructions")
+    expect(files["ContextPipelines/StandardContext.xnl"]).not.toContain('"implementation"')
+  })
+
   it("commits the exact deterministic full VFS snapshot", async () => {
     const generated = generateBuiltinEidolonVfsSnapshot()
     expect(await readFile(snapshotPath, "utf8")).toBe(generated)

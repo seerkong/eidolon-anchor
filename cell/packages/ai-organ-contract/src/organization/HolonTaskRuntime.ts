@@ -1,4 +1,5 @@
 import type { ClosedValue, HolonExecutionInvocation } from "holarchy-eidolon-adapter"
+import type { TaskClaimToken, TaskFailure, TaskHistoryEvent, TaskStatus } from "task-manager-contract"
 import {
   digestCanonical,
   type JsonSchema,
@@ -412,9 +413,73 @@ export interface HolonTaskRuntimeEffectPorts {
 }
 
 export interface HolonTaskRuntimeService {
+  observe(selector: HolonTaskIdentitySelector): Promise<HolonTaskObservation>
+  repair(selector: HolonTaskIdentitySelector, invocation: HolonTaskRepairInvocation): Promise<HolonTaskRepairReceipt>
   assign(
     selector: HolonTaskSelector,
     invocation: HolonTaskRuntimeInvocation,
     config: HolonTaskRuntimeProcessorConfig,
   ): Promise<HolonTaskRuntimeAssignmentReceipt>
+}
+
+/** Durable identity, independent of a live process's assignment correlations. */
+export interface HolonTaskIdentitySelector {
+  readonly admissionId: string
+  readonly taskSpaceId: string
+  readonly taskId: string
+}
+
+interface HolonTaskRepairRequest {
+  readonly requestId: string
+  readonly expectedRevision: number
+  readonly reason: string
+  readonly occurredAt: string
+}
+
+export type HolonTaskRepairInvocation =
+  | (HolonTaskRepairRequest & Readonly<{ kind: "resume" }>)
+  | (HolonTaskRepairRequest & Readonly<{
+      kind: "successor"
+      target: HolonTaskSelector
+      name: string
+      input: ClosedValue
+    }>)
+
+export interface HolonTaskRepairReceipt {
+  readonly kind: "holon-task-repair-receipt"
+  readonly action: HolonTaskRepairInvocation["kind"]
+  readonly requestId: string
+  readonly source: HolonTaskIdentitySelector
+  readonly task: HolonTaskIdentitySelector
+  readonly commandId: string
+  readonly artifactDigest: `sha256:${string}` | null
+  readonly replayed: boolean
+}
+
+/** Derived read model. Null identity fields are explicitly unknown, never inferred from labels. */
+export interface HolonTaskObservation {
+  readonly selector: HolonTaskIdentitySelector
+  readonly revision: number
+  readonly status: TaskStatus
+  readonly attempt: number
+  readonly claim: TaskClaimToken | null
+  readonly memberRef: string | null
+  readonly memberRuntimeRef: string | null
+  readonly sessionRef: string | null
+  readonly sessionUnavailableReason: string | null
+  readonly lastProgress: TaskHistoryEvent | null
+  readonly lastFailure: TaskFailure | null
+  readonly subscriptionId: string | null
+  readonly lastWakeError: Readonly<{ message: string; observedAt: string }> | null
+  readonly recommendedActions: readonly ("resume" | "successor" | "observe" | "none")[]
+  readonly successors: readonly HolonTaskIdentitySelector[]
+  readonly lineage: HolonTaskRepairReceipt | null
+}
+
+export interface HolonTaskInspectionPort {
+  observe(selector: HolonTaskIdentitySelector): Promise<HolonTaskObservation>
+  repair(input: Readonly<{
+    selector: HolonTaskIdentitySelector
+    invocation: HolonTaskRepairInvocation
+  }>): Promise<HolonTaskRepairReceipt>
 }

@@ -483,7 +483,7 @@ describe("formal organization tools", () => {
     expect(collectiveAssign.required_authority).toEqual([
       "HolonEffectiveSnapshot",
       "HolonExecutionBinding",
-      "HolonTaskTarget",
+      "HolonTaskRuntimeDefinition",
     ])
 
     const collectiveActor = vm.actors[`holon:${collectiveAssign.holon_id}`]

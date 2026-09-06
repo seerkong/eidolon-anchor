@@ -26,6 +26,8 @@ import { buildHolonAddToolDef } from "./tools/HolonAdd"
 import { buildHolonAppointToolDef } from "./tools/HolonAppoint"
 import { buildHolonStatusToolDef } from "./tools/HolonStatus"
 import { buildHolonAssignToolDef } from "./tools/HolonAssign"
+import { buildHolonTaskObserveToolDef } from "./tools/HolonTaskObserve"
+import { buildHolonTaskRepairToolDef } from "./tools/HolonTaskRepair"
 import { buildDetachedActorStatusToolDef } from "./tools/DetachedActorStatus"
 import { buildDetachedActorListToolDef } from "./tools/DetachedActorList"
 import { buildRunDetachedBashToolDef } from "./tools/RunDetachedBash"
@@ -92,6 +94,8 @@ export function buildBuiltinToolDefs(options?: { includeInternalOnly?: boolean }
     buildHolonAppointToolDef(),
     buildHolonStatusToolDef(),
     buildHolonAssignToolDef(),
+    buildHolonTaskObserveToolDef(),
+    buildHolonTaskRepairToolDef(),
     buildSkillToolDef(),
     buildRunDelegateActorToolDef(),
     buildRunDetachedBashToolDef(),

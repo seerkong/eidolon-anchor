@@ -1,5 +1,7 @@
 import type { LlmAdapter, LlmStreamResult } from "@cell/ai-core-contract/LlmTypes";
 import { createHash } from "node:crypto";
+import { digestAgentContextPipelineBinding } from "@cell/ai-core-logic/runtime/AgentContextPipeline";
+import { runAgentContextPipeline } from "../resources/AgentContextPipelineRuntime";
 import { assertProviderContextEvidenceBinding } from "@cell/ai-persistence-logic/ProviderContextTransitionEvidence";
 import type { ActorRuntimeFacetEvent } from "@cell/ai-core-contract/runtime/ActorRuntimeFacet";
 import {
@@ -103,6 +105,7 @@ import {
   getVmConversationDomainRuntime,
   materializeConversationRuntimeMessagesFromVm,
   recordConversationTranscriptEvidenceInRuntime,
+  resolveConversationSessionIdFromVm,
   registerPendingMessageDeliveryToConversationDomainRuntime,
   registerPendingToolResultDeliveryToConversationDomainRuntime,
   rewriteActiveHistoryGenerationMessagesInConversationDomainRuntime,
@@ -703,6 +706,18 @@ const STANDARD_AGENT_CONTEXT_PIPELINE_STAGES = [
 function assertCanonicalAgentContextPipeline(actor: AiAgentActor): void {
   const binding = actor.contextPipeline;
   if (!binding) return;
+  if (binding.schemaVersion === "eidolon.agent-context-pipeline-binding/v2") {
+    const execution = actor.contextPipelineExecution;
+    if (!execution) {
+      throw new Error(`AGENT_CONTEXT_PIPELINE_EXECUTION_UNAVAILABLE: actor '${actor.key}' requires frozen code preparation`);
+    }
+    if (execution.executionDigest !== binding.executionDigest
+      || execution.bindingDigest !== digestAgentContextPipelineBinding(binding)
+      || !actor.durableMaterials[binding.materialDigest]) {
+      throw new Error(`AGENT_CONTEXT_PIPELINE_EXECUTION_MISMATCH: actor '${actor.key}' has different frozen execution identities`);
+    }
+    return;
+  }
   if (binding.implementation !== "eidolon.standard-context-pipeline/v1"
     || binding.stages.length !== STANDARD_AGENT_CONTEXT_PIPELINE_STAGES.length
     || binding.stages.some((stage, index) => stage !== STANDARD_AGENT_CONTEXT_PIPELINE_STAGES[index])) {
@@ -877,68 +892,73 @@ export function buildProviderPromptForActorTurn(params: {
 } {
   assertCanonicalAgentContextPipeline(params.actor);
   ensureVmConversationDomainRuntime(params.vm);
-  const sessionId = typeof (params.vm.outerCtx?.metadata as any)?.sessionId === "string"
-    ? String((params.vm.outerCtx?.metadata as any).sessionId)
-    : "__unsessioned__";
+  const sessionId = resolveConversationSessionIdFromVm(params.vm);
   // Prompt-plan system channel: actor.systemPrompts (inside the plan builder)
   // plus the identity block seed — never a message array.
   const planMessages = buildPromptPlanSeedMessages(params.vm, params.actor);
-  const recordedPlan = params.recordPromptPlan !== false
-    ? recordPromptPlanForActorExecution({
-        vm: params.vm,
-        actor: params.actor,
-        messages: planMessages,
-        tools: params.tools,
-        selectedModel: params.model,
-      })
-    : {
-        promptGenerationId: null as string | null,
-        promptPlan: buildPromptPlanForActorExecution({
-          sessionId,
+  return runAgentContextPipeline({
+    plan: () => params.recordPromptPlan !== false
+      ? recordPromptPlanForActorExecution({
+          vm: params.vm,
           actor: params.actor,
           messages: planMessages,
           tools: params.tools,
           selectedModel: params.model,
-        }),
-      };
-  const promptPlan = recordedPlan.promptPlan;
-  const promptGenerationId = recordedPlan.promptGenerationId;
-  let executionMessages = materializeConversationRuntimeMessagesFromVm({
-    vm: params.vm,
+        })
+      : {
+          promptGenerationId: null as string | null,
+          promptPlan: buildPromptPlanForActorExecution({
+            sessionId,
+            actor: params.actor,
+            messages: planMessages,
+            tools: params.tools,
+            selectedModel: params.model,
+          }),
+        },
+    materialize: () => {
+      const executionMessages = materializeConversationRuntimeMessagesFromVm({
+        vm: params.vm,
+        actorKey: params.actor.key,
+        factPresentation: params.actor.contextPipelineExecution?.factPresentation,
+      });
+      return executionMessages;
+    },
+    completeEstimate: (recordedPlan, executionMessages) => {
+      // Nothing was recorded into the prompt domain; complete the Stage-1
+      // system prompts for first-turn estimates. Work context stays control-only.
+      return completeEstimationPromptMaterialization({
+        promptPlan: recordedPlan.promptPlan,
+        messages: executionMessages,
+      });
+    },
+    convert: (recordedPlan, executionMessages) => ({
+      promptPlan: recordedPlan.promptPlan,
+      executionMessages,
+      providerMessages: prepareMessagesForLlmAdapter(params.llmAdapter, executionMessages),
+      promptSource: "domain_materialization" as const,
+      promptGenerationId: recordedPlan.promptGenerationId,
+      pendingProviderContextSourceIds: pendingProviderContextSourceIdsIncludedInPrompt({
+        vm: params.vm,
+        actor: params.actor,
+        executionMessages,
+      }),
+      pendingToolResultDeliveryIds: pendingToolResultDeliveryIdsIncludedInPrompt({
+        vm: params.vm,
+        actor: params.actor,
+        executionMessages,
+      }),
+      pendingMessageDeliveryIds: pendingMessageDeliveryIdsIncludedInPrompt({
+        vm: params.vm,
+        actor: params.actor,
+        executionMessages,
+      }),
+    }),
+  }, {
+    mode: params.recordPromptPlan === false ? "estimate" : "record",
     actorKey: params.actor.key,
-  });
-
-  if (params.recordPromptPlan === false) {
-    // Estimation-only build: nothing was recorded into the prompt domain, so
-    // Complete only the Stage-1 system prompts when materialization does not
-    // carry them yet (first-turn ratio gates). Work context stays control-only.
-    executionMessages = completeEstimationPromptMaterialization({
-      promptPlan,
-      messages: executionMessages,
-    });
-  }
-  return {
-    promptPlan,
-    executionMessages,
-    providerMessages: prepareMessagesForLlmAdapter(params.llmAdapter, executionMessages),
-    promptSource: "domain_materialization",
-    promptGenerationId,
-    pendingProviderContextSourceIds: pendingProviderContextSourceIdsIncludedInPrompt({
-      vm: params.vm,
-      actor: params.actor,
-      executionMessages,
-    }),
-    pendingToolResultDeliveryIds: pendingToolResultDeliveryIdsIncludedInPrompt({
-      vm: params.vm,
-      actor: params.actor,
-      executionMessages,
-    }),
-    pendingMessageDeliveryIds: pendingMessageDeliveryIdsIncludedInPrompt({
-      vm: params.vm,
-      actor: params.actor,
-      executionMessages,
-    }),
-  };
+    sessionId,
+    model: params.model,
+  }, params.actor.contextPipelineExecution);
 }
 
 function assertProviderPromptWithinInputLimit(params: {
@@ -1336,7 +1356,11 @@ function appendProviderOutputRecoveryContext(params: {
   });
   return prepareMessagesForLlmAdapter(
     params.llmAdapter,
-    materializeConversationRuntimeMessagesFromVm({ vm: params.vm, actorKey: params.actor.key }),
+    materializeConversationRuntimeMessagesFromVm({
+      vm: params.vm,
+      actorKey: params.actor.key,
+      factPresentation: params.actor.contextPipelineExecution?.factPresentation,
+    }),
   );
 }
 
@@ -2175,6 +2199,7 @@ function commitResponsesTurnResult(params: {
     materializeConversationRuntimeMessagesFromVm({
       vm: params.vm,
       actorKey: params.actor.key,
+      factPresentation: params.actor.contextPipelineExecution?.factPresentation,
     }),
   );
   const currentConfig = resolveResponsesAdapterConfig({

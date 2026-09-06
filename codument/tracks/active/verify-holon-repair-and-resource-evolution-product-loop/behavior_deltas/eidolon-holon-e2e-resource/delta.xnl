@@ -1,0 +1,14 @@
+<BehaviorPatch #track.verify-holon-repair-and-resource-evolution-product-loop.behavior_patch.eidolon-holon-e2e-resource apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-holon-e2e-resource" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-holon-e2e-resource/requirements/repair-resource-product-loop" } (
+      <Requirement #repair-resource-product-loop (
+        <Statement ?>测试 SHALL 经独立 Holon、Ctrl、Data 的真实执行路径，以同一业务产物和独立 verifier 证明任务修复与资源演进收益，并区分合成指标和远端测量。</?>
+        <Suites [<Suite #product-loop { name = "产物闭环" } (<Cases [
+          <Case #three-entry-artifact (<Given ?>三入口使用同一原始需求、输入和冻结 Agent 配方。</?><When ?>执行任务、正式观察/修复并重放。</?><Then ?>实际文件 SHALL 通过原 verifier，保留各入口身份和 repair lineage，不重复接受同一 effect。</?>)>
+          <Case #feedback-improves-artifact (<Given ?>V1 产物未通过原 verifier。</?><When ?>Data 控制器基于该反馈修订资源并准备下一 child Worker。</?><Then ?>V2 产物 SHALL 通过同一 verifier，旧 prefix 保持，变化关联 native revision receipt。</?>)>
+          <Case #cost-evidence (<Given ?>同配方重用与显式配方升级均发生。</?><When ?>记录 provider 请求和 usage。</?><Then ?>prefix/schema 稳定性 SHALL 来自实际请求；合成 usage 明确标注，未测远端命中率不得冒称实测。</?>)>
+        ]>)> ]>
+      )>
+    )>
+  ]>
+)>

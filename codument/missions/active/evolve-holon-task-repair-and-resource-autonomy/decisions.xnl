@@ -1,0 +1,9 @@
+<decision #mission.holon_repair_resource_autonomy.scope apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = false } (
+  <question ?>本轮怎样组合任务修复与资源自主能力，并处理开发依赖策略？</?>
+  <answer { } (
+    <raw-answer ?>3，5放到一个mission中，4独立放到一个mission中；bun.lock坚决不允许纳入版本管理，因为开发常引用本地其他文件夹未发布包。请先创建mission。</?>
+    <decision-text ?>本 Mission 合并3+5，兄弟职责归位 Mission 独立；bun.lock 保持不跟踪且支持本地未发布依赖。初始仅规划，后续用户已明确授权 impl-mission，并同意以 Halfcode/depa-flows 当前未提交内容为联合实施基线；保留现有改动，不自动安装、发布或提交。</?>
+    <rationale ?>任务诊断反馈是资源升级与下一子图 Worker 的输入，两者要验收同一目标闭环；职责迁移保持独立生命周期，避免把能力增长与全局重构捆绑。</?>
+    <evidence ?>2026-09-05 用户当前明确指示；proposal.md 与 design.md。</?>
+  )>
+)>

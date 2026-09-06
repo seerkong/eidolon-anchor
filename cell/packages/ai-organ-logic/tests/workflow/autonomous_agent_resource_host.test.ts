@@ -28,6 +28,7 @@ import {
   stableEidolonOverlayNodeId,
 } from "@cell/symbiont-logic/resource/EffectiveEidolonVfsMaterializer"
 import { VirtualFileSystem } from "xnl-vfs"
+import { LocalFileEffectiveEidolonVfsAuthority } from "@cell/ai-support/runtime/LocalFileEffectiveEidolonVfsAuthority"
 import {
   AI_DATA_AGENT_PREPARATION_EXTENSION_KIND,
   AI_DATA_AGENT_PREPARATION_EXTENSION_SCHEMA_REF,
@@ -49,8 +50,10 @@ import {
 
 const fixtureRoot = path.join(import.meta.dir, "fixtures", "resource-native-authoring-package")
 const temporaryRoots: string[] = []
+const authorities: LocalFileEffectiveEidolonVfsAuthority[] = []
 
 afterEach(async () => {
+  for (const authority of authorities.splice(0)) authority.close()
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
 
@@ -87,7 +90,10 @@ async function effectiveFixture(): Promise<Awaited<ReturnType<typeof fixture>>> 
   await cp(fixtureRoot, workspaceRoot, { recursive: true })
   const builtin = new VirtualFileSystem()
   builtin.mkdir("vfs:///.eidolon/resources", { recursive: true })
-  const materializer = new EffectiveEidolonVfsMaterializer({ builtinSnapshot: builtin.getSnapshot() })
+  const authority = new LocalFileEffectiveEidolonVfsAuthority({ databasePath: path.join(parent, "vfs.sqlite"), workspaceEidolonRoot, builtinSnapshot: builtin.getSnapshot() })
+  authorities.push(authority)
+  const materializer = new EffectiveEidolonVfsMaterializer({ builtinSnapshot: builtin.getSnapshot(), authority })
+  await materializer.restore()
   const loadOverlays = async () => [await loadPhysicalEidolonDirectoryOverlay({
     id: "workspace-directory",
     kind: "workspace",
@@ -124,6 +130,7 @@ async function effectiveFixture(): Promise<Awaited<ReturnType<typeof fixture>>> 
       ],
     }),
     admit: materializer.admit.bind(materializer),
+    lookupPublication: materializer.lookupPublication.bind(materializer),
   })
   const registry = new EidolonAppResourceRegistryAdapter({ effectiveVfs: () => materializer.read().readPort })
   const layers = Object.freeze([] as ResourcePackageLayerBinding[])
@@ -198,6 +205,15 @@ const target = Object.freeze({
 })
 
 describe("Eidolon autonomous AIAgentDefinition resource host", () => {
+  it("retains native authored authority and exact reader-bound execution observation", async () => {
+    const { registry } = await fixture()
+    const snapshot = await registry.snapshot()
+    expect(snapshot.executionResources.registry).toBe(snapshot.registry)
+    expect(snapshot.executionResources.projection).toBe(snapshot.agentResources)
+    expect(snapshot.executionResources.resolvedResources).toBe(snapshot.resolvedResources)
+    expect(snapshot.contentIdentityRegistry).not.toBe(snapshot.registry)
+    expect(snapshot.executionResources.resolutionIdentities.size).toBeGreaterThan(0)
+  })
   it("authors, reconciles and freezes a Worker from the admitted Effective VFS revision", async () => {
     const roots = await effectiveFixture()
     const observation = await roots.host.observe(requirement("effective-author-worker", []))
@@ -492,7 +508,7 @@ describe("Eidolon autonomous AIAgentDefinition resource host", () => {
     const recovered = await fresh.recover(JSON.parse(JSON.stringify(prepared.receipt)))
     expect(recovered.proof.semanticFingerprint).toBe(prepared.proof.semanticFingerprint)
     expect(recovered.proof.closureResourceIds).toEqual(prepared.proof.closureResourceIds)
-    expect(recovered.proof.snapshotRevision).not.toBe(prepared.proof.snapshotRevision)
+    expect(recovered.proof.snapshotRevision).toBe(prepared.proof.snapshotRevision)
 
     const emptyAi = {
       schemaVersion: "depa.ai-agent-state/v1" as const,
@@ -526,7 +542,8 @@ describe("Eidolon autonomous AIAgentDefinition resource host", () => {
       path.join(roots.workspaceRoot, "Agents", "GeneratedExactWorker.xnl"),
       generatedAuthority().replace("Runtime-authored exact Worker", "Tampered Worker"),
     )
-    await expect(fresh.recover(prepared.receipt))
-      .rejects.toThrow("AI_DATA_AGENT_PREPARATION_RESOURCE_DRIFT")
+    const recoveredAfterLiveChange = await fresh.recover(prepared.receipt)
+    expect(recoveredAfterLiveChange.proof.semanticFingerprint).toBe(prepared.proof.semanticFingerprint)
+    expect(recoveredAfterLiveChange.proof.snapshotRevision).toBe(prepared.proof.snapshotRevision)
   })
 })

@@ -1,6 +1,7 @@
 import type { ActorContextPolicy } from "./AiAgentActor"
 import type { AgentExecutionContract } from "./AgentExecutionContract"
-import type { AgentContextPipelineBinding } from "./AgentContextPipeline"
+import type { AgentContextPipelineBinding, AgentContextPipelineExecution } from "./AgentContextPipeline"
+import type { ActorDurableMaterialIndex } from "./ActorDurableMaterial"
 
 export type AgentSeedMessageRole = "system" | "developer" | "user" | "assistant"
 
@@ -19,4 +20,6 @@ export type AgentConfig = {
   contextPolicy?: Partial<ActorContextPolicy>
   executionContract?: AgentExecutionContract
   contextPipeline?: AgentContextPipelineBinding
+  contextPipelineExecution?: AgentContextPipelineExecution
+  durableMaterials?: ActorDurableMaterialIndex
 }

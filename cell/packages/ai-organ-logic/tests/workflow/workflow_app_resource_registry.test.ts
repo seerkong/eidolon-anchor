@@ -401,6 +401,28 @@ describe("Eidolon Halfcode App resource registry", () => {
     expect(await adapter.listStandaloneAgentExecutionPlans()).toEqual([plan])
   })
 
+  it("discovers typed standalone Agents before input exists and validates actual dispatch", async () => {
+    const layers = await fixtureLayers()
+    const root = layers.find(layer => layer.id === "workspace")!.rootDir
+    await writeFile(path.join(root, "Schemas", "Invocation.xnl"),
+      '<MessageSchema #eidolon.fixture.Invocation envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {lifecycle="Stable" schema={type="object" required=["content"] properties={content={type="string"}}}}>')
+    const agentPath = path.join(root, "Agents", "Support.xnl")
+    await writeFile(agentPath, (await Bun.file(agentPath).text()).replace(
+      "  <MaterialPortRefs []>",
+      '  <InputSchemaRef {kind="MessageSchema" ref="resource://eidolon.fixture.Invocation"}>\n  <MaterialPortRefs []>',
+    ))
+    const adapter = new EidolonAppResourceRegistryAdapter({layers})
+    const plans = await adapter.listStandaloneAgentExecutionPlans()
+    expect(plans[0]!.executionContract.inputSchema).toMatchObject({type:"object",required:["content"]})
+    await expect(adapter.materializeAgentExecutionPlan("resource://eidolon.fixture.SupportAgent", {
+      scope:"standalone",payload:null,
+    })).rejects.toThrow("AGENT_EXECUTION_SCHEMA_MISMATCH")
+    const plan = await adapter.materializeAgentExecutionPlan("resource://eidolon.fixture.SupportAgent", {
+      scope:"standalone",payload:{content:"real task"},
+    })
+    expect(plan.executionContract.input.payload).toEqual({content:"real task"})
+  })
+
   it("freezes the exact workflow task and resource closure before Agent dispatch", async () => {
     const adapter = new EidolonAppResourceRegistryAdapter({ layers: await fixtureLayers() })
     const prepared = await adapter.prepareWorkflowAgentExecution({

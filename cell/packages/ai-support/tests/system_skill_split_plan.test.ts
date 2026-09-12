@@ -13,9 +13,31 @@ const supportRoot = path.resolve(import.meta.dir, "..")
 const sourceRoot = path.join(supportRoot, "src", "system-skill")
 
 describe("Eidolon Anchor system Skill split plan", () => {
+  test("ships resolvable Skill batches within the public eight-resource limit", () => {
+    const plan = loadEidolonSystemSkillDistributionPlan()
+    const decoder = new TextDecoder()
+    const knownResources = new Set(plan.files.map((file) => file.capsuleRelativePath))
+    let batchCount = 0
+    for (const file of plan.files.filter((file) => file.capsuleRelativePath.endsWith(".md"))) {
+      for (const match of decoder.decode(file.content).matchAll(/resources:\s*(\[[^\]\n]*\])/g)) {
+        const batch = JSON.parse(match[1]!) as string[]
+        expect(batch.length, file.targetRelativePath).toBeGreaterThan(0)
+        expect(batch.length, file.targetRelativePath).toBeLessThanOrEqual(8)
+        expect(new Set(batch).size, file.targetRelativePath).toBe(batch.length)
+        for (const resource of batch) expect(knownResources.has(resource), `${file.targetRelativePath}: ${resource}`).toBe(true)
+        batchCount++
+      }
+    }
+    expect(batchCount).toBeGreaterThan(0)
+    for (const target of [
+      "sys-eidolon-anchor-run/operations/holon-member-task.md",
+      "sys-eidolon-anchor-authoring/operations/ai-workflow.md",
+    ]) expect(plan.files.some((file) => file.targetRelativePath === target)).toBe(true)
+  })
+
   test("pins the two published authoring modules exactly", async () => {
     const manifest = JSON.parse(await readFile(path.join(supportRoot, "package.json"), "utf8"))
-    expect(manifest.dependencies["halfcode-compiler.xnl"]).toBe("0.3.0")
+    expect(manifest.dependencies["halfcode-compiler.xnl"]).toBe("0.3.1")
     expect(manifest.dependencies["ai-workflow-flow-dsl-reference"]).toBe("0.2.0")
   })
 
@@ -65,8 +87,8 @@ describe("Eidolon Anchor system Skill split plan", () => {
       "Halfcode.ResourceDsl.Skill.System": [],
       "Eidolon.Anchor.Skill.Authoring": ["Halfcode.ResourceDsl.Skill.System@1.0.0"],
       "Eidolon.Anchor.Skill.DevOps": [
-        "Eidolon.Anchor.Skill.Authoring@1.0.25",
-        "Eidolon.Anchor.Skill.Run@1.0.5",
+        "Eidolon.Anchor.Skill.Authoring@1.0.26",
+        "Eidolon.Anchor.Skill.Run@1.0.6",
       ],
     })
     expect(EXPECTED_EIDOLON_SYSTEM_SKILL_SET.map((entry) => entry.capsuleFqn)).toEqual(plan.topology)

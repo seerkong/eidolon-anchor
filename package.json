@@ -48,7 +48,9 @@
     "uninstall:all": "bun run scripts/uninstall-all.ts",
     "benchmark:session-checkpoint": "bun run scripts/benchmark-session-checkpoint.ts",
     "dev:web:vue-koa": "concurrently -n frontend,backend -c blue,green \"bun run dev:frontend:vue\" \"bun run dev:backend:koa\"",
-    "dev:web:react-koa": "concurrently -n frontend,backend -c blue,green \"bun run dev:frontend:react\" \"bun run dev:backend:koa\""
+    "dev:web:react-koa": "concurrently -n frontend,backend -c blue,green \"bun run dev:frontend:react\" \"bun run dev:backend:koa\"",
+    "prepare:holon-candidates": "bun run scripts/prepare-holon-candidates.ts",
+    "verify:holon-shared": "bun run scripts/verify-holon-shared-integration.ts"
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.4.0",
@@ -65,7 +67,24 @@
     "desktop",
     "frontend/packages/*",
     "terminal",
-    "terminal/packages/*"
+    "terminal/packages/*",
+    ".tmp/g8-candidates/packages/depa-cozo",
+    ".tmp/g8-candidates/packages/depa-datalog",
+    ".tmp/g8-candidates/packages/depa-inference-capsule",
+    ".tmp/g8-candidates/packages/depa-inference-contract",
+    ".tmp/g8-candidates/packages/depa-inference-cozo-support",
+    ".tmp/g8-candidates/packages/depa-inference-logic",
+    ".tmp/g8-candidates/packages/holarchy-core-contract",
+    ".tmp/g8-candidates/packages/holarchy-core-logic",
+    ".tmp/g8-candidates/packages/holarchy-file-xnl-capsule",
+    ".tmp/g8-candidates/packages/holarchy-file-xnl-contract",
+    ".tmp/g8-candidates/packages/holarchy-file-xnl-logic",
+    ".tmp/g8-candidates/packages/holarchy-file-xnl-support",
+    ".tmp/g8-candidates/packages/holarchy-test-support",
+    ".tmp/g8-candidates/packages/xnl-collab-core",
+    ".tmp/g8-candidates/packages/xnl-core",
+    ".tmp/g8-candidates/packages/xnl-vcs",
+    ".tmp/g8-candidates/packages/xnl-vfs"
   ],
   "dependencies": {
     "@opencode-ai/sdk": "1.1.25",

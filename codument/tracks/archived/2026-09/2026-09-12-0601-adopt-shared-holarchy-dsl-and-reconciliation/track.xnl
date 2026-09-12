@@ -1,0 +1,118 @@
+<Track #adopt-shared-holarchy-dsl-and-reconciliation apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Eidolon复用公共原生组织DSL、fixture、issuer和调和结果，完成Product/Ctrl/Data与独立进程恢复验收" description = "上游共享场景完成后接入候选公共包，保留历史原始证明，补有界真实provider gate；复用候选公共发行物执行接入，manual提交" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-07T02:02:09.411Z" updated_at = "2026-09-12T03:01:03.857Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #behaviors { role = "output" name = "behaviors" domain = "behavior" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_adopt-shared-holarchy-dsl-and-reconciliation { name = "adopt-shared-holarchy-dsl-and-reconciliation" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "公共候选、原生fixture与历史证明" status = "DONE" priority = "P0" order = 0 } (
+        <Description ?01M1WTHGN6XWYN0SEQN2K636R8>
+        仅在上游共享场景阶段完成并由Mission放行后执行；先锁历史字节和红测，再切换公共入口。
+        </?01M1WTHGN6XWYN0SEQN2K636R8>
+        <Gate [
+          <Criterion #P1-G1 { checked = true } ?01M1WTHGN6XWYN0SEQN2K636R9>
+          共享场景公共API及候选证据已就绪，Mission已允许源码接入。
+          </?01M1WTHGN6XWYN0SEQN2K636R9>
+        ]>
+        <SubNodes [
+          <Task #P1-T1 { name = "建立现状、原生字段与历史字节负例" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1WTHGN6XWYN0SEQN2K636RA>
+            记录实际包解析与工作树基线；保存历史authority/issued字节清单；新增三处fixture原生字段、错误provenance、历史损坏fail-closed及当前样例重新生成测试。
+            </?01M1WTHGN6XWYN0SEQN2K636RA>
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1WTHGN6XWYN0SEQN2K636RB>
+              新断言能捕获字符串包装、错误包版本或旧字节被重写，原有无关工作树保持。
+              </?01M1WTHGN6XWYN0SEQN2K636RB>
+            ]>
+          )>
+          <Task #P1-T2 { name = "接入公共fixture和issuer并新增native样例" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M1WTHGN6XWYN0SEQN2K636RC>
+            对齐必要候选依赖与lock；三处组织builder委托holarchy-test-support；issuer注入真实版本、authorization与clock；保留旧样例，新增当前原生生成目录与独立check。
+            </?01M1WTHGN6XWYN0SEQN2K636RC>
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M1WTHGN6XWYN0SEQN2K636RD>
+              公共提交、重开、发行及fixture校验通过；旧record/tree/receipt/issued所有原始bytes不变。
+              </?01M1WTHGN6XWYN0SEQN2K636RD>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M1WTHGN6XWYN0SEQN2K636RE>
+              provenance与实际解析版本相等，当前fixture没有领域xxxJson或私有codec副本。
+              </?01M1WTHGN6XWYN0SEQN2K636RE>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "共享调和结果与三入口恢复" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "补共享场景采用与冻结关系红测" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1WTHGN6XWYN0SEQN2K636RF>
+            消费atomic-transfer、same-field-conflict、retired-target-independent-rename的公共数据与独立expected；断言拒绝不写、显式successor、新发行新admission及旧任务冻结边界。
+            </?01M1WTHGN6XWYN0SEQN2K636RF>
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M1WTHGN6XWYN0SEQN2K636RG>
+              测试真实调用共享场景/公共调和入口并验证Eidolon采用结果，不能以F通过代替E执行。
+              </?01M1WTHGN6XWYN0SEQN2K636RG>
+            ]>
+          )>
+          <Task #P2-T2 { name = "完成Product Ctrl Data公共包集成" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M1WTHGN6XWYN0SEQN2K636RH>
+            保留真实registry/VM/exact admission/binding；三入口共用TaskRuntimeService和TaskSpace；组织变更不进入Workflow私有重放。补adapter envelope及eligibility兼容。
+            </?01M1WTHGN6XWYN0SEQN2K636RH>
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M1WTHGN6XWYN0SEQN2K636RJ>
+              E08/E09/E10/E12确定性产品断言与独立artifact verifier通过，旧绑定和旧proof仍可消费。
+              </?01M1WTHGN6XWYN0SEQN2K636RJ>
+            ]>
+          )>
+          <Task #P2-T3 { name = "验证独立PID恢复与外部幂等" status = "DONE" priority = "P0" order = 2 } (
+            <Description ?01M1WTHGN6XWYN0SEQN2K636RK>
+            新PID恢复旧deployment；运行effect接受后未settlement和settlement后Workflow未消费窗口，重放不重复外部effect且正式receipt稳定。
+            </?01M1WTHGN6XWYN0SEQN2K636RK>
+            <Acceptance [
+              <Criterion #P2-T3-AC1 { checked = true } ?01M1WTHGN6XWYN0SEQN2K636RM>
+              E/P恢复测试真实跨OS进程；acceptance、TaskSpace与Workflow receipt归属清楚，重复恢复新增effect为零。
+              </?01M1WTHGN6XWYN0SEQN2K636RM>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "有界真实provider与接入收口" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "编写live预算和脱敏控制测试" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1WTHGN6XWYN0SEQN2K636RN>
+            用合成transport验证全actor共享最多2请求、16384输出token每请求、180秒总deadline；第3次发送拒绝、无自动重试、错误与日志无秘钥。
+            </?01M1WTHGN6XWYN0SEQN2K636RN>
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M1WTHGN6XWYN0SEQN2K636RP>
+              请求上限、timeout、无重试、报告脱敏都有独立负例，不依赖付费服务。
+              </?01M1WTHGN6XWYN0SEQN2K636RP>
+            ]>
+          )>
+          <Task #P3-T2 { name = "实现真实Product-only live入口并单次执行" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M1WTHGN6XWYN0SEQN2K636RQ>
+            按现有配置选择可用provider/model，经实际Holon链执行小型合成订单；共享确定性inputDigest和原verifier，不改写模型输出。控制测试通过后只开启一次live，最多2请求，单请求输出16384token，总180秒，无自动重试，不改计费。
+            </?01M1WTHGN6XWYN0SEQN2K636RQ>
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M1WTHGN6XWYN0SEQN2K636RR>
+              真实远端请求、TaskSpace receipt与artifact verifier记录完整；synthetic不冒充live；实际usage缺失或金额不可计算均如实标记。
+              </?01M1WTHGN6XWYN0SEQN2K636RR>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M1WTHGN6XWYN0SEQN2K636RS>
+              调用次数和时间边界未超限；失败被保留，未循环补跑或购买/修改计费。
+              </?01M1WTHGN6XWYN0SEQN2K636RS>
+            ]>
+          )>
+          <Task #P3-T3 { name = "核对版本闭包、完整回归与行为证据" status = "DONE" priority = "P0" order = 2 } (
+            <Description ?01M1WTHGN6XWYN0SEQN2K636RT>
+            完成design.md中typecheck、issuer、binding、Product/Ctrl/Data及P回归；记录fixture digest/host/versions/entryPoints及未完成证据；为后续tarball隔离提供明确解析清单，校验Track与行为。
+            </?01M1WTHGN6XWYN0SEQN2K636RT>
+            <Acceptance [
+              <Criterion #P3-T3-AC1 { checked = true } ?01M1WTHGN6XWYN0SEQN2K636RV>
+              全部适用E/P项有真实结论，无NOT_RUN伪报PASS；版本/lock/文档一致，严格Codument校验通过。
+              </?01M1WTHGN6XWYN0SEQN2K636RV>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

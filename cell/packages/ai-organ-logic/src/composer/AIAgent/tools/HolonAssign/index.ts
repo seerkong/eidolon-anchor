@@ -23,7 +23,7 @@ export function buildHolonAssignToolDef() {
       if (!mode) return JSON.stringify({ ok: false, error: "invalid_assign_mode", target })
       if (!content) return JSON.stringify({ ok: false, error: "empty_content", target })
       const holon = resolveHolon(runtime.vm as any, target)
-      if (!holon) return JSON.stringify({ ok: false, error: "holon_not_found", target })
+      if (!holon) return assignCanonicalAutonomousHolon({ runtime, target, mode, content })
       const raw = holon.governance === "autonomous"
         ? await assignCanonicalAutonomousHolon({ runtime, target, mode, content })
         : await queueLeaderLedHolonAssign({ runtime, target, mode, content })

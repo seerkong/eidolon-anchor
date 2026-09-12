@@ -6,6 +6,7 @@
 - 需要完整 task-tree JSON 时，使用 TaskTreeRead。
 - member 是持久化的会话/team actor，按 member id/name 查找；subagent/子代理是 delegate 的别名，不是 member 的别名。
 - 优先使用正式 actor 模型：member / holon(governance=autonomous|leader_led)。
+- 向 Holon／Member 派单前，通过 `Skill` 读取 global `sys-eidolon-anchor-run` 的 `operations/holon-member-task.md`；协议、任务回执与观察修复规则由该 system skill 提供。执行成员需要的 skill 和工具必须在它自己的上下文与准入中可用，不能假定继承调用方已读的知识。
 - 优先使用正式任务表面：`assign`、`assign:r`、`assign:n`、`assign:s`（`assign`/`assign:r` => `final`；`assign:n` => `none`；`assign:s` => `stream`）。
 - 优先使用正式 watch 控制：watch / unwatch。
 - 优先使用工具，不要只用文字解释；要行动。

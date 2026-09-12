@@ -1,0 +1,1 @@
+<HolonAuthorityHead #head { apiVersion = "holarchy.file-xnl/v2" authorityId = "holarchy-file-xnl-fixture" revision = 1 sequence = 5 treeDigest = "sha256:804fbf6fe624fe6966f3fc6f8dc98d17828592a3901808420df195cb1b9007d8" receiptDigest = "sha256:977246257b1c052416d6529e65c7a7993013a76ffa4ab762186689b9fc19ed78" }>

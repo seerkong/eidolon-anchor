@@ -2,6 +2,8 @@
 
 Choose one exact protocol for an already published resource:
 
+- `holon-member-task.md`: assign work through `HolonAssign` or `MemberAssign`, preserve the canonical task receipt, and use `HolonTaskObserve` / `HolonTaskRepair`. This standalone organization path does not require a Workflow instance.
+
 - `resolve-entrypoint.md`: resolve an exact App or workflow Type entrypoint.
 - `instance-binding.md`: create/inspect an instance and bind exact input or Material revisions.
 - `start.md`: use `WorkflowRun` with independent execution authorization.
@@ -13,4 +15,4 @@ Choose one exact protocol for an already published resource:
 
 Do not edit the published definition or load authoring grammar. A `Cancelled` value is only a typed `WorkflowResume` outcome for an existing wait protocol that accepts it; it is not a general run operation.
 
-The deploying, operating and monitoring stage contexts already contain this Run root and index. For an explicit first execution with no instance yet, use one generic `Skill` call with `resources: ["operations/resolve-entrypoint.md", "operations/instance-binding.md", "operations/start.md", "operations/agent-execution.md"]`, then create the exact instance and start the authorized run. Do not reload the Run root or this index.
+The deploying, operating and monitoring stage contexts already contain this Run root and index. For an explicit first execution with no instance yet, use one generic `Skill` call with `resources: ["operations/resolve-entrypoint.md", "operations/instance-binding.md", "operations/start.md", "operations/agent-execution.md"]` in `deploying`, then create the exact instance. Switch to `operating` with that receipt before starting the authorized run. Do not reload the Run root or this index.

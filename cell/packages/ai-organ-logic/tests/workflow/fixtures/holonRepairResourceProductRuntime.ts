@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import { mkdir, open, readFile } from "node:fs/promises"
 import path from "node:path"
 import { isDeepStrictEqual } from "node:util"
+import type { ActorModelConfig } from "@cell/ai-core-contract/runtime/AiAgentActor"
 import { AI_AGENT_DEFINITION_SELECTION_SCHEMA_VERSION } from "ai-workflow-contract"
 import { openLocalHolonTaskRuntime } from "@terminal/organ/AIAgent/LocalHolonTaskRuntimeBootstrap"
 import { createStandaloneHolonExecutionAdapters } from "../../../../../../terminal/packages/organ/src/AIAgent/StandaloneHolonExecutionAdapters"
@@ -11,7 +12,7 @@ import { EidolonAppResourceRegistryAdapter } from "../../../src/resources"
 import { invokeAddressedChildExecutionActor } from "../../../src/agent/DelegateActor"
 import { appendLiveHistoryMessageToConversationDomainRuntime } from "../../../src/conversation/ConversationDomainRuntime"
 import { createSubgraphPreparationFixture } from "./subgraph-worker-preparation-runtime"
-import { addProductHolonPackage, productRefs, productWorkerSource, writeProductFiles } from "./holonRepairResourceProductPackage"
+import { addProductHolonPackage, type ProductOrganizationAdmission, productRefs, productWorkerSource, writeProductFiles } from "./holonRepairResourceProductPackage"
 import { createHolonProductProviderTransport, readHolonProductProviderMessage } from "./holonProductProviderTransport"
 
 export const productOrder = Object.freeze({ orderId: "order-314", shippingCents: 275, lines: [{ sku: "tea", quantity: 3, unitCents: 425 }, { sku: "cup", quantity: 2, unitCents: 1199 }] })
@@ -60,19 +61,19 @@ export function productRequestPayload(messages: readonly any[]) {
   return parsed.payload ?? parsed
 }
 
-export async function createHolonRepairResourceProductFixture(options: { root?: string; version?: 1 | 2; existing?: boolean } = {}) {
+export async function createHolonRepairResourceProductFixture(options: { root?: string; version?: 1 | 2; existing?: boolean; organization?: ProductOrganizationAdmission; provider?: { adapter: NonNullable<ReturnType<typeof import("@cell/ai-core-logic/runtime/actor").createActor>["llmClient"]>; modelConfig: ActorModelConfig }; input?: { value: string } } = {}) {
   const base = await createSubgraphPreparationFixture({ root: options.root, existing: options.existing })
   const { root, resources, actor, vm } = base
   const pkg = options.existing
     ? { issuer: JSON.parse(await readFile(path.join(root, "product-issuer.json"), "utf8")), packageRoot: resources, refs: productRefs }
-    : await addProductHolonPackage(root, resources, options.version ?? 2, options.version === 1)
+    : await addProductHolonPackage(root, resources, options.version ?? 2, options.version === 1, options.organization)
   if (!options.existing) await writeProductFiles(root, { "product-issuer.json": JSON.stringify(pkg.issuer) })
   const requests: any[] = []
   const effects: { key: string; value: string; accepted: boolean }[] = []
   const controlPayloads: any[] = []
   let selectedPayload: any
   let failNextEffect = false
-  const orderInput = productInput
+  const orderInput = options.input ?? productInput
 
   // The local model only interprets real request payload and ordered prefix content.
   // Its JSON result is consumed by the separate external effect below.
@@ -119,8 +120,8 @@ export async function createHolonRepairResourceProductFixture(options: { root?: 
   }
 
   const transport = createHolonProductProviderTransport({ sessionId: "product-fixture", respond })
-  actor.llmClient = transport.adapter
-  actor.modelConfig = { model: "deepseek-chat", adapter: "deepseek" }
+  actor.llmClient = options.provider?.adapter ?? transport.adapter
+  actor.modelConfig = options.provider?.modelConfig ?? { model: "deepseek-chat", adapter: "deepseek" }
   actor.callbacks.processStream = async (runtimeVm, child, stream) => {
     const decoded = await readHolonProductProviderMessage(stream)
     const output = await afterResponse(JSON.parse(decoded.content), child)

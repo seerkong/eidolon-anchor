@@ -14,6 +14,7 @@ import { installBundledSystemSkills } from "@cell/ai-support/system-skill/System
 import { assembleAiKernelRuntimeProfile } from "../../../../mod-profiles/src/index";
 import { skillCoreLogic } from "../../../src/composer/AIAgent/tools/Skill/Logic";
 import { buildSkillToolDef } from "../../../src/composer/AIAgent/tools/Skill";
+import { WorkflowResourceLoader } from "../../../src/workflow/resources";
 
 function makeHarness() {
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "eidolon-progressive-skill-"));
@@ -82,6 +83,54 @@ function makeHarness() {
 }
 
 describe("Skill progressive local text resource loading", () => {
+  it("delivers installed Holon and Workflow operating knowledge to the executing actor", async () => {
+    const harness = makeHarness();
+    try {
+      await installBundledSystemSkills({ globalRoot: harness.globalRoot });
+      const routes = await harness.skill("system-task-routes", {
+        skill: "sys-eidolon-anchor-run",
+        resources: ["SKILL.md", "operations/index.md", "operations/holon-member-task.md"],
+      });
+      expect(routes).toContain('status="loaded"');
+      expect(routes).toContain("HolonAssign");
+      expect(routes).toContain("MemberAssign");
+      expect(routes).toContain("HolonTaskObserve");
+      expect(routes).toContain("HolonTaskRepair");
+      expect(routes).toContain("not inherited knowledge");
+      const authoring = await harness.skill("system-workflow-authoring", {
+        skill: "sys-eidolon-anchor-authoring",
+        resources: ["operations/ai-workflow.md", "references/flow-dsl/foundation/syntax-axioms.md", "references/flow-dsl/spec/ai-workflow/data-workflow.md", "references/flow-dsl/spec/ai-workflow/ctrl-workflow.md"],
+      });
+      expect(authoring).toContain('status="loaded"');
+      expect(authoring).toContain("WorkflowFulfill");
+      expect(authoring).toContain("WorkflowPreparePublication");
+      const language = await harness.skill("system-workflow-language", {
+        skill: "sys-halfcode-resource-dsl", resource: "references/resource-dsl/language.md",
+      });
+      expect(language).toContain('status="loaded"');
+      expect(language).toContain("XNL");
+      const visible = await harness.skill("system-task-routes-visible", {
+        skill: "sys-eidolon-anchor-run", resource: "operations/holon-member-task.md",
+      });
+      expect(visible).toContain('status="already-visible"');
+
+      // Validate the exact installed example bytes with the domain loader, not a second test-only grammar.
+      const document = fs.readFileSync(path.join(harness.globalRoot, "skills/sys-eidolon-anchor-authoring/operations/ai-workflow.md"), "utf8");
+      const examples = [...document.matchAll(/```xnl\n([\s\S]*?)\n```/g)].map((match) => match[1]!);
+      expect(examples).toHaveLength(2);
+      for (const example of examples) {
+        const form = example.startsWith("<AIDataWorkflow") ? "AIDataWorkflow" : "AICtrlWorkflow";
+        const loaded = new WorkflowResourceLoader().load({ form, sources: { "manifest.xnl": example } });
+        expect(loaded.diagnostics).toEqual([]);
+        expect(loaded.binding).toBeDefined();
+        expect(loaded.substrate).toBeDefined();
+      }
+    } finally {
+      fs.rmSync(harness.vm.outerCtx.workDir, { recursive: true, force: true });
+      fs.rmSync(harness.globalRoot, { recursive: true, force: true });
+    }
+  });
+
   it("uses the generic resource envelope and reuses the same visible revision", async () => {
     const harness = makeHarness();
 

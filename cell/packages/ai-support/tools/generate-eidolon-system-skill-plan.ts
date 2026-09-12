@@ -46,6 +46,7 @@ const expectedAuthoringOperations = [
   "operations/validate-prepare.md",
   "operations/publish.md",
   "operations/agent-definition.md",
+  "operations/ai-workflow.md",
 ] as const
 
 const expectedRunOperations = [
@@ -57,6 +58,7 @@ const expectedRunOperations = [
   "operations/observe.md",
   "operations/replay-evidence.md",
   "operations/agent-execution.md",
+  "operations/holon-member-task.md",
 ] as const
 
 const flowDslReferenceModule = loadAIWorkflowFlowDslReferenceModule()
@@ -130,9 +132,9 @@ function assertCanonicalPlan(): void {
   }
   const expectedVersions: Readonly<Record<string, string>> = {
     "Halfcode.ResourceDsl.Skill.System": "1.0.0",
-    "Eidolon.Anchor.Skill.Run": "1.0.5",
-    "Eidolon.Anchor.Skill.Authoring": "1.0.25",
-    "Eidolon.Anchor.Skill.DevOps": "1.0.29",
+    "Eidolon.Anchor.Skill.Run": "1.0.6",
+    "Eidolon.Anchor.Skill.Authoring": "1.0.26",
+    "Eidolon.Anchor.Skill.DevOps": "1.0.30",
   }
   for (const capsule of plan.capsules) {
     if (capsule.identity.version !== expectedVersions[capsule.identity.fqn]) {
@@ -148,8 +150,8 @@ function assertCanonicalPlan(): void {
     "Eidolon.Anchor.Skill.Authoring": ["Halfcode.ResourceDsl.Skill.System@1.0.0"],
     "Eidolon.Anchor.Skill.Run": [],
     "Eidolon.Anchor.Skill.DevOps": [
-      "Eidolon.Anchor.Skill.Authoring@1.0.25",
-      "Eidolon.Anchor.Skill.Run@1.0.5",
+      "Eidolon.Anchor.Skill.Authoring@1.0.26",
+      "Eidolon.Anchor.Skill.Run@1.0.6",
     ],
   }
   for (const [fqn, dependencies] of Object.entries(expectedDependencies)) {

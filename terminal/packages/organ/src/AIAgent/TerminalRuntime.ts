@@ -1186,21 +1186,21 @@ async function createRuntimeBridge(
     createExecutionAdapters: ({ deployment }) => createStandaloneHolonExecutionAdapters({
       deployment,
       executeAddressedAgent: async ({ agentDefinitionRef, resolvedConfig, invocation, sessionRef, idempotencyKey }) => {
-        return runtimeCoordinator.enqueue(async () => {
-          const target = holonActorReferences.get(sessionRef)
-            ?? recoveredHolonActorReference(sessionRef, agentDefinitionRef)
-          const invoked = await invokeAddressedChildExecutionActor(vm, actor, {
-            description: `Holon task ${invocation.taskRef}`,
-            prompt: JSON.stringify(invocation.input),
-            agentType: agentDefinitionRef,
-            resolvedConfig,
-            toolCallId: idempotencyKey,
-            ...(target ? { target } : { sessionId: sessionRef }),
-          })
-          holonActorReferences.set(sessionRef, invoked.reference)
-          activateSessionMaterialization()
-          return invoked.output
+        // The invoking tool may already own the interactive turn. Child execution
+        // runs through its actor boundary, not behind that same turn's queue.
+        const target = holonActorReferences.get(sessionRef)
+          ?? recoveredHolonActorReference(sessionRef, agentDefinitionRef)
+        const invoked = await invokeAddressedChildExecutionActor(vm, actor, {
+          description: `Holon task ${invocation.taskRef}`,
+          prompt: JSON.stringify(invocation.input),
+          agentType: agentDefinitionRef,
+          resolvedConfig,
+          toolCallId: idempotencyKey,
+          ...(target ? { target } : { sessionId: sessionRef }),
         })
+        holonActorReferences.set(sessionRef, invoked.reference)
+        activateSessionMaterialization()
+        return invoked.output
       },
     }),
   })

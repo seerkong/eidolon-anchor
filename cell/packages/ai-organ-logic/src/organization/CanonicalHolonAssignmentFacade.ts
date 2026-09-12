@@ -5,6 +5,7 @@ import {
   HOLON_TASK_RUNTIME_INVOCATION_SCHEMA_VERSION,
   type HolonTaskRuntimeAssignmentReceipt,
   type HolonTaskRuntimeInvocation,
+  type HolonTaskRuntimeCatalogSnapshot,
   type HolonTaskSelector,
 } from "@cell/ai-organ-contract"
 
@@ -145,7 +146,7 @@ function invocation(
     origin: Object.freeze({ kind: "product", surface, requestRef: requestId }),
     taskRequest: Object.freeze({
       kind: "derive",
-      name: input.content.slice(0, 120) || "Holon assignment",
+      name: input.content.slice(0, 120).trim() || "Holon assignment",
     }),
     input: Object.freeze({ content: input.content }),
   })
@@ -154,7 +155,7 @@ function invocation(
 function bindingRequired(
   target: string,
   targetType: "holon" | "member",
-  holon: OrganizationHolonRecord,
+  holon: Pick<OrganizationHolonRecord, "holonId">,
 ): CanonicalHolonBindingRequiredResult {
   return Object.freeze({
     ok: false,
@@ -199,7 +200,7 @@ function receiptProjection(
 
 async function assign(
   input: CanonicalHolonAssignmentInput,
-  holon: OrganizationHolonRecord,
+  holon: Pick<OrganizationHolonRecord, "holonId">,
   selector: ProductHolonTaskSelector,
   surface: "HolonAssign" | "ActorAssign" | "MemberAssign",
 ): Promise<string> {
@@ -236,6 +237,37 @@ async function assign(
   }
 }
 
+/** Resolve stable file-admitted refs without creating a second, mutable session roster. */
+export async function assignAdmittedOrganizationTask(
+  input: CanonicalHolonAssignmentInput,
+  targetType: "holon" | "member",
+): Promise<string | undefined> {
+  let catalog: HolonTaskRuntimeCatalogSnapshot
+  try {
+    catalog = requireHolonTaskRuntimeCapability(input.runtime.vm).readCatalog()
+  } catch (error) {
+    if (runtimeErrorCode(error) === "EIDOLON_HOLON_TASK_CAPABILITY_NOT_MOUNTED") return undefined
+    throw error
+  }
+  const matches = (query: string) => catalog.admissions.filter((candidate) => targetType === "holon"
+    ? candidate.definition.rootHolonRef === query
+    : candidate.executionTarget.kind === "member" && candidate.executionTarget.memberRef === query)
+  const exact = matches(input.target)
+  const candidates = exact.length > 0 ? exact : matches(stripTypePrefix(input.target))
+  if (candidates.length === 0) return undefined
+  const holonRefs = [...new Set(candidates.map((candidate) => candidate.definition.rootHolonRef))].sort()
+  if (holonRefs.length !== 1) return JSON.stringify({
+    ok: false, error: "canonical_member_holon_ambiguous", target: input.target,
+    target_type: targetType, holon_ids: holonRefs,
+  })
+  const holonRef = holonRefs[0]!
+  const candidate = candidates[0]!
+  const selector: ProductHolonTaskSelector = targetType === "member" && candidate.executionTarget.kind === "member"
+    ? { kind: "member", holonRef, memberRef: candidate.executionTarget.memberRef }
+    : { kind: "holon", holonRef }
+  return assign(input, { holonId: holonRef }, selector, targetType === "holon" ? "HolonAssign" : "MemberAssign")
+}
+
 export async function assignCanonicalAutonomousHolon(
   input: CanonicalHolonAssignmentInput,
 ): Promise<string> {
@@ -245,6 +277,8 @@ export async function assignCanonicalAutonomousHolon(
     stripTypePrefix(target),
   )
   if (!holon) {
+    const admitted = await assignAdmittedOrganizationTask(input, "holon")
+    if (admitted !== undefined) return admitted
     return JSON.stringify({ ok: false, error: "holon_not_found", target, target_type: "holon" })
   }
   try {

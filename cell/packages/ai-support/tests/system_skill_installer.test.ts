@@ -51,10 +51,10 @@ describe("bundled system skills", () => {
 
   test("derives the exact four patch-versioned identities without a payload identity descriptor", () => {
     expect(EXPECTED_EIDOLON_SYSTEM_SKILL_SET.map(({ name, version }) => ({ name, version }))).toEqual([
-      { name: "sys-eidolon-anchor-run", version: "1.0.5" },
+      { name: "sys-eidolon-anchor-run", version: "1.0.6" },
       { name: "sys-halfcode-resource-dsl", version: "1.0.0" },
-      { name: "sys-eidolon-anchor-authoring", version: "1.0.25" },
-      { name: "sys-eidolon-anchor-devops", version: "1.0.29" },
+      { name: "sys-eidolon-anchor-authoring", version: "1.0.26" },
+      { name: "sys-eidolon-anchor-devops", version: "1.0.30" },
     ])
     expect(EXPECTED_EIDOLON_SYSTEM_SKILL_SET.flatMap((skill) => skill.files.map((file) => file.path)))
       .not.toContain("system-skill.xnl")

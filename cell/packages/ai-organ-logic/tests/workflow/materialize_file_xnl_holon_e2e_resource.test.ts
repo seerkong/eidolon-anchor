@@ -20,7 +20,7 @@ import {
 } from "./materializeFileXnlHolonE2eResource"
 
 const temporaryRoots: string[] = []
-const committedRoot = path.resolve(import.meta.dir, "../resources/holon-task-e2e")
+const committedRoot = path.resolve(import.meta.dir, "../resources/holon-task-native-e2e")
 
 afterEach(async () => {
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
@@ -35,8 +35,8 @@ async function temporaryEmptyRoot(): Promise<string> {
 describe("inspectable File-XNL Holon E2E resource", () => {
   it("materializes through the runtime-first Processor and rejects a non-empty root", async () => {
     expect(Object.isFrozen(FILE_XNL_HOLON_E2E_SCENARIO)).toBe(true)
-    expect(Object.isFrozen(FILE_XNL_HOLON_E2E_SCENARIO.tables.MemberVersion)).toBe(true)
-    expect(Object.isFrozen(FILE_XNL_HOLON_E2E_SCENARIO.tables.MemberVersion[0])).toBe(true)
+    expect(Object.isFrozen(FILE_XNL_HOLON_E2E_SCENARIO.fixture.state.entities)).toBe(true)
+    expect(Object.isFrozen(FILE_XNL_HOLON_E2E_SCENARIO.fixture.state.entities[0])).toBe(true)
     const root = await temporaryEmptyRoot()
     const result = await materializeFileXnlHolonE2eResource(
       createNodeFileXnlHolonE2eResourceRuntime(),

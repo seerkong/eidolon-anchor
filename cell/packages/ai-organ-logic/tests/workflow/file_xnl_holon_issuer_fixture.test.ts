@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from "bun:test"
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, rm, readFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
 
 import {
   canonicalHolonEffectiveSnapshotIssuanceReceiptBytes,
@@ -20,7 +21,7 @@ afterEach(async () => {
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
 
-const { issuer, tables } = FILE_XNL_HOLON_E2E_SCENARIO
+const { issuer, fixture: organizationFixture } = FILE_XNL_HOLON_E2E_SCENARIO
 const {
   authorityId,
   effectiveAt,
@@ -38,7 +39,7 @@ describe("File-XNL Holon issuer fixture", () => {
       authorityRoot,
       authorityId,
       expectedRevision: 0,
-      tables,
+      fixture: organizationFixture,
       executionId: issuer.executionId,
       executionInstant: issuer.executionInstant,
       rootHolonRef,
@@ -81,7 +82,7 @@ describe("File-XNL Holon issuer fixture", () => {
 
     expect(fixture.provenance).toEqual({
       issuerPackage: "holarchy-file-xnl-capsule",
-      issuerPackageVersion: "0.2.0",
+      issuerPackageVersion: JSON.parse(await readFile(path.resolve(path.dirname(fileURLToPath(import.meta.resolve("holarchy-file-xnl-capsule"))), "../package.json"), "utf8")).version,
       sourceAuthorityId: authorityId,
       sourceRevision: "1",
       snapshotRef: fixture.snapshot.snapshotId,

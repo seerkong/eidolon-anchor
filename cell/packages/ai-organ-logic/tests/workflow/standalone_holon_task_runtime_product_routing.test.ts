@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test"
 
 import { createActor } from "@cell/ai-core-logic/runtime/actor"
-import { createVM } from "@cell/ai-core-logic/runtime/runtime"
+import { createVM, ensureVmRuntimeContext } from "@cell/ai-core-logic/runtime/runtime"
 import {
   HOLON_TASK_RUNTIME_ADMISSION_SCHEMA_VERSION,
   HOLON_TASK_RUNTIME_DEFINITION_SCHEMA_VERSION,
@@ -18,6 +18,8 @@ import {
 } from "../../src/organization/CanonicalHolonAssignmentFacade"
 import { getOrganizationManager } from "../../src/organization/OrganizationManager"
 import { bootstrapLocalHolonTaskRuntime } from "../../src/organization/HolonTaskRuntimeComposition"
+import { buildHolonAssignToolDef } from "../../src/composer/AIAgent/tools/HolonAssign"
+import { buildMemberAssignToolDef } from "../../src/composer/AIAgent/tools/MemberAssign"
 
 const digest = (hex: string) => `sha256:${hex.repeat(64).slice(0, 64)}` as const
 
@@ -124,6 +126,59 @@ function runtime() {
 }
 
 describe("standalone Holon task product routing", () => {
+  it("addresses file-admitted Holon and Member refs without a second session organization", async () => {
+    const local = runtime()
+    ensureVmRuntimeContext(local.vm).driver = {} as any
+    const mounted = bootstrapLocalHolonTaskRuntime({
+      vm: local.vm,
+      supportRoot: "/tmp/eidolon-file-admitted-public-routing",
+      registryRef: "resource://registries/file-admitted-public-routing",
+    })
+    const candidate = admission("holon-file-team", "member-file-worker")
+    registerHolonTaskRuntimeCapabilityBinding(local.vm, mounted.scope, {
+      admission: candidate, route: route(candidate),
+      processorConfig: { leaseDurationMs: 30_000, maxSteps: 64 },
+    })
+    expect(getOrganizationManager().listHolons(local.vm)).toEqual([])
+    for (const [index, [tool, target]] of ([
+      [buildHolonAssignToolDef(), "holon-file-team"],
+      [buildMemberAssignToolDef(), "member-file-worker"],
+    ] as const).entries()) {
+      const result = JSON.parse(await (tool as any).run({ ...local, toolCallId: `file-admission-${index}` }, {
+        // A word boundary at the title limit must not make the canonical name
+        // invalid; the full content remains the actual task input.
+        target, mode: "final", content: `${"x".repeat(119)} use the installed system Skills`,
+      }, {}))
+      expect(result.ok).toBe(true)
+      expect(result.admission_id).toBe(candidate.admissionId)
+      expect(result.terminal_status).toBe("Succeeded")
+      expect(result.service_runtime_ref).toBe(mounted.serviceRuntimeRef)
+    }
+    expect(getOrganizationManager().listHolons(local.vm)).toEqual([])
+  })
+
+  it("rejects a file-admitted Member shared by two Holons instead of guessing an owner", async () => {
+    const local = runtime()
+    ensureVmRuntimeContext(local.vm).driver = {} as any
+    const mounted = bootstrapLocalHolonTaskRuntime({
+      vm: local.vm, supportRoot: "/tmp/eidolon-file-admitted-ambiguous-member",
+      registryRef: "resource://registries/file-admitted-ambiguous-member",
+    })
+    for (const holonRef of ["file-team-a", "file-team-b"]) {
+      const candidate = admission(holonRef, "shared-file-worker")
+      registerHolonTaskRuntimeCapabilityBinding(local.vm, mounted.scope, {
+        admission: candidate, route: route(candidate),
+        processorConfig: { leaseDurationMs: 30_000, maxSteps: 64 },
+      })
+    }
+    const result = JSON.parse(await buildMemberAssignToolDef().run(local, {
+      target: "shared-file-worker", mode: "final", content: "An ambiguous task",
+    }, {}))
+    expect(result.error).toBe("canonical_member_holon_ambiguous")
+    expect(result.holon_ids).toEqual(["file-team-a", "file-team-b"])
+    expect(getOrganizationManager().listHolons(local.vm)).toEqual([])
+  })
+
   it("bootstraps without Workflow and routes Holon/member through the same service owner", async () => {
     const local = runtime()
     const holon = getOrganizationManager().createHolon(local.vm, "autonomous", "review-board")

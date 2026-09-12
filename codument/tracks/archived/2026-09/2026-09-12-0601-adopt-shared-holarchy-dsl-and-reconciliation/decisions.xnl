@@ -1,0 +1,38 @@
+<decision #holon-live-provider-and-budget apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P1" blocks = [] durable_candidate = false } (
+  <question ?01M1WSNBGAHGVTJY9ZZ8EEEAN5>
+  已批准Mission的真实provider验收如何在既有配置下保持有限执行和真实费用证据？
+  </?01M1WSNBGAHGVTJY9ZZ8EEEAN5>
+  <recommendation ?01M1WSNBGAHGVTJY9ZZ8EEEAN6>
+  复用既有provider选择逻辑，最多2请求、每请求16384输出token、总180秒，无自动重试；未知计价信息如实记录，不另加美元猜测。
+  </?01M1WSNBGAHGVTJY9ZZ8EEEAN6>
+  <answer (
+    <raw-answer ?>2026-09-12用户明确同意：单次输出上限16384token、整次验收180秒，最多2请求、不自动重试；同意后继续执行。此前512token失败记录保留在reports中。</?>
+    <decision-text ?>按本目录design.md执行一次live gate；先完成本地控制测试。没有pricing则只报告真实请求数/token usage和金额unknown，不设置未经依据的美元预算。</?>
+    <rationale ?>限制实际请求边界可以控制本次必要验收范围；由公共provider配置和运行时注入凭据，避免把示例结果或未知单价写成远端事实。</?>
+    <evidence ?>已批准Mission及当前执行编排约束；本目录proposal.md、design.md和P3验收项。</?>
+  )>
+  <options {  } [
+    <option { key = "A" recommended = true } (
+      <title ?01M1WSNBGAHGVTJY9ZZ8EEEAN7>
+      既有配置的一次有限真实验收
+      </?01M1WSNBGAHGVTJY9ZZ8EEEAN7>
+      <description ?01M1WSNBGAHGVTJY9ZZ8EEEAN8>
+      使用真实Product-only Holon链和独立订单verifier，调用预算跨actor共享，secret不进入作者资源或报告。
+      </?01M1WSNBGAHGVTJY9ZZ8EEEAN8>
+      <tradeoff ?01M1WSNBGAHGVTJY9ZZ8EEEAN9>
+      服务失败可能保留为未通过；无pricing无法精确计算金额，但实际请求和usage边界明确。
+      </?01M1WSNBGAHGVTJY9ZZ8EEEAN9>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?01M1WSNBGAHGVTJY9ZZ8EEEANA>
+      扩大模型矩阵或重试次数
+      </?01M1WSNBGAHGVTJY9ZZ8EEEANA>
+      <description ?01M1WSNBGAHGVTJY9ZZ8EEEANB>
+      多provider、多模型或多轮优化能提供更多远端行为样本。
+      </?01M1WSNBGAHGVTJY9ZZ8EEEANB>
+      <tradeoff ?01M1WSNBGAHGVTJY9ZZ8EEEANC>
+      超出本次批准的有限验收，不采用；需要新的明确范围后才另行执行。
+      </?01M1WSNBGAHGVTJY9ZZ8EEEANC>
+    )>
+  ]>
+)>

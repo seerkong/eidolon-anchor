@@ -671,7 +671,9 @@ export class EidolonAppResourceRegistryAdapter {
         resourceRef(agent.resource.resourceId),
         "standalone",
         snapshot,
-        { payload: null },
+        // Startup discovers definitions before an invocation supplies its payload.
+        // Keep the exact input schema; validate it when execution is materialized.
+        { payload: null, preparingPrefix: true },
       ))
     }
     return Object.freeze(plans)

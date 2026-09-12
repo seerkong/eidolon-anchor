@@ -1,0 +1,123 @@
+<BehaviorPatch #track.adopt-shared-holarchy-dsl-and-reconciliation.behavior_patch.eidolon-holon-e2e-resource apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-holon-e2e-resource" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-holon-e2e-resource/requirements/inspectable-file-xnl-authority" } (
+      <Requirement #inspectable-file-xnl-authority (
+        <Statement ?>仓库 SHALL 分别保存冻结的历史File-XNL证明样例与通过真实公共capsule生成的当前原生样例；两者均可检查，均不是产品运行时authority。</?>
+        <Suites [
+          <Suite #resource-cases { name = "原生生成与历史证明" } (
+            <Cases [
+              <Case #materialize-explicit-root (
+                <Given ?>一个空的显式输出根、公共合成组织fixture和实际issuer版本。</?>
+                <When ?>runtime-first materializer调用公共commit、重新打开和issuer。</?>
+                <Then ?>系统 SHALL 输出原生对象/数组字段、当前authority和标明版本的发行证明，不持久化宿主绝对路径。</?>
+              )>
+              <Case #regeneration-exact (
+                <Given ?>已保存的当前原生样例与同一公共包版本。</?>
+                <When ?>检查命令在隔离根重新生成。</?>
+                <Then ?>所有生成器拥有的相对路径与bytes SHALL 精确相等；历史冻结目录不参与重写。</?>
+              )>
+              <Case #historic-proof-retained (
+                <Given ?>旧版本的record/tree/receipt和已发行snapshot/receipt原始bytes。</?>
+                <When ?>新公共包读取旧样例，并生成另一份当前原生样例。</?>
+                <Then ?>旧bytes与digest SHALL 保持不变且仍可验证；损坏证明MUST拒绝，不能重算旧证明来修复。</?>
+              )>
+              <Case #product-owner-independent (
+                <Given ?>仓库中存在两类检查样例。</?>
+                <When ?>Product/Ctrl/Data测试运行。</?>
+                <Then ?>测试 SHALL 经公共fixture和issuer建立独立临时可写authority，再进行资源admission。</?>
+              )>
+              <Case #privacy-boundary (
+                <Given ?>样例或测试证据准备进入版本控制。</?>
+                <When ?>检查其内容与相对路径。</?>
+                <Then ?>内容 MUST 不包含宿主绝对路径、provider凭据、会话消息或actor/mailbox快照。</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://eidolon-holon-e2e-resource/requirements/shared-native-fixture-consumption" } (
+      <Requirement #shared-native-fixture-consumption (
+        <Statement ?>Eidolon SHALL 通过holarchy-test-support公开fixture与issuer复用组织数据，公共OrganizationState/ChangeSet是唯一测试组织模型。</?>
+        <Suites [
+          <Suite #public-fixture { name = "公共场景消费" } (
+            <Cases [
+              <Case #three-builders-use-native-data (
+                <Given ?>检查样例、产品资源包和execution binding测试各需要不同成员与角色。</?>
+                <When ?>它们装配组织输入。</?>
+                <Then ?>系统 SHALL 参数化调用公共fixture，使用原生数组/对象；不维护私有领域xxxJson建表、parser或规则副本。</?>
+              )>
+              <Case #actual-issuer-version (
+                <Given ?>实际安装的公共issuer候选与显式authorization/clock/bounds。</?>
+                <When ?>公共helper提交并发行组织。</?>
+                <Then ?>provenance SHALL 等于实际解析的包版本，且canonical证明经公共parser可验证。</?>
+              )>
+              <Case #canonical-envelope-preserved (
+                <Given ?>资源携带已签发组织、绑定和runtime定义的exact byte信封。</?>
+                <When ?>Eidolon执行admission。</?>
+                <Then ?>系统 MUST 保持canonical/Base64证明语义与digest校验，不因领域字段升级重新解释或重写信封。</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://eidolon-holon-e2e-resource/requirements/shared-reconciliation-adoption" } (
+      <Requirement #shared-reconciliation-adoption (
+        <Statement ?>公共调和结果 SHALL 经显式successor提交与重新发行进入Eidolon；Product/Ctrl/Data继续使用唯一TaskRuntimeService和TaskSpace owner。</?>
+        <Suites [
+          <Suite #evolution { name = "组织演进与任务冻结" } (
+            <Cases [
+              <Case #conflict-selection-before-adoption (
+                <Given ?>共享场景规定远端目标停用、字段冲突和独立可接受改名。</?>
+                <When ?>公共调和、显式选择、CAS提交及新组织admission依次执行。</?>
+                <Then ?>预览 SHALL 不写authority；拒绝组不泄漏mutation；新admission仅采用实际提交并签发的后继事实，消费者证据含fixture digest与实际入口。</?>
+              )>
+              <Case #three-entry-single-owner (
+                <Given ?>Product-only、Ctrl和Data加载同一组织与binding。</?>
+                <When ?>各入口派单、观察和修复。</?>
+                <Then ?>任务 SHALL 由同一服务与TaskSpace受理，Workflow只消费receipt；输出须通过独立artifact verifier。</?>
+              )>
+              <Case #old-deployment-new-process (
+                <Given ?>旧任务已有冻结组织与binding，而新组织与Agent配方已admit。</?>
+                <When ?>不同PID重新打开旧deployment并恢复任务。</?>
+                <Then ?>旧任务 SHALL 继续使用原组织、绑定和配方；新任务采用新admission，不产生隐式组织迁移。</?>
+              )>
+              <Case #two-settlement-windows (
+                <Given ?>任务在effect已接受但settlement前，或settlement后Workflow未消费时退出。</?>
+                <When ?>另一OS进程恢复并再次replay。</?>
+                <Then ?>同一external idempotency key MUST 仅接受一次，TaskSpace receipt稳定，Workflow可继续消费且不创建第二任务owner。</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://eidolon-holon-e2e-resource/requirements/remote-product-live-evidence" } (
+      <Requirement #remote-product-live-evidence (
+        <Statement ?>真实ai-agent产品验收 SHALL 经现有远端provider执行一次有界Product-only Holon任务；模拟transport结果不得标为远端证据。</?>
+        <Suites [
+          <Suite #live-gate { name = "有限远端产品验收" } (
+            <Cases [
+              <Case #shared-request-budget (
+                <Given ?>本机存在可用provider/model配置，且本地预算控制测试已通过。</?>
+                <When ?>显式开启一次真实gate。</?>
+                <Then ?>全部actor总计 MUST 最多2次provider请求、16384输出token每请求和180秒总时限；无自动重试、循环补跑或计费配置变更。</?>
+              )>
+              <Case #real-artifact-and-usage (
+                <Given ?>远端响应经实际adapter/stream parser完成Holon订单任务。</?>
+                <When ?>external effect保存原模型bytes并由独立verifier检查。</?>
+                <Then ?>报告 SHALL 记录真实请求数、provider usage、任务receipt与verifier结果；未知usage或费用保持unknown，错误输出不被host纠正。</?>
+              )>
+              <Case #secret-and-evidence-boundary (
+                <Given ?>凭据缺失、服务失败、超时或报告需要持久化。</?>
+                <When ?>gate输出结果。</?>
+                <Then ?>系统 MUST 保留真实失败或未执行状态且不暴露凭据；不能退回loopback宣称PASS。</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

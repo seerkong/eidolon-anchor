@@ -1,3 +1,4 @@
+import { createSyntheticTeamFixture } from "holarchy-test-support"
 import { afterEach, describe, expect, it } from "bun:test"
 import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises"
 import { createHash } from "node:crypto"
@@ -28,7 +29,6 @@ import {
 } from "@cell/ai-organ-contract"
 import {
   HOLON_EFFECTIVE_SNAPSHOT_KIND_DEFINITION_SOURCE,
-  type HolonAuthorityTables,
 } from "holarchy-core-contract"
 import {
   createAIOrganizationTaskProfile,
@@ -119,6 +119,7 @@ import {
 } from "../../src/workflow/runtime"
 import {
   issueFileXnlOrganizationFixture,
+  installedHolarchyIssuerVersion,
   type FileXnlHolonIssuerFixture,
 } from "./fileXnlHolonIssuerFixture"
 
@@ -136,59 +137,21 @@ afterEach(async () => {
   issuerEvidenceByPackageRoot.clear()
 })
 
-const created = { createdAt: "2026-01-01T00:00:00.000Z", createdBy: "seed" }
-
-function organizationAuthorityTables(
+function organizationFixture(
   principalKind: "human" | "ai" = "human",
   organization: "review" | "audit" = "review",
   effectiveAt = "2026-01-01T00:00:00.000Z",
-): HolonAuthorityTables {
+  memberDisplayName?: string,
+) {
   const audit = organization === "audit"
   const team = audit ? "audit-team" : "review-team"
   const member = audit ? "auditor" : "reviewer"
-  const role = audit ? "auditor" : "reviewer"
-  const revisionFacts = {
-    ...created,
-    effectiveDate: effectiveAt.slice(0, 10),
-    effectiveState: true as const,
-    changeSetId: `fixture-${effectiveAt}`,
-  }
-  return {
-    OrganizationalSubject: [
-      { id: `subject-${team}`, subjectType: "holon" },
-      { id: `subject-${member}`, subjectType: "member" },
-    ],
-    Holon: [
-      { id: `holon-${team}`, subjectId: `subject-${team}`, code: team, ...created },
-    ],
-    HolonVersion: [
-      { id: `holon-${team}:v1`, holonId: `holon-${team}`, name: audit ? "Audit Team" : "Review Team", purpose: audit ? "Audit" : "Review", boundary: audit ? "Controls" : "Requirements", sequence: 1, ...revisionFacts },
-    ],
-    Member: [
-      { id: `member-${member}`, subjectId: `subject-${member}`, ...created },
-    ],
-    MemberVersion: [
-      { id: `member-${member}:v1`, memberId: `member-${member}`, displayName: audit ? "Auditor" : "Reviewer", principalKind, sequence: 2, ...revisionFacts },
-    ],
-    HolonMembership: [
-      { id: `membership-${member}`, ...created },
-    ],
-    HolonMembershipVersion: [
-      { id: `membership-${member}:v1`, membershipId: `membership-${member}`, parentHolonId: `holon-${team}`, subjectId: `subject-${member}`, mode: "primary", sequence: 3, ...revisionFacts },
-    ],
-    Role: [
-      { id: `role-${role}`, holonId: `holon-${team}`, ...created },
-    ],
-    RoleVersion: [
-      { id: `role-${role}:v1`, roleId: `role-${role}`, name: audit ? "Auditor" : "Reviewer", purpose: audit ? "Audit" : "Review", domainsJson: JSON.stringify([audit ? "controls" : "requirements"]), accountabilitiesJson: JSON.stringify([audit ? "audit" : "review"]), policiesJson: "[]", capabilityRequirementsJson: JSON.stringify([audit ? "controls-audit" : "requirements-review"]), sequence: 4, ...revisionFacts },
-    ],
-    RoleAssignment: [
-      { id: `assignment-${member}`, ...created },
-    ],
-    RoleAssignmentVersion: [
-      { id: `assignment-${member}:v1`, roleAssignmentId: `assignment-${member}`, membershipId: `membership-${member}`, roleId: `role-${role}`, sequence: 5, ...revisionFacts },
-    ],
-  }
+  return createSyntheticTeamFixture({ authorityId: "holarchy-file-xnl-main", effectiveDate: effectiveAt.slice(0, 10),
+    teamId: `holon-${team}`, teamName: audit ? "Audit Team" : "Review Team", purpose: audit ? "Audit" : "Review", boundary: audit ? "Controls" : "Requirements",
+    members: [{ memberId: `member-${member}`, displayName: memberDisplayName ?? (audit ? "Auditor" : "Reviewer"), principalKind, membershipId: `membership-${member}`,
+      roles: [{ roleId: `role-${member}`, roleName: audit ? "Auditor" : "Reviewer", assignmentId: `assignment-${member}`, purpose: audit ? "Audit" : "Review",
+        domains: [audit ? "controls" : "requirements"], accountabilities: [audit ? "audit" : "review"], capabilityRequirements: [audit ? "controls-audit" : "requirements-review"] }] }],
+  })
 }
 
 const issuerStateByPackageRoot = new Map<string, Readonly<{
@@ -239,6 +202,7 @@ async function writeHolonPackage(input: {
   readonly withRuntimeDefinition?: boolean
   readonly rootDir?: string
   readonly effectiveAt?: string
+  readonly memberDisplayName?: string
   readonly workflowEffectiveAt?: string
 } = {}): Promise<string> {
   const root = input.rootDir ?? await mkdtemp(path.join(os.tmpdir(), "eidolon-holon-binding-"))
@@ -266,7 +230,7 @@ async function writeHolonPackage(input: {
     authorityRoot: issuerState.authorityRoot,
     authorityId: issuerState.authorityId,
     expectedRevision: issuerState.revision,
-    tables: organizationAuthorityTables(input.principalKind, organization, effectiveAt),
+    fixture: organizationFixture(input.principalKind, organization, effectiveAt, input.memberDisplayName),
     executionId: `publish-${team}-${issuerState.revision + 1}`,
     executionInstant: effectiveAt,
     rootHolonRef: `holon-${team}`,
@@ -2994,7 +2958,7 @@ export async function consumeB(runtime: any) {
     )
     expect(initialIssuerEvidence.provenance).toMatchObject({
       issuerPackage: "holarchy-file-xnl-capsule",
-      issuerPackageVersion: "0.2.0",
+      issuerPackageVersion: await installedHolarchyIssuerVersion(),
     })
     expect(initialDeployment.definition.bindingProjection.snapshot.treeDigest)
       .toBe(initialIssuerEvidence.digests.snapshotTree)
@@ -3129,6 +3093,7 @@ export async function consumeB(runtime: any) {
     const instanceBeforeReplan = await new WorkflowRuntimeService(runtime).getInstance(instance.instanceId)
     await writeHolonPackage({
       principalKind: "ai",
+      memberDisplayName: "Reviewer Updated",
       withWorkflow: true,
       rootDir: liveRoot,
       effectiveAt: "2026-02-01T00:00:00.000Z",
@@ -3441,7 +3406,7 @@ export async function consumeB(runtime: any) {
     )
     expect(issuerEvidence.provenance).toMatchObject({
       issuerPackage: "holarchy-file-xnl-capsule",
-      issuerPackageVersion: "0.2.0",
+      issuerPackageVersion: await installedHolarchyIssuerVersion(),
     })
     expect(dataDeployment.bindingProjection.snapshot).toEqual(replannedIssuerEvidence.snapshot)
     expect(dataDeployment.bindingFreezeReceipt.snapshotReceiptDigest)

@@ -109,7 +109,7 @@ export async function materializeFileXnlHolonE2eResource(
     authorityRoot: resolveChild(input.outputRoot, "authority"),
     authorityId: scenario.issuer.authorityId,
     expectedRevision: scenario.issuer.expectedRevision,
-    tables: scenario.tables,
+    fixture: scenario.fixture,
     executionId: scenario.issuer.executionId,
     executionInstant: scenario.issuer.executionInstant,
     rootHolonRef: scenario.issuer.rootHolonRef,

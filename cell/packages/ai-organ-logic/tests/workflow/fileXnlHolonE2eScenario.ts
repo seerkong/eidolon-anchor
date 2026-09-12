@@ -1,4 +1,5 @@
-import type { HolonAuthorityTables, ProjectOrganizationSnapshotConfig } from "holarchy-core-contract"
+import { createSyntheticTeamFixture, type SyntheticOrganizationFixture } from "holarchy-test-support"
+import type { ProjectOrganizationSnapshotConfig } from "holarchy-core-contract"
 
 export interface FileXnlHolonE2eScenario {
   readonly scenarioId: "review-team"
@@ -12,7 +13,7 @@ export interface FileXnlHolonE2eScenario {
     readonly issuedAt: "2026-01-01T00:00:01.000Z"
     readonly projectionBounds: ProjectOrganizationSnapshotConfig
   }
-  readonly tables: HolonAuthorityTables
+  readonly fixture: SyntheticOrganizationFixture
 }
 
 export interface FileXnlHolonE2eResourceConfig {
@@ -31,75 +32,13 @@ function deepFreezeData<T>(value: T): T {
 }
 
 const effectiveAt = "2026-01-01T00:00:00.000Z" as const
-const created = { createdAt: effectiveAt, createdBy: "fixture-seed" }
-const selected = {
-  ...created,
-  effectiveDate: "2026-01-01",
-  effectiveState: true,
-  changeSetId: "fixture-seed",
-}
-
-const tables: HolonAuthorityTables = {
-  OrganizationalSubject: [
-    { id: "subject-review-team", subjectType: "holon" },
-    { id: "subject-reviewer", subjectType: "member" },
-  ],
-  Holon: [
-    { id: "holon-review-team", subjectId: "subject-review-team", code: "review-team", ...created },
-  ],
-  HolonVersion: [{
-    id: "holon-review-team:v1",
-    holonId: "holon-review-team",
-    name: "Review Team",
-    purpose: "Review requirements",
-    boundary: "Requirements",
-    sequence: 1,
-    ...selected,
-  }],
-  Member: [
-    { id: "member-reviewer", subjectId: "subject-reviewer", ...created },
-  ],
-  MemberVersion: [{
-    id: "member-reviewer:v1",
-    memberId: "member-reviewer",
-    displayName: "Reviewer",
-    principalKind: "ai",
-    sequence: 2,
-    ...selected,
-  }],
-  HolonMembership: [{ id: "membership-reviewer", ...created }],
-  HolonMembershipVersion: [{
-    id: "membership-reviewer:v1",
-    membershipId: "membership-reviewer",
-    parentHolonId: "holon-review-team",
-    subjectId: "subject-reviewer",
-    mode: "primary",
-    sequence: 3,
-    ...selected,
-  }],
-  Role: [{ id: "role-reviewer", holonId: "holon-review-team", ...created }],
-  RoleVersion: [{
-    id: "role-reviewer:v1",
-    roleId: "role-reviewer",
-    name: "Reviewer",
-    purpose: "Review requirements",
-    domainsJson: '["requirements"]',
-    accountabilitiesJson: '["review"]',
-    policiesJson: "[]",
-    capabilityRequirementsJson: '["requirements-review"]',
-    sequence: 4,
-    ...selected,
-  }],
-  RoleAssignment: [{ id: "assignment-reviewer", ...created }],
-  RoleAssignmentVersion: [{
-    id: "assignment-reviewer:v1",
-    roleAssignmentId: "assignment-reviewer",
-    membershipId: "membership-reviewer",
-    roleId: "role-reviewer",
-    sequence: 5,
-    ...selected,
-  }],
-}
+const fixture = createSyntheticTeamFixture({
+  authorityId: "holarchy-file-xnl-fixture", effectiveDate: "2026-01-01",
+  teamId: "holon-review-team", teamName: "Review Team", purpose: "Review requirements", boundary: "Requirements",
+  members: [{ memberId: "member-reviewer", displayName: "Reviewer", principalKind: "ai", membershipId: "membership-reviewer",
+    roles: [{ roleId: "role-reviewer", roleName: "Reviewer", assignmentId: "assignment-reviewer", purpose: "Review requirements",
+      domains: ["requirements"], accountabilities: ["review"], capabilityRequirements: ["requirements-review"] }] }],
+})
 
 export const FILE_XNL_HOLON_E2E_SCENARIO: FileXnlHolonE2eScenario = deepFreezeData({
   scenarioId: "review-team",
@@ -113,7 +52,7 @@ export const FILE_XNL_HOLON_E2E_SCENARIO: FileXnlHolonE2eScenario = deepFreezeDa
     issuedAt: "2026-01-01T00:00:01.000Z",
     projectionBounds: { maxDepth: 4, maxRecords: 100 },
   },
-  tables,
+  fixture,
 })
 
 export const FILE_XNL_HOLON_E2E_RESOURCE_CONFIG: FileXnlHolonE2eResourceConfig = deepFreezeData({

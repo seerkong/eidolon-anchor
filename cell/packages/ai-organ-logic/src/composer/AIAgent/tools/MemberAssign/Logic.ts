@@ -9,7 +9,7 @@ import {
 import { getControlRuntimeContext } from "../_controlRuntime"
 import { actorAssignCoreLogic } from "../ActorAssign/Logic"
 import { getOrganizationManager } from "../../../../organization/OrganizationManager"
-import { assignCanonicalAutonomousMember } from "../../../../organization/CanonicalHolonAssignmentFacade"
+import { assignAdmittedOrganizationTask, assignCanonicalAutonomousMember } from "../../../../organization/CanonicalHolonAssignmentFacade"
 import { parseFormalAssignMode, requireNonEmptyContent } from "../_formalTooling"
 import type { MemberAssignInnerConfig, MemberAssignInnerInput, MemberAssignInnerOutput, MemberAssignInnerRuntime } from "./InnerTypes"
 
@@ -28,13 +28,14 @@ export const memberAssignCoreLogic: StdInnerLogic<
   const { members } = getControlRuntimeContext(runtime.vm, runtime.actor)
   const targetQuery = String(input?.target ?? "").trim()
   const member = members.resolveMember(targetQuery)
-  if (!member) {
-    return JSON.stringify({ ok: false, error: "member_not_found", target: targetQuery })
-  }
   const mode = parseFormalAssignMode(input?.mode ?? "final")
   const content = requireNonEmptyContent(input?.content)
   if (!mode) return JSON.stringify({ ok: false, error: "invalid_assign_mode", target: targetQuery })
   if (!content) return JSON.stringify({ ok: false, error: "empty_content", target: targetQuery })
+  if (!member) {
+    return await assignAdmittedOrganizationTask({ runtime, target: targetQuery, mode, content }, "member")
+      ?? JSON.stringify({ ok: false, error: "member_not_found", target: targetQuery })
+  }
   const autonomousHolons = getOrganizationManager().listAutonomousHolons(runtime.vm)
     .filter(({ memberIds }) => memberIds.includes(member.memberId))
   if (autonomousHolons.length > 0) {

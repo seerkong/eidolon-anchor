@@ -7,8 +7,8 @@
   <Template { href = "vfs://./SKILL.template.ejs" format = "ejs" }>
   <ResourceMappings { href = "vfs://./resource-mappings.xnl" format = "xnl" }>
   <SkillDependencies [
-    <SkillDependency { ref = "resource://Eidolon.Anchor.Skill.Authoring" version = "1.0.25" }>
-    <SkillDependency { ref = "resource://Eidolon.Anchor.Skill.Run" version = "1.0.5" }>
+    <SkillDependency { ref = "resource://Eidolon.Anchor.Skill.Authoring" version = "1.0.26" }>
+    <SkillDependency { ref = "resource://Eidolon.Anchor.Skill.Run" version = "1.0.6" }>
   ]>
   <Includes [
     <Include { kind = "SkillCapsule" ref = "resource://Eidolon.Anchor.Skill.DevOps" }>

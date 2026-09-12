@@ -1,0 +1,1 @@
+<HolonAuthorityRecord #record { apiVersion = "holarchy.file-xnl/v2" entity = "Role" rowId = "role-reviewer" value = {"createdAt" = "2026-01-01T00:00:00.000Z" "createdBy" = "fixture-issuer" "holonId" = "holon-review-team" "id" = "role-reviewer"} }>

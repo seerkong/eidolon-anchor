@@ -10,6 +10,8 @@
 |---|---|---|---|---|---|---|---|---|
 | P0 | `<一句话>` | `behaviors/<cap>` 或 `<待澄清>` | `docs/...` 或 `<无>` | `tracks/<id>` 或 `<未开>` | `needs-track` | `blocked` | `<占位未替换>` | `<YYYY-MM-DD>` |
 | P1 | 解除 `@cell/ai-support` ↔ `@cell/ai-organ-logic` 循环依赖（ai-support 依赖 ai-organ-logic，ai-organ-logic 又依赖 ai-support） | `<待澄清>` | `<无>` | `<未开>` | `needs-track` | `plan-first` | 无 | 2026-08-05 |
+| P0 | 接通 Workflow Effective VFS 整包编辑发布并重跑 Skill 驱动的 Data/Ctrl E2E | 公开工作流创建、编辑、执行与版本冻结 | [范围与证据](workflow-effective-vfs-and-skill-app.md) | `<未开>` | `needs-track` | `plan-first` | 整包 authoring/publication 端口未接通 | 2026-09-12 |
+| P1 | 参考公共 Halfcode Host 将 Eidolon 易变 AI 操作与协议拆为动态 CLI Skill App | 动态 AIAgentDefinition 演进 | [用户方向与边界](workflow-effective-vfs-and-skill-app.md) | `<未开>` | `needs-track` | `plan-first` | 先完成 Workflow E2E 初步修正 | 2026-09-12 |
 
 ## AI 自主度（沿用 codument 校验/审查语义）
 

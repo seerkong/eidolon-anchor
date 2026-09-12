@@ -19,6 +19,7 @@ bun.lock
 testdata/
 tui-debug.log
 .tmp/
+.handoff/
 .codument-local/
 codument/.local/
 codument/tracks/**/analysis/

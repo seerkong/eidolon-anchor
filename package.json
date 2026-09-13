@@ -50,7 +50,8 @@
     "dev:web:vue-koa": "concurrently -n frontend,backend -c blue,green \"bun run dev:frontend:vue\" \"bun run dev:backend:koa\"",
     "dev:web:react-koa": "concurrently -n frontend,backend -c blue,green \"bun run dev:frontend:react\" \"bun run dev:backend:koa\"",
     "prepare:holon-candidates": "bun run scripts/prepare-holon-candidates.ts",
-    "verify:holon-shared": "bun run scripts/verify-holon-shared-integration.ts",
+    "verify:holon-shared": "bun run check:no-source-js-artifacts && bun run scripts/verify-holon-shared-integration.ts",
+    "check:no-source-js-artifacts": "bun run scripts/check-no-source-js-artifacts.ts",
     "prepare:halfcode-trusted-kinds": "bun run scripts/prepare-halfcode-trusted-kinds-candidate.ts"
   },
   "devDependencies": {

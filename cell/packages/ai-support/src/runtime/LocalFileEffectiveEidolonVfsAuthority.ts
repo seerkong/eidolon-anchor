@@ -1,10 +1,10 @@
 import { Database } from "bun:sqlite"
 import { createHash, randomUUID } from "node:crypto"
-import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs"
+import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, rmdirSync, unlinkSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { areXnlSnapshotsStructurallyEqual, VirtualFileSystem, type RevisionedVfsAuthority, type RevisionedVfsCompareAndSwapResult, type RevisionedVfsFlushInput, type RevisionedVfsSnapshot } from "xnl-vfs"
 import type { DataElementNode } from "xnl-core"
-import type { EidolonVfsPublicationRecord, EidolonVfsWorkspaceWrite } from "@cell/symbiont-contract/resource/EffectiveEidolonVFS"
+import type { EidolonVfsPublicationRecord, EidolonVfsWorkspaceByteWrite, EidolonVfsWorkspaceWrite } from "@cell/symbiont-contract/resource/EffectiveEidolonVFS"
 import { assertEidolonVfsMaterializationReceipt } from "@cell/symbiont-logic/resource/EffectiveEidolonVFS"
 import { effectiveEidolonVfsTreeDigest } from "@cell/symbiont-logic/resource/EffectiveEidolonVfsMaterializer"
 import { eidolonVfsPublicationKey, type EidolonVfsPublicationContext, type EffectiveEidolonVfsPublicationAuthority } from "@cell/symbiont-logic/resource/EffectiveEidolonVfsPublication"
@@ -23,6 +23,8 @@ export interface LocalFileEffectiveEidolonVfsAuthorityOptions {
   /** Fault injection observes the durable commit before physical projection. */
   readonly afterCommit?: (record: EidolonVfsPublicationRecord) => void
   readonly beforeCommit?: (record: EidolonVfsPublicationRecord) => void
+  /** Called immediately before each individual physical projection. */
+  readonly beforeProjection?: (write: EidolonVfsWorkspaceByteWrite, record: EidolonVfsPublicationRecord) => void
 }
 
 /** SQLite owns the native revision CAS and publication record in one transaction. */
@@ -115,7 +117,7 @@ export class LocalFileEffectiveEidolonVfsAuthority implements EffectiveEidolonVf
         const identity = publicationIdentity(context)
         const existing = this.readPublication(key)
         if (existing && existing.identity !== identity) throw new Error("EIDOLON_VFS_PUBLICATION_IDENTITY_CONFLICT")
-        if (context.workspaceWrite) this.preflightWrite(context.workspaceWrite, submitted.snapshot)
+        this.preflightWrites(context, submitted.snapshot)
         publication = existing ? existing.record : {
           publicationKey: key,
           ...(context.association ? { association: context.association } : {}),
@@ -130,7 +132,8 @@ export class LocalFileEffectiveEidolonVfsAuthority implements EffectiveEidolonVf
         }
         verifyRecord(publication!)
         if (!existing) this.db.query("INSERT INTO vfs_publications(publication_key,identity,record,context,record_digest) VALUES (?,?,?,?,?)").run(key, identity, JSON.stringify(publication), JSON.stringify(context), hash(canonical(publication)))
-        if (context.workspaceWrite) this.db.query("INSERT OR IGNORE INTO vfs_pending_projections(publication_key,input) VALUES (?,?)").run(key, JSON.stringify(context.workspaceWrite))
+        const projectionInput = projectionInputFor(context)
+        if (projectionInput) this.db.query("INSERT OR IGNORE INTO vfs_pending_projections(publication_key,input) VALUES (?,?)").run(key, JSON.stringify(projectionInput))
         committedRecord = publication
       }
       if (!unchanged || publication) this.db.query("UPDATE vfs_head SET data=? WHERE id=1").run(JSON.stringify({ revision, snapshot: submitted.snapshot, ...(publication ? { publication } : {}) }))
@@ -149,8 +152,7 @@ export class LocalFileEffectiveEidolonVfsAuthority implements EffectiveEidolonVf
     catch (error) { if (this.db.inTransaction) this.db.exec("ROLLBACK"); throw error }
   }
 
-  private target(write: EidolonVfsWorkspaceWrite): string {
-    validateWrite(write)
+  private target(write: Pick<EidolonVfsWorkspaceByteWrite, "logicalPath">): string {
     if (!write.logicalPath.startsWith("/.eidolon/resources/")) throw new Error("EIDOLON_VFS_WORKSPACE_PATH_INVALID")
     const relative = write.logicalPath.slice("/.eidolon/".length)
     if (relative.split("/").some(part => !part || part === "." || part === ".." || part.includes("\\") || part.includes("\0"))) throw new Error("EIDOLON_VFS_WORKSPACE_PATH_INVALID")
@@ -164,12 +166,17 @@ export class LocalFileEffectiveEidolonVfsAuthority implements EffectiveEidolonVf
     return target
   }
 
-  private preflightWrite(write: EidolonVfsWorkspaceWrite, snapshot: DataElementNode): void {
-    const target = this.target(write)
-    if (write.before.state === "present" && `sha256:${hash(write.before.text)}` !== write.before.digest) throw new Error("EIDOLON_VFS_BEFORE_IMAGE_INVALID")
-    if (new VirtualFileSystem(snapshot).readFile(`vfs://${write.logicalPath}`) !== write.authorityText) throw new Error("EIDOLON_VFS_PROJECTION_CANDIDATE_MISMATCH")
-    const bytes = readOptional(target)
-    if (!matchesBefore(write, bytes)) throw new Error("EIDOLON_VFS_WORKSPACE_CAS_CONFLICT")
+  private preflightWrites(context: EidolonVfsPublicationContext, snapshot: DataElementNode): void {
+    const writes = projectionWrites(context)
+    if (!writes.length) return
+    validateBatch(writes)
+    const vfs = new VirtualFileSystem(snapshot)
+    for (const write of writes) {
+      const target = this.target(write)
+      const candidate = vfsBytes(vfs, write.logicalPath)
+      if (!matchesAfter(write, candidate)) throw new Error("EIDOLON_VFS_PROJECTION_CANDIDATE_MISMATCH")
+      if (!matchesBefore(write, readOptional(target))) throw new Error("EIDOLON_VFS_WORKSPACE_CAS_CONFLICT")
+    }
   }
 
   private projectPending(): void {
@@ -177,50 +184,125 @@ export class LocalFileEffectiveEidolonVfsAuthority implements EffectiveEidolonVf
     for (const row of rows) {
       const publication = this.readPublication(row.publication_key)
       if (!publication) throw new Error("EIDOLON_VFS_PROJECTION_PUBLICATION_MISSING")
-      let write: EidolonVfsWorkspaceWrite
+      let writes: readonly EidolonVfsWorkspaceByteWrite[]
       try {
-        write = JSON.parse(row.input)
-        if (!publication.context.workspaceWrite || canonical(write) !== canonical(publication.context.workspaceWrite)) throw new Error("mismatch")
+        const input = JSON.parse(row.input)
+        if (canonical(input) !== canonical(projectionInputFor(publication.context))) throw new Error("mismatch")
+        writes = projectionWrites(publication.context)
+        validateBatch(writes)
       } catch { throw new Error("EIDOLON_VFS_PROJECTION_INPUT_INTEGRITY_MISMATCH") }
-      const target = this.target(write)
       const current = new VirtualFileSystem(this.read().snapshot)
-      // A successor owns the current file: an old projection cannot overwrite it.
-      if (!current.exists(`vfs://${write.logicalPath}`) || current.readFile(`vfs://${write.logicalPath}`) !== write.authorityText) {
-        this.db.query("DELETE FROM vfs_pending_projections WHERE publication_key=?").run(row.publication_key)
-        continue
-      }
-      const observed = readOptional(target)
-      if (observed !== write.authorityText) {
+      for (const write of writes) {
+        // A successor owns this target: never allow an old journal to overwrite it.
+        if (!matchesAfter(write, vfsBytes(current, write.logicalPath))) continue
+        const target = this.target(write)
+        const observed = readOptional(target)
+        if (matchesAfter(write, observed)) {
+          if (write.after.state === "absent") this.pruneDeletedParents(write.logicalPath, current)
+          continue
+        }
         if (!matchesBefore(write, observed)) throw new Error("EIDOLON_VFS_PROJECTION_EXTERNAL_CHANGE")
-        mkdirSync(path.dirname(target), { recursive: true })
-        this.target(write)
-        atomicWrite(target, write.authorityText)
+        this.options.beforeProjection?.(write, publication.record)
+        if (write.after.state === "absent") {
+          try { unlinkSync(target) } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error }
+          this.pruneDeletedParents(write.logicalPath, current)
+        } else {
+          mkdirSync(path.dirname(target), { recursive: true })
+          this.target(write)
+          atomicWrite(target, decodeBytes(write.after.bytesBase64))
+        }
       }
       this.db.query("DELETE FROM vfs_pending_projections WHERE publication_key=?").run(row.publication_key)
     }
   }
-}
 
-function validateWrite(write: EidolonVfsWorkspaceWrite): void {
-  if (!write || typeof write.authorityText !== "string" || typeof write.logicalPath !== "string"
-    || !write.before || !["absent", "present"].includes(write.before.state)
-    || (write.before.state === "present" && (typeof write.before.text !== "string"
-      || write.before.digest !== `sha256:${hash(write.before.text)}`))) {
-    throw new Error("EIDOLON_VFS_BEFORE_IMAGE_INVALID")
+  private pruneDeletedParents(logicalPath: string, current: VirtualFileSystem): void {
+    let directory = path.posix.dirname(logicalPath)
+    while (directory !== "/.eidolon/resources" && directory.startsWith("/.eidolon/resources/")) {
+      if (current.exists(`vfs://${directory}`)) break
+      const physical = path.join(this.workspaceRoot, directory.slice("/.eidolon/".length))
+      try { rmdirSync(physical) } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code
+        if (code === "ENOTEMPTY" || code === "EEXIST") break
+        if (code !== "ENOENT") throw error
+      }
+      directory = path.posix.dirname(directory)
+    }
+    const surviving = path.join(this.workspaceRoot, directory.slice("/.eidolon/".length))
+    if (existsSync(surviving)) {
+      const fd = openSync(surviving, "r")
+      try { fsyncSync(fd) } finally { closeSync(fd) }
+    }
   }
 }
 
-function hash(text: string): string { return createHash("sha256").update(text).digest("hex") }
-function readOptional(file: string): string | undefined {
-  try { return readFileSync(file, "utf8") } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw error }
+function projectionInputFor(context: EidolonVfsPublicationContext): EidolonVfsWorkspaceWrite | { readonly workspaceWrites: readonly EidolonVfsWorkspaceByteWrite[] } | undefined {
+  if (context.workspaceWrite && context.workspaceWrites) throw new Error("EIDOLON_VFS_WORKSPACE_WRITE_FORM_CONFLICT")
+  return context.workspaceWrite ?? (context.workspaceWrites ? { workspaceWrites: context.workspaceWrites } : undefined)
 }
-function matchesBefore(write: EidolonVfsWorkspaceWrite, actual: string | undefined): boolean {
-  return write.before.state === "absent" ? actual === undefined : actual === write.before.text
+function projectionWrites(context: EidolonVfsPublicationContext): readonly EidolonVfsWorkspaceByteWrite[] {
+  if (context.workspaceWrite && context.workspaceWrites) throw new Error("EIDOLON_VFS_WORKSPACE_WRITE_FORM_CONFLICT")
+  if (context.workspaceWrite) {
+    const legacy = context.workspaceWrite
+    if (!legacy || typeof legacy.authorityText !== "string" || typeof legacy.logicalPath !== "string" || !legacy.before
+      || (legacy.before.state !== "absent" && legacy.before.state !== "present")
+      || (legacy.before.state === "present" && (typeof legacy.before.text !== "string" || legacy.before.digest !== `sha256:${hash(legacy.before.text)}`))) throw new Error("EIDOLON_VFS_BEFORE_IMAGE_INVALID")
+    return [{ logicalPath: legacy.logicalPath, before: legacy.before.state === "absent" ? { state: "absent" } : bytesImage(legacy.before.text, legacy.before.digest), after: bytesImage(legacy.authorityText) }]
+  }
+  return context.workspaceWrites ?? []
 }
-function atomicWrite(target: string, text: string): void {
+function bytesImage(value: string, expectedDigest?: string): { readonly state: "present"; readonly bytesBase64: string; readonly digest: `sha256:${string}` } {
+  const bytes = new TextEncoder().encode(value); const digest = digestBytes(bytes)
+  if (expectedDigest && expectedDigest !== digest) throw new Error("EIDOLON_VFS_BEFORE_IMAGE_INVALID")
+  return { state: "present", bytesBase64: Buffer.from(bytes).toString("base64"), digest }
+}
+function validateBatch(writes: readonly EidolonVfsWorkspaceByteWrite[]): void {
+  if (!Array.isArray(writes) || writes.length === 0) throw new Error("EIDOLON_VFS_WORKSPACE_WRITES_INVALID")
+  const paths = new Set<string>()
+  for (const write of writes) {
+    if (!write || typeof write.logicalPath !== "string" || !write.logicalPath.startsWith("/.eidolon/resources/")) throw new Error("EIDOLON_VFS_WORKSPACE_PATH_INVALID")
+    const relative = write.logicalPath.slice("/.eidolon/".length)
+    if (!relative || relative.split("/").some((part: string) => !part || part === "." || part === ".." || part.includes("\\") || part.includes("\0"))) throw new Error("EIDOLON_VFS_WORKSPACE_PATH_INVALID")
+    if (paths.has(write.logicalPath)) throw new Error("EIDOLON_VFS_WORKSPACE_WRITE_DUPLICATE")
+    paths.add(write.logicalPath); validateImage(write.before); validateImage(write.after)
+  }
+  const ordered = [...paths].sort()
+  for (let index = 0; index < ordered.length; index++) for (let other = index + 1; other < ordered.length; other++) {
+    if (ordered[other]!.startsWith(`${ordered[index]}/`)) throw new Error("EIDOLON_VFS_WORKSPACE_WRITE_PATH_CONFLICT")
+  }
+}
+function validateImage(image: EidolonVfsWorkspaceByteWrite["before"] | EidolonVfsWorkspaceByteWrite["after"]): void {
+  if (!image || (image.state !== "absent" && image.state !== "present")) throw new Error("EIDOLON_VFS_BYTE_IMAGE_INVALID")
+  if (image.state === "present") {
+    if (typeof image.bytesBase64 !== "string" || typeof image.digest !== "string" || !/^sha256:[0-9a-f]{64}$/.test(image.digest)) throw new Error("EIDOLON_VFS_BYTE_IMAGE_INVALID")
+    const bytes = decodeBytes(image.bytesBase64)
+    if (digestBytes(bytes) !== image.digest) throw new Error("EIDOLON_VFS_BYTE_IMAGE_INVALID")
+  }
+}
+function decodeBytes(base64: string): Uint8Array {
+  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64)) throw new Error("EIDOLON_VFS_BYTE_IMAGE_INVALID")
+  const bytes = new Uint8Array(Buffer.from(base64, "base64"))
+  if (Buffer.from(bytes).toString("base64") !== base64) throw new Error("EIDOLON_VFS_BYTE_IMAGE_INVALID")
+  return bytes
+}
+function hash(value: string | Uint8Array): string { return createHash("sha256").update(value).digest("hex") }
+function digestBytes(bytes: Uint8Array): `sha256:${string}` { return `sha256:${hash(bytes)}` }
+function readOptional(file: string): Uint8Array | undefined {
+  try { return new Uint8Array(readFileSync(file)) } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw error }
+}
+function matchesImage(image: EidolonVfsWorkspaceByteWrite["before"] | EidolonVfsWorkspaceByteWrite["after"], actual: Uint8Array | undefined): boolean {
+  return image.state === "absent" ? actual === undefined : actual !== undefined && digestBytes(actual) === image.digest && Buffer.from(actual).toString("base64") === image.bytesBase64
+}
+function matchesBefore(write: EidolonVfsWorkspaceByteWrite, actual: Uint8Array | undefined): boolean { return matchesImage(write.before, actual) }
+function matchesAfter(write: EidolonVfsWorkspaceByteWrite, actual: Uint8Array | undefined): boolean { return matchesImage(write.after, actual) }
+function vfsBytes(vfs: VirtualFileSystem, logicalPath: string): Uint8Array | undefined {
+  try { const content = vfs.readFile(`vfs://${logicalPath}`); return vfs.readFileType(`vfs://${logicalPath}`) === "binary" ? new Uint8Array(Buffer.from(content, "base64")) : new TextEncoder().encode(content) }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw error }
+}
+function atomicWrite(target: string, bytes: Uint8Array): void {
   const temporary = path.join(path.dirname(target), `.${path.basename(target)}.${randomUUID()}.tmp`)
   const fd = openSync(temporary, "wx", 0o600)
-  try { writeFileSync(fd, text, "utf8"); fsyncSync(fd) } finally { closeSync(fd) }
+  try { writeFileSync(fd, bytes); fsyncSync(fd) } finally { closeSync(fd) }
   try {
     renameSync(temporary, target)
     const directory = openSync(path.dirname(target), "r")

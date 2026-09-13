@@ -116,6 +116,19 @@ export interface EidolonVfsWorkspaceWrite {
   readonly authorityText: string;
 }
 
+/** JSON-safe bytes used by durable workspace projection records. */
+export interface EidolonVfsWorkspaceBytes {
+  readonly bytesBase64: string;
+  readonly digest: EidolonVfsDigest;
+}
+
+/** Closed byte-level projection intent. `after: absent` deletes the file. */
+export interface EidolonVfsWorkspaceByteWrite {
+  readonly logicalPath: `/.eidolon/resources/${string}`;
+  readonly before: { readonly state: "absent" } | ({ readonly state: "present" } & EidolonVfsWorkspaceBytes);
+  readonly after: { readonly state: "absent" } | ({ readonly state: "present" } & EidolonVfsWorkspaceBytes);
+}
+
 export interface EidolonVfsPublicationRecord {
   readonly publicationKey: string;
   readonly association?: EidolonVfsPublicationAssociation;

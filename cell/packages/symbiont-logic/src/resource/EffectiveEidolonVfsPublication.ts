@@ -4,6 +4,7 @@ import type {
   EidolonVfsPublicationAssociation,
   EidolonVfsPublicationRecord,
   EidolonVfsValidationEvidence,
+  EidolonVfsWorkspaceByteWrite,
   EidolonVfsWorkspaceWrite,
 } from "@cell/symbiont-contract/resource/EffectiveEidolonVFS"
 
@@ -12,6 +13,8 @@ export interface EidolonVfsPublicationContext {
   readonly validators: readonly EidolonVfsValidationEvidence[]
   readonly association?: EidolonVfsPublicationAssociation
   readonly workspaceWrite?: EidolonVfsWorkspaceWrite
+  /** Batch form. It is mutually exclusive with the legacy text write. */
+  readonly workspaceWrites?: readonly EidolonVfsWorkspaceByteWrite[]
 }
 
 /** One native revision owner; the scoped view only supplies metadata to its CAS. */

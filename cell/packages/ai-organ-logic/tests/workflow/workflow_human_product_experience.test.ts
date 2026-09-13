@@ -306,6 +306,7 @@ describe("workflow human product experience", () => {
       "WorkflowValidateAuthoringSession",
       "WorkflowPreparePublication",
       "WorkflowPublishAuthoringSession",
+      "WorkflowQueryResourcePackagePublication",
       "WorkflowRun",
       "WorkflowWorkspace",
     ].map((name) => ({ function: { name } }))
@@ -329,6 +330,7 @@ describe("workflow human product experience", () => {
       "Skill",
       "WorkflowPreparePublication",
       "WorkflowPublishAuthoringSession",
+      "WorkflowQueryResourcePackagePublication",
       "WorkflowValidateAuthoringSession",
     ])
     expect(actor.toolPolicy.allowedTools).toEqual(AI_WORKFLOW_STAGE_TOOL_POLICY.releasing)

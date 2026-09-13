@@ -2,7 +2,7 @@
 
 Author an `AIAgentDefinition` only through exact ResourcePackage facts and the generated Flow DSL references.
 
-1. Declare ordered `Messages`; every Message has an exact Prompt ref. Each referenced Prompt carries its runtime text in exactly one non-empty `Content` TextElement subdomain, for example `<Content ?>Return only JSON.</?>`; a `content` property is metadata and is not the runtime prompt body. A Message-local `SchemaRef`, when present, validates the rendered Prompt content for that exact Message. Prompt content is a string in the current execution profile, so do not reuse an object-valued Agent input schema as a Message-local schema. Omit the Message-local `SchemaRef` unless the rendered content itself needs an exact compatible schema.
+1. Declare ordered `Messages`; every Message has an exact Prompt ref. Each referenced Prompt carries its runtime text in the non-empty `template` property, for example `<Prompt #Review envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 { template = "Return only a raw JSON object." }>`; the current Eidolon execution profile reads `Prompt.template` literally. Neither a `content` property nor a nested `<Content>` element replaces that field. Do not put a role label such as "system" in `template`: the Message owns role, while template owns the actual instructions. A Message-local `SchemaRef`, when present, validates the rendered Prompt content for that exact Message. Prompt content is a string in the current execution profile, so do not reuse an object-valued Agent input schema as a Message-local schema. Omit the Message-local `SchemaRef` unless the rendered content itself needs an exact compatible schema.
 2. Declare optional exact `InputSchemaRef` and `OutputSchemaRef` for the Agent execution payload and provider result. These are separate authorities from Message-local schemas. If the output schema is structured JSON, the referenced Prompt content must explicitly state the exact required fields, their value kinds, and whether additional fields are forbidden; an indirect phrase such as "matching the output schema" is insufficient because the schema remains validation authority and is not substituted into Prompt text. If the Prompt asks for ordinary text, use a compatible string output schema.
 3. Declare exact ToolRefs and an optional EffectPolicy. `declared-only` admits only those ToolRefs; `none` requires ToolRefs to be empty.
 4. Declare ordered MaterialPortRefs. Each port owns its material kind, required flag, one/many cardinality and optional schema.
@@ -43,15 +43,15 @@ For an `AIDataWorkflow`, its `TransformNode.inputs` determines the object passed
 
 Before publication, cross-check all three schema positions independently:
 
-- every Prompt ref resolves to a Prompt with one non-empty `Content` TextElement subdomain;
+- every Prompt ref resolves to a Prompt with a non-empty `template` property containing the actual runtime instructions;
 - every Message-local schema accepts that Message's rendered Prompt string;
 - `InputSchemaRef` accepts the exact value passed to `runAgent`, or `invocation.payload` passed to `runTargetedAgent`;
 - `OutputSchemaRef` accepts the provider result format required by the Prompt.
-- a structured-output Prompt spells out the same exact field set and additional-field rule instead of referring indirectly to the schema;
+- a structured-output Prompt spells out the same exact field set and additional-field rule instead of referring indirectly to the schema, and requires the entire final assistant message to be raw JSON with no Markdown fences, labels or surrounding prose;
 
 For an App that requires both profiles, keep separate non-overlapping Ctrl/Data Catalog roots, add both workflow records, add one exact task-specific MaterialBinding per invoking node, and retain both exact App bindings through proof. Do not satisfy a diagnostic by silently narrowing the requested App to one profile.
 
-For a fresh package containing both profiles and a complete Agent contract, the package manifest's catalog kinds normally require distinct directory entries under `KindDefinitions/<Kind>/manifest.xnl` for `AIWorkflowAppBundle`, `AICtrlWorkflow`, `AIDataWorkflow`, `AIAgentDefinition`, `Prompt`, each referenced schema kind, `EffectPolicy`, `MaterialPort`, each concrete Material kind, and `MaterialBinding`. This list follows the authored catalog kinds exactly; it is not a host-side inferred inventory. Do not place multiple KindDefinition roots in one aggregate file.
+For a fresh package, obtain standard Kind contracts through `WorkflowGetAuthoringContext(kind=...)` and the trusted installed imports described in `create-resource-package.md`. Standard Agent, Workflow, Prompt, schema, policy, port and binding Kinds do not require copied per-package definitions. Declare a separate `KindDefinitions/<Kind>/manifest.xnl` only for an actual custom Kind, with its authentic schema and ownership. Do not invent fingerprints or put multiple KindDefinition roots in one aggregate file.
 
 The invoking Ctrl `Run` and Data `TransformNode` must each carry the exact `agentDefinitionRef` and stable `nodeId` in their authored config. Their corresponding `MaterialBinding` must repeat the same four task facts: exact workflow kind, exact workflow ref, exact node id, and exact Agent definition ref. Publication preparation rejects any drift between the workflow node and binding tuple.
 

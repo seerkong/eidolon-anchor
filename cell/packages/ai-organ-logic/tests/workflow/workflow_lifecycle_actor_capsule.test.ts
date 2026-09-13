@@ -133,7 +133,7 @@ describe("Workflow lifecycle Actor capsule", () => {
     })
     expect(capability.providerSurfaceStrategy).toMatchObject({
       strategyRevision: "stable-superset/v1",
-      strategyDigest: "sha256:d691fc45d08bed2ce3e1d5190b5981babb1314b7275865ac8f0f7dfae1fef4c3",
+      strategyDigest: "sha256:db6779fe08c2283cd1bf31f93184d6c7959b320b125ccfa52fde86b2c14371ce",
     })
     expect(observed.tools).toEqual(
       projectWorkflowProviderSurface({ strategyRevision: "stable-superset/v1", stage: "planning" }).toolNames,

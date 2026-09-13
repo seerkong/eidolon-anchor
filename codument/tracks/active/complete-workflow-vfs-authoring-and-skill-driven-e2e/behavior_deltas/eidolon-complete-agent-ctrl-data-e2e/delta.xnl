@@ -1,0 +1,40 @@
+<BehaviorPatch #track.complete-workflow-vfs-authoring-and-skill-driven-e2e.behavior_patch.eidolon-complete-agent-ctrl-data-e2e apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-complete-agent-ctrl-data-e2e" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-complete-agent-ctrl-data-e2e/requirements/skill-visible-production-workflow-matrix" } (
+      <Requirement #skill-visible-production-workflow-matrix (
+        <Statement ?>系统 SHALL 在正常 CLI、iqingwa / DeepSeek v4 Pro 下以实际 system skill 驱动公开入口，分别验证 Data/Ctrl 生命周期、组织任务和主会话自然收尾；Codex 执行者和独立验证者使用 GPT-5.6 Terra。</?>
+        <Suites [
+          <Suite #product-contract { name = "生产接口与行为契约" } (
+            <Cases [
+              <Case #data-create-run (
+                <Given ?>隔离 workspace/home 与显式创建、发布和执行授权已就绪</?>
+                <When ?>用户通过 WorkflowFulfill 创建并执行 Data Workflow</?>
+                <Then ?>测试 MUST 获取真实候选/proof/receipt/instance/run 及独立验证的产物；模型回答或只加载 Skill 不算运行。</?>
+              )>
+              <Case #ctrl-execution (
+                <Given ?>专用 actor 已读取所需阶段与 DSL</?>
+                <When ?>用户创建并运行包含计算与真实业务 Agent 步骤的 Ctrl Workflow</?>
+                <Then ?>控制步骤与输入输出 MUST 实际运行，保留正式运行器结果；不能以自然语言解释冒充执行。</?>
+              )>
+              <Case #edit-and-freeze (
+                <Given ?>V1 已发布并存在实例</?>
+                <When ?>编辑包发布 V2，创建新实例并在新进程恢复旧实例</?>
+                <Then ?>旧实例 MUST 保留 V1 闭包，新实例按显式采用使用 V2；所有结论由权威回执和实际输出证明。</?>
+              )>
+              <Case #holon-member-parent-completion (
+                <Given ?>文件准入组织与各 Worker 的 Skill 能力已绑定</?>
+                <When ?>主 Agent 分别使用 HolonAssign 和 MemberAssign 等待最终结果</?>
+                <Then ?>两条任务 SHALL 成功 settled；Worker 自行读取所需知识；父 Agent 给出最终答复且 CLI 正常结束，paused/超时不能算整轮通过。</?>
+              )>
+              <Case #bounded-truthful-evidence (
+                <Given ?>运行清单指定精确模型/provider、请求/token/时长及效果范围</?>
+                <When ?>真实测试执行、失败或耗尽预算</?>
+                <Then ?>各层 MUST 共用预算且无隐式重试；保留脱敏证据，未运行/失败/未知明确标记；离线通过不能替代真实矩阵。</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

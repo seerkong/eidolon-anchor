@@ -555,11 +555,19 @@ describe("complete AIAgentDefinition Ctrl/Data product integration", () => {
       .toEqual(expect.arrayContaining([
         expect.objectContaining({
           contextPipeline: expect.objectContaining({
-            implementation: "eidolon.standard-context-pipeline/v1",
+            schemaVersion: "eidolon.agent-context-pipeline-binding/v2",
             resourceId: "eidolon.fixture.StandardContext",
+            contentDigest: expect.stringMatching(/^sha256:/),
+            executionDigest: expect.stringMatching(/^sha256:/),
+            materialDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
           }),
         }),
       ]))
+    for (const child of Object.values(runtime.vm.actors).filter((candidate: any) => candidate.contextPipeline) as any[]) {
+      expect(child.durableMaterials[child.contextPipeline.materialDigest]?.digest).toBe(child.contextPipeline.materialDigest)
+      expect(child.contextPipelineExecution.executionDigest).toBe(child.contextPipeline.executionDigest)
+      expect(typeof child.contextPipelineExecution.execute).toBe("function")
+    }
     const mutationCheckpoint = await freshService.mutateRunStepExtension({
       instanceId: dataInstance.instanceId,
       runId: "complete-agent-data-run",

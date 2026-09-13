@@ -2,6 +2,7 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { createHash, randomUUID } from "node:crypto"
+import { resolveEidolonGlobalRoot } from "@cell/ai-support/system-skill/SystemSkillInstaller"
 
 import {
   buildActorSurfaceProjection,
@@ -298,8 +299,7 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function resolveRuntimeAuthorityRoot(workDir: string): string {
-  const home = process.env.HOME || process.env.USERPROFILE || os.homedir()
-  return path.join(path.resolve(home), ".eidolon")
+  return resolveEidolonGlobalRoot()
 }
 
 export function resolveRuntimeWorkflowRoots(workDir: string, authorityRoot: string): {

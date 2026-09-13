@@ -1,7 +1,4 @@
-import os from "node:os";
-import path from "node:path";
-
-import { installBundledSystemSkills } from "@cell/ai-support/system-skill/SystemSkillInstaller";
+import { installBundledSystemSkills, resolveEidolonGlobalRoot } from "@cell/ai-support/system-skill/SystemSkillInstaller";
 import type { CommandModule } from "yargs";
 
 type GlobalArgs = {
@@ -25,7 +22,7 @@ export function createGlobalCommand(
       builder: (init) => init
         .option("root", {
           type: "string",
-          default: path.join(os.homedir(), ".eidolon"),
+          default: resolveEidolonGlobalRoot(),
           describe: "Eidolon global directory",
         })
         .option("json", {

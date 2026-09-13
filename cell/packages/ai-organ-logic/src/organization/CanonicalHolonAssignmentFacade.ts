@@ -146,7 +146,9 @@ function invocation(
     origin: Object.freeze({ kind: "product", surface, requestRef: requestId }),
     taskRequest: Object.freeze({
       kind: "derive",
-      name: input.content.slice(0, 120).trim() || "Holon assignment",
+      // The title is a canonical label; the task body below retains exact text.
+      name: [...input.content.normalize("NFC").replace(/[\s\u0000-\u001f\u007f]+/gu, " ")]
+        .slice(0, 120).join("").trim() || "Holon assignment",
     }),
     input: Object.freeze({ content: input.content }),
   })

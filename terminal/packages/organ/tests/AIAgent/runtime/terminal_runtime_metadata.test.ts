@@ -12,6 +12,18 @@ import {
 } from "@terminal/organ/AIAgent/TerminalRuntime"
 
 describe("TerminalRuntime metadata normalization", () => {
+  it("uses the same explicit global root as the system skill installer", () => {
+    const previous = process.env.EIDOLON_GLOBAL_DIR
+    try {
+      process.env.EIDOLON_GLOBAL_DIR = "/tmp/eidolon-isolated-global"
+      expect(resolveRuntimeAuthorityRoot("/tmp/demo-workspace")).toBe("/tmp/eidolon-isolated-global")
+      expect((normalizeTerminalRuntimeMetadata("/tmp/demo-workspace").aiWorkflow as any).roots.globalRoot)
+        .toBe("/tmp/eidolon-isolated-global/workflows")
+    } finally {
+      if (previous === undefined) delete process.env.EIDOLON_GLOBAL_DIR
+      else process.env.EIDOLON_GLOBAL_DIR = previous
+    }
+  })
   it("defaults local permission authority root to the home .eidolon directory", () => {
     const workDir = "/tmp/demo-workspace"
     const authorityRoot = path.join(path.resolve(process.env.HOME || process.env.USERPROFILE || os.homedir()), ".eidolon")

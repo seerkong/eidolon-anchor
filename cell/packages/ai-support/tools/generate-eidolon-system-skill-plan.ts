@@ -132,9 +132,9 @@ function assertCanonicalPlan(): void {
   }
   const expectedVersions: Readonly<Record<string, string>> = {
     "Halfcode.ResourceDsl.Skill.System": "1.0.0",
-    "Eidolon.Anchor.Skill.Run": "1.0.6",
-    "Eidolon.Anchor.Skill.Authoring": "1.0.26",
-    "Eidolon.Anchor.Skill.DevOps": "1.0.30",
+    "Eidolon.Anchor.Skill.Run": "1.0.7",
+    "Eidolon.Anchor.Skill.Authoring": "1.0.30",
+    "Eidolon.Anchor.Skill.DevOps": "1.0.35",
   }
   for (const capsule of plan.capsules) {
     if (capsule.identity.version !== expectedVersions[capsule.identity.fqn]) {
@@ -150,8 +150,8 @@ function assertCanonicalPlan(): void {
     "Eidolon.Anchor.Skill.Authoring": ["Halfcode.ResourceDsl.Skill.System@1.0.0"],
     "Eidolon.Anchor.Skill.Run": [],
     "Eidolon.Anchor.Skill.DevOps": [
-      "Eidolon.Anchor.Skill.Authoring@1.0.26",
-      "Eidolon.Anchor.Skill.Run@1.0.6",
+      "Eidolon.Anchor.Skill.Authoring@1.0.30",
+      "Eidolon.Anchor.Skill.Run@1.0.7",
     ],
   }
   for (const [fqn, dependencies] of Object.entries(expectedDependencies)) {

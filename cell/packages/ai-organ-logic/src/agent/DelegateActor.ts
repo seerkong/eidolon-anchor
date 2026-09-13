@@ -337,6 +337,7 @@ export async function invokeAddressedChildExecutionActor(
     target?: AddressedChildExecutionReference
     origin?: ActorOriginFact
     durableMaterials?: ActorDurableMaterialIndexInput
+    buildToolset?: AiAgentActor["callbacks"]["buildToolset"]
     validateActor?: (actor: AiAgentActor) => void
     onActorAdmitted?: (reference: AddressedChildExecutionReference) => void
   },
@@ -378,6 +379,7 @@ export async function invokeAddressedChildExecutionActor(
     origin: params.origin,
     ...(params.durableMaterials === undefined ? {} : { durableMaterials: params.durableMaterials }),
     ...(params.sessionId === undefined ? {} : { sessionId: params.sessionId }),
+    ...(params.buildToolset === undefined ? {} : { buildToolset: params.buildToolset }),
     retainActor: true,
     validateBeforeRegistration: params.validateActor,
     onActorCreated: (actor) => {

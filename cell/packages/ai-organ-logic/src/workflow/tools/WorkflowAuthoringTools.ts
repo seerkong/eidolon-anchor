@@ -1,5 +1,10 @@
 import type { AiAgentOneActorRuntime, ToolDef } from "@cell/ai-core-contract/types"
-import type { AiWorkflowForm } from "@cell/ai-workflow-contract"
+import {
+  DEPA_AI_RESOURCE_KINDS,
+  depaAIResourceKindContract,
+  type AiWorkflowForm,
+  type DepaAIResourceKind,
+} from "@cell/ai-workflow-contract"
 import { createWorkflowComponentForRuntime } from "../component"
 import {
   hashWorkflowBinaryFiles,
@@ -116,6 +121,100 @@ function boundedResourceDiagnostics(error: unknown): Array<{ code: string; locat
   }]
 }
 
+type ResourcePackageToolErrorCategory =
+  | "capability_unbound"
+  | "package_missing"
+  | "invalid_candidate"
+  | "stale_proof"
+  | "publication_outcome_unknown"
+
+function errorField(error: unknown, field: string): unknown {
+  if (typeof error !== "object" || error === null) return undefined
+  const descriptor = Object.getOwnPropertyDescriptor(error, field)
+  return descriptor && "value" in descriptor ? descriptor.value : undefined
+}
+
+/** Map only known package-authoring failures; ordinary tool errors retain their existing throw behavior. */
+function resourcePackageToolFailure(error: unknown): {
+  status: "authoring_error" | "publication_outcome_unknown"
+  error: { category: ResourcePackageToolErrorCategory; code: string; message: string }
+  diagnostics?: readonly { code: string; location: string; message: string }[]
+  diagnosticsTruncated?: boolean
+  publicationId?: string
+  publicationEffectDispatched: boolean
+  runtimeEffectDispatched: false
+  recovery?: "query_publication"
+} | undefined {
+  const code = errorField(error, "code")
+  const message = error instanceof Error ? error.message : undefined
+  const diagnostic = boundedResourceDiagnostics(error)
+  if (diagnostic) return {
+    status: "authoring_error",
+    error: diagnostic[0]?.code === "WORKFLOW_AUTHORING_VFS_NOT_FOUND"
+      ? { category: "package_missing", code: diagnostic[0].code, message: diagnostic[0].message }
+      : { category: "invalid_candidate", code: "WORKFLOW_RESOURCE_PACKAGE_VALIDATION_FAILED", message: "The candidate package has structured diagnostics." },
+    diagnostics: diagnostic,
+    diagnosticsTruncated: errorField(error, "diagnosticsTruncated") === true,
+    publicationEffectDispatched: false,
+    runtimeEffectDispatched: false,
+  }
+  if (typeof code !== "string" || !message) return undefined
+  if (code === "WORKFLOW_RESOURCE_PACKAGE_PUBLICATION_OUTCOME_UNKNOWN") return {
+    status: "publication_outcome_unknown",
+    error: { category: "publication_outcome_unknown", code, message },
+    publicationId: typeof errorField(error, "publicationId") === "string" ? errorField(error, "publicationId") as string : undefined,
+    // This code is issued only after the native admission call; a caller must recover, never retry it.
+    publicationEffectDispatched: true,
+    runtimeEffectDispatched: false,
+    recovery: "query_publication",
+  }
+  const category: ResourcePackageToolErrorCategory | undefined =
+    code.endsWith("_UNBOUND") || code.endsWith("_WORKSPACE_LAYER_MISSING") ? "capability_unbound"
+      : code.includes("PACKAGE_MISSING") || code === "WORKFLOW_AUTHORING_VFS_NOT_FOUND" ? "package_missing"
+        : code.includes("BASE_REVISION_CONFLICT") || code.includes("BASE_REGISTRY_CONFLICT") || code.includes("PROOF_MISMATCH")
+          ? "stale_proof"
+          : code.includes("VALIDATION_FAILED") || code.includes("PREPARE_REJECTED") || code.includes("ADMISSION_REJECTED")
+            ? "invalid_candidate"
+            : undefined
+  if (!category) return undefined
+  return {
+    status: "authoring_error",
+    error: { category, code, message },
+    publicationEffectDispatched: false,
+    runtimeEffectDispatched: false,
+  }
+}
+
+function installedKindContract(kind: string, specVersion?: unknown) {
+  if (!DEPA_AI_RESOURCE_KINDS.includes(kind as DepaAIResourceKind)) {
+    throw new Error(`Unknown installed depa AI resource Kind '${kind}'.`)
+  }
+  if (specVersion !== undefined && (!Number.isSafeInteger(specVersion) || specVersion < 1)) {
+    throw new Error("spec_version must be a positive integer")
+  }
+  const contract = depaAIResourceKindContract(kind as DepaAIResourceKind, specVersion as number | undefined)
+  return Object.freeze({
+    kind: contract.kind,
+    subjectFqn: contract.subjectFqn,
+    source: Object.freeze({ package: "ai-workflow-contract", version: "0.2.1" }),
+    owner: Object.freeze({
+      packageId: contract.owner.ownerPackageId,
+      packageFingerprint: contract.owner.ownerPackageFingerprint,
+      sourceContractFingerprint: contract.owner.sourceContract.sourceContractFingerprint,
+    }),
+    revision: Object.freeze({
+      specVersion: contract.revision.specVersion,
+      contractFingerprint: contract.revision.contractFingerprint,
+      semanticValidatorFingerprint: contract.revision.semanticContract.semanticValidatorFingerprint,
+      referenceProjectionFingerprint: contract.revision.semanticContract.referenceProjectionFingerprint,
+      compilerInputFingerprint: contract.revision.semanticContract.compilerInputFingerprint,
+      schema: contract.revision.specSchema,
+    }),
+    kindDefinitionSource: contract.kindDefinitionSource,
+    effectDispatched: false as const,
+  })
+}
+
 function outerSessionId(runtime: AiAgentOneActorRuntime): string | undefined {
   const value = (runtime.vm.outerCtx?.metadata as Record<string, unknown> | undefined)?.sessionId
   return typeof value === "string" && value.trim() ? value.trim() : undefined
@@ -189,10 +288,17 @@ function toolWithParameters(
 export function buildWorkflowGetAuthoringContextToolDef(): JsonTool {
   return tool(
     "WorkflowGetAuthoringContext",
-    "Load versioned native workflow authoring or run context without dispatching effects.",
-    { stage: { type: "string", enum: ["definition", "run"] } },
+    "Load versioned native workflow authoring or run context, optionally including one installed depa Kind schema and authority fingerprint, without dispatching effects.",
+    {
+      stage: { type: "string", enum: ["definition", "run"] },
+      kind: { type: "string", enum: [...DEPA_AI_RESOURCE_KINDS] },
+      spec_version: { type: "integer", minimum: 1 },
+    },
     ["stage"],
-    (runtime, input) => createWorkflowComponentForRuntime(runtime).catalog.getContext(input.stage),
+    (runtime, input) => Object.freeze({
+      ...createWorkflowComponentForRuntime(runtime).catalog.getContext(input.stage),
+      ...(input.kind === undefined ? {} : { installedKindContract: installedKindContract(input.kind, input.spec_version) }),
+    }),
   )
 }
 
@@ -308,14 +414,21 @@ export function buildWorkflowOpenAuthoringSessionToolDef(): JsonTool {
         if (input.selected_resource_refs !== undefined && !Array.isArray(input.selected_resource_refs)) {
           throw new Error("ResourcePackage authoring selected_resource_refs must be an array")
         }
-        const session = await component.sessions.openResourcePackage({
-          sessionId: input.session_id,
-          source: {
-            kind: "explicit-complete-package",
-            files: explicitCompletePackageFiles(input.files),
-          },
-          selectedResourceRefs: input.selected_resource_refs,
-        })
+        let session
+        try {
+          session = await component.sessions.openResourcePackage({
+            sessionId: input.session_id,
+            source: {
+              kind: "explicit-complete-package",
+              files: explicitCompletePackageFiles(input.files),
+            },
+            selectedResourceRefs: input.selected_resource_refs,
+          })
+        } catch (error) {
+          const failure = resourcePackageToolFailure(error)
+          if (failure) return failure
+          throw error
+        }
         const opened = {
           ...session,
           selection: await component.sessions.readResourcePackageSelection(session.sessionId),
@@ -344,11 +457,18 @@ export function buildWorkflowOpenAuthoringSessionToolDef(): JsonTool {
         if (input.selected_resource_refs !== undefined && !Array.isArray(input.selected_resource_refs)) {
           throw new Error("ResourcePackage authoring selected_resource_refs must be an array")
         }
-        const session = await component.sessions.openResourcePackage({
-          sessionId: input.session_id,
-          source: { kind: "workspace-layer" },
-          selectedResourceRefs: input.selected_resource_refs,
-        })
+        let session
+        try {
+          session = await component.sessions.openResourcePackage({
+            sessionId: input.session_id,
+            source: { kind: "workspace-layer" },
+            selectedResourceRefs: input.selected_resource_refs,
+          })
+        } catch (error) {
+          const failure = resourcePackageToolFailure(error)
+          if (failure) return failure
+          throw error
+        }
         const opened = {
           ...session,
           selection: await component.sessions.readResourcePackageSelection(session.sessionId),
@@ -475,9 +595,18 @@ export function buildWorkflowCreateResourcePackageSessionToolDef(): JsonTool {
         })
       } catch (error) {
         const diagnostics = boundedResourceDiagnostics(error)
-        if (!diagnostics) throw error
+        if (!diagnostics) {
+          const failure = resourcePackageToolFailure(error)
+          if (failure) return failure
+          throw error
+        }
         return withWorkflowDomainProgress({
           status: "validation_failed",
+          error: {
+            category: "invalid_candidate",
+            code: "WORKFLOW_RESOURCE_PACKAGE_VALIDATION_FAILED",
+            message: "The candidate package has structured diagnostics.",
+          },
           diagnostics,
           diagnosticCount: diagnostics.length,
           truncated: ((error as { diagnostics?: readonly unknown[] }).diagnostics?.length ?? 0) > diagnostics.length,
@@ -516,7 +645,14 @@ export function buildWorkflowValidateAuthoringSessionToolDef(): JsonTool {
       const sessionId = text(input.session_id, "session_id")
       const session = await component.sessions.describe(sessionId)
       if (session.artifactKind !== "resource-package") return component.sessions.validate(sessionId)
-      const result = await component.sessions.prepareResourcePackagePublication({ sessionId })
+      let result
+      try {
+        result = await component.sessions.prepareResourcePackagePublication({ sessionId })
+      } catch (error) {
+        const failure = resourcePackageToolFailure(error)
+        if (failure) return failure
+        throw error
+      }
       return withWorkflowDomainProgress(result, {
         owner: "workflow.authoring",
         transition: "proof_prepared",
@@ -560,13 +696,29 @@ export function buildWorkflowPublishAuthoringSessionToolDef(): JsonTool {
       const session = await component.sessions.describe(sessionId)
       if (session.artifactKind === "resource-package") {
         if (!component.resourcePackagePublisher) {
-          throw new Error("Workflow ResourcePackage publisher is not bound to a workspace layer")
+          return {
+            status: "authoring_error" as const,
+            error: {
+              category: "capability_unbound" as const,
+              code: "WORKFLOW_RESOURCE_PACKAGE_PUBLICATION_UNBOUND",
+              message: "Workflow ResourcePackage publication is not bound by this host.",
+            },
+            publicationEffectDispatched: false,
+            runtimeEffectDispatched: false as const,
+          }
         }
-        const result = await component.resourcePackagePublisher.publish({
-          sessionId,
-          expectedRevision: text(input.expected_revision, "expected_revision"),
-          confirmed: input.confirmed === true,
-        })
+        let result
+        try {
+          result = await component.resourcePackagePublisher.publish({
+            sessionId,
+            expectedRevision: text(input.expected_revision, "expected_revision"),
+            confirmed: input.confirmed === true,
+          })
+        } catch (error) {
+          const failure = resourcePackageToolFailure(error)
+          if (failure) return failure
+          throw error
+        }
         if (result.status !== "published") return result
         const receipt = result.receipt
         if (!receipt || receipt.kind !== "workflow.resourcePackagePublicationReceipt") return result
@@ -618,6 +770,41 @@ export function buildWorkflowPublishAuthoringSessionToolDef(): JsonTool {
   )
 }
 
+export function buildWorkflowQueryResourcePackagePublicationToolDef(): JsonTool {
+  return tool(
+    "WorkflowQueryResourcePackagePublication",
+    "Read one ResourcePackage publication transaction by its session and exact revision. Use after an unknown publication outcome; this never repeats publication or executes a run.",
+    {
+      session_id: { type: "string" },
+      expected_revision: { type: "string" },
+    },
+    ["session_id", "expected_revision"],
+    async (runtime, input) => {
+      const component = createWorkflowComponentForRuntime(runtime)
+      const sessionId = text(input.session_id, "session_id")
+      const expectedRevision = text(input.expected_revision, "expected_revision")
+      const publisher = component.resourcePackagePublisher
+      if (publisher?.query) {
+        try {
+          return await publisher.query({ sessionId, expectedRevision })
+        } catch (error) {
+          const failure = resourcePackageToolFailure(error)
+          if (failure) return failure
+          throw error
+        }
+      }
+      const receipt = await component.sessions.findResourcePackagePublicationReceipt(sessionId, expectedRevision)
+        .catch((error: unknown) => {
+          if (error instanceof Error && error.message.includes("not found")) return undefined
+          throw error
+        })
+      return receipt
+        ? { status: "published", receipt, publicationEffectDispatched: true, runtimeEffectDispatched: false }
+        : { status: "not_found", effectDispatched: false }
+    },
+  )
+}
+
 export function buildWorkflowPreparePublicationToolDef(): JsonTool {
   return tool(
     "WorkflowPreparePublication",
@@ -628,9 +815,16 @@ export function buildWorkflowPreparePublicationToolDef(): JsonTool {
       const component = createWorkflowComponentForRuntime(runtime)
       const { sessionId } = await activeAuthoringIdentity(runtime, input, component)
       const session = await component.sessions.describe(sessionId)
-      const result = await (session.artifactKind === "resource-package"
-        ? component.sessions.prepareResourcePackagePublication({ sessionId })
-        : component.sessions.preparePublication({ sessionId }))
+      let result
+      try {
+        result = await (session.artifactKind === "resource-package"
+          ? component.sessions.prepareResourcePackagePublication({ sessionId })
+          : component.sessions.preparePublication({ sessionId }))
+      } catch (error) {
+        const failure = resourcePackageToolFailure(error)
+        if (failure) return failure
+        throw error
+      }
       return withWorkflowDomainProgress(result, {
         owner: "workflow.authoring",
         transition: "proof_prepared",
@@ -727,6 +921,7 @@ export function buildWorkflowAuthoringToolDefs(): JsonTool[] {
     buildWorkflowPreparePublicationToolDef(),
     buildWorkflowCompleteAuthoringToolDef(),
     buildWorkflowPublishAuthoringSessionToolDef(),
+    buildWorkflowQueryResourcePackagePublicationToolDef(),
     buildWorkflowListAuthoringSessionsToolDef(),
     buildWorkflowGetAuthoringSummaryToolDef(),
   ]

@@ -1,0 +1,35 @@
+<BehaviorPatch #track.complete-workflow-vfs-authoring-and-skill-driven-e2e.behavior_patch.eidolon-system-skill-distribution apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-system-skill-distribution" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-system-skill-distribution/requirements/workflow-contract-discovery-and-error-routing" } (
+      <Requirement #workflow-contract-discovery-and-error-routing (
+        <Statement ?>正常 global 安装与 Eidolon 启动 SHALL 加载一致的 system skill 闭包，按任务取得精确契约与操作知识，并使用结构化错误指导后续行动。</?>
+        <Suites [
+          <Suite #product-contract { name = "生产接口与行为契约" } (
+            <Cases [
+              <Case #installed-runtime-closure (
+                <Given ?>系统分发并通过正式 global init 安装 Run、Authoring、DevOps 与 Halfcode Resource DSL</?>
+                <When ?>正常主 Agent 和 Worker 按任务调用 Skill</?>
+                <Then ?>身份/摘要 SHALL 对应安装产物；父子分别读取相关知识，工具读取与 provider 可见内容分别有证据。</?>
+              )>
+              <Case #trusted-kind-source (
+                <Given ?>用户创建采用标准 Workflow Kind 的完整候选</?>
+                <When ?>专用 actor 获取契约并生成业务资源</?>
+                <Then ?>标准 Kind MUST 由可信安装包/registry 提供精确 schemaRef 与版本锁，模型只引用；缺字段或伪造指纹不能通过校验。</?>
+              )>
+              <Case #distinct-next-action (
+                <Given ?>工具返回能力未绑定、包不存在、源码不合法或发布结果未知</?>
+                <When ?>Agent 按操作协议决定后续步骤</?>
+                <Then ?>能力故障 MUST 停止创建重试，缺包可创建，源码错误可有界修复，结果未知先查回执；不得由通用错误误触发 fresh create。</?>
+              )>
+              <Case #prompt-and-agent-output-contract (
+                <Given ?>Authoring Skill 指导创建带对象输出 schema 的业务 Agent</?>
+                <When ?>模型生成 Prompt、Message 与最终业务结果</?>
+                <Then ?>正文 SHALL 写入运行时实际读取的 Prompt.template，角色由 Message 声明；最终整条消息符合对象 schema，不能依赖宿主提取说明或 Markdown 围栏中的 JSON。</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

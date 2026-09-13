@@ -118,7 +118,7 @@ describe("workspace ResourcePackage publication", () => {
       "/work/KindDefinitions/AIAgentDefinition/manifest.xnl",
       "/work/KindDefinitions/AICtrlWorkflow/manifest.xnl",
       "/work/KindDefinitions/AIWorkflowAppBundle/manifest.xnl",
-      "/work/KindDefinitions/ArticleMaterial/manifest.xnl",
+      "/work/KindDefinitions/ContextMaterial/manifest.xnl",
       "/work/KindDefinitions/MaterialBinding/manifest.xnl",
       "/work/KindDefinitions/MaterialPort/manifest.xnl",
       "/work/KindDefinitions/Prompt/manifest.xnl",

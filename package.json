@@ -50,7 +50,8 @@
     "dev:web:vue-koa": "concurrently -n frontend,backend -c blue,green \"bun run dev:frontend:vue\" \"bun run dev:backend:koa\"",
     "dev:web:react-koa": "concurrently -n frontend,backend -c blue,green \"bun run dev:frontend:react\" \"bun run dev:backend:koa\"",
     "prepare:holon-candidates": "bun run scripts/prepare-holon-candidates.ts",
-    "verify:holon-shared": "bun run scripts/verify-holon-shared-integration.ts"
+    "verify:holon-shared": "bun run scripts/verify-holon-shared-integration.ts",
+    "prepare:halfcode-trusted-kinds": "bun run scripts/prepare-halfcode-trusted-kinds-candidate.ts"
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.4.0",
@@ -84,14 +85,15 @@
     ".tmp/g8-candidates/packages/xnl-collab-core",
     ".tmp/g8-candidates/packages/xnl-core",
     ".tmp/g8-candidates/packages/xnl-vcs",
-    ".tmp/g8-candidates/packages/xnl-vfs"
+    ".tmp/g8-candidates/packages/xnl-vfs",
+    ".tmp/candidates/packages/halfcode-compiler.xnl"
   ],
   "dependencies": {
     "@opencode-ai/sdk": "1.1.25",
     "eslint": "^9.39.2"
   },
   "overrides": {
-    "halfcode-compiler.xnl": "0.3.1",
+    "halfcode-compiler.xnl": "workspace:*",
     "ai-workflow-contract": "0.2.1",
     "ai-workflow-logic": "0.2.1",
     "node-gyp": "10.0.1",

@@ -83,6 +83,7 @@ import {
 import { EidolonResourceRegistryError } from "./EidolonResourceRegistryError"
 import { compileEidolonAgentCodeResource, createAgentCodeMemoryReadPort, EIDOLON_AGENT_CODE_ENVIRONMENT, prepareEidolonContextFactPresentation } from "./EidolonAgentCodeExecution"
 import { createEidolonResourceResolutionContext, EIDOLON_RESOURCE_READER_PROFILE_ID } from "./EidolonResourceKindContractCapsule"
+import { createEidolonVfsResourcePackageReadPort, loadEidolonTrustedKindDefinitionImports, loadTrustedKindDefinitionImportsFromResourcePort } from "./EidolonTrustedKindDefinitionImports"
 
 export { EidolonResourceRegistryError } from "./EidolonResourceRegistryError"
 
@@ -417,7 +418,9 @@ export class EidolonAppResourceRegistryAdapter {
       }
     }
     const effective = this.effectiveVfsPorts.get(snapshot)
-    if (effective) await visit(createHalfcodeReadPort(effective), EFFECTIVE_VFS_PACKAGE_ROOT, ".agent-resources/effective-vfs/.eidolon/resources")
+    // Preserve the imported contract packages beside author resources.  A
+    // frozen execution must re-load the same branded KindDefinition imports.
+    if (effective) await visit(createHalfcodeReadPort(effective), "/.eidolon", ".agent-resources/effective-vfs/.eidolon")
     else for (const layer of snapshot.layers) await visit(await createDirectoryResourcePackageReadPort(layer.rootDir), "/", `.agent-resources/${layer.id}`)
     return Object.freeze(files)
   }
@@ -1017,18 +1020,21 @@ export class EidolonAppResourceRegistryAdapter {
         )
       }
       if (effectiveVfs) {
-        const sources = await captureVfsTextSubtree(effectiveVfs, owner.baseUri)
-        sources["manifest.xnl"] = owner.source
+        const dependencySources = await captureVfsTextSubtree(effectiveVfs, owner.baseUri)
+        // A single-file resource shares its directory with other resources. Only
+        // its own canonical root belongs to this profile parser's source set.
+        const sources: Record<string, string> = { "manifest.xnl": owner.source }
         const stepSources: DefinitionStepSourceReadPort = Object.freeze({
           readSource: (refValue: string): Uint8Array => {
             const ref = exactDependencyPath(refValue)
-            const existing = sources[ref]
+            const existing = ref === "manifest.xnl" ? owner.source : dependencySources[ref]
             if (existing === undefined) {
               throw new EidolonResourceRegistryError(
                 "EIDOLON_RESOURCE_DEPENDENCY_NOT_FOUND",
                 `Workflow profile dependency '${ref}' does not exist in Effective VFS revision ${ownerSnapshot.effectiveVfs?.revision}.`,
               )
             }
+            sources[ref] = existing
             return new TextEncoder().encode(existing)
           },
         })
@@ -1528,9 +1534,11 @@ export class EidolonAppResourceRegistryAdapter {
         `Effective VFS root must be '/.eidolon', got '${readPort.snapshot.rootPath}'.`,
       )
     }
+    const kindDefinitionImports = await loadEidolonTrustedKindDefinitionImports(readPort)
     const tree = await loadResourceTreeFromReadPort({
-      port: createHalfcodeReadPort(readPort),
+      port: createEidolonVfsResourcePackageReadPort(readPort),
       rootPath: EFFECTIVE_VFS_PACKAGE_ROOT,
+      kindDefinitionImports,
     })
     const resolutionContext = createEidolonResourceResolutionContext(tree)
     const contentIdentityLayers = Object.freeze([
@@ -1637,7 +1645,11 @@ async function loadFrozenAgentExecutionObservation(files: Readonly<Record<string
   for (const id of layerIds) {
     if (!["global", "workspace", EFFECTIVE_VFS_LAYER_ID].includes(id)) throw new Error("EIDOLON_AGENT_CODE_MATERIAL_LAYER_INVALID")
     const port = frozenAgentLayerPort(files, id, encoding)
-    layers.push({ id, tree: await loadResourceTreeFromReadPort({ port, rootPath: id === EFFECTIVE_VFS_LAYER_ID ? EFFECTIVE_VFS_PACKAGE_ROOT : "/" }) })
+    layers.push({ id, tree: await loadResourceTreeFromReadPort({
+      port,
+      rootPath: id === EFFECTIVE_VFS_LAYER_ID ? EFFECTIVE_VFS_PACKAGE_ROOT : "/",
+      ...(id === EFFECTIVE_VFS_LAYER_ID ? { kindDefinitionImports: await loadTrustedKindDefinitionImportsFromResourcePort(port) } : {}),
+    }) })
   }
   const authoredRegistry = composeLayeredResourceRegistry({ layers })
   const observation = resolveAIAgentExecutionResources({ resolutionContexts: new Map(layers.map(layer =>
@@ -1658,8 +1670,12 @@ async function restoreFrozenResourceSnapshot(material: Pick<EidolonAgentResource
       .sort((left, right) => right.layerIndex - left.layerIndex)[0]
     if (!origin) throw new Error("EIDOLON_FROZEN_KIND_ORIGIN_MISSING")
     const sourceRoot = origin.layerId === EFFECTIVE_VFS_LAYER_ID ? EFFECTIVE_VFS_PACKAGE_ROOT : ""
-    const bytes = await frozenAgentLayerPort(material.files, origin.layerId, material.fileEncoding)
-      .readBytes(canonicalResourcePackageSourcePath(`${sourceRoot}/${uri.slice("vfs://@/".length)}`))
+    const sourcePort = frozenAgentLayerPort(material.files, origin.layerId, material.fileEncoding)
+    const relative = uri.slice("vfs://@/".length)
+    let bytes = await sourcePort.readBytes(canonicalResourcePackageSourcePath(`${sourceRoot}/${relative}`))
+    if (!bytes && origin.layerId === EFFECTIVE_VFS_LAYER_ID) {
+      bytes = await sourcePort.readBytes(`/.eidolon/contracts/ai-workflow/${relative}`)
+    }
     if (!bytes) throw new Error("EIDOLON_FROZEN_KIND_SOURCE_MISSING")
     kindDefinitionAuthorityDigests.set(kind, sha256Digest(bytes))
   }
@@ -1918,8 +1934,16 @@ async function readEffectiveKindDefinitionAuthorityDigests(
     const documentUri = effective.definition.documentUri
     if (!documentUri.startsWith("vfs://@/")) continue
     const relative = documentUri.slice("vfs://@/".length)
-    const sourcePath = effectiveResourceSourcePath(relative)
-    digests.set(kind, sha256Digest(await requiredVfsBytes(readPort, sourcePath, effective.definition.resourceId)))
+    let bytes = await readPort.readBytes(effectiveResourceSourcePath(relative))
+    // Imported definitions intentionally have no author-package source. Their
+    // authority is the captured builtin contracts package, whose bytes remain
+    // outside writer scope and are part of the Effective VFS closure.
+    if (!bytes) bytes = await readPort.readBytes(`/.eidolon/contracts/ai-workflow/${relative}`)
+    if (!bytes) throw new EidolonResourceRegistryError(
+      "EIDOLON_KIND_DEFINITION_SOURCE_MISSING",
+      `KindDefinition '${effective.definition.resourceId}' is not backed by author or trusted-contract bytes.`,
+    )
+    digests.set(kind, sha256Digest(bytes))
   }
   return digests
 }

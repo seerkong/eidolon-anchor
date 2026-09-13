@@ -17,4 +17,4 @@ For an explicitly requested first execution with no exact instance fact, select 
 
 In `deploying`, `operating`, and `monitoring`, the stage context already supplies the exact sibling `sys-eidolon-anchor-run` root and operation index. Do not load either again. Ask for the required exact operation resources through one bounded `Skill.resources` call.
 
-Authoring proof, publication authorization, execution authorization, deployment binding, and run evidence are separate facts. Never infer one from another. SkillCapsule dependencies remain the installation topology authority; this document supplies routing semantics only.
+Authoring proof, publication authorization, execution authorization, deployment binding, and run evidence are separate facts. Never infer one from another. A native publication error classified as an unknown outcome may already have committed: move to the releasing recovery operation and query its exact transaction key; do not blindly publish again. SkillCapsule dependencies remain the installation topology authority; this document supplies routing semantics only.

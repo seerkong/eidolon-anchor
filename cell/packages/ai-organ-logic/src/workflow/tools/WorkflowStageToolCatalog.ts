@@ -24,7 +24,7 @@ export const AI_WORKFLOW_STAGE_TOOL_POLICY = Object.freeze({
   releasing: Object.freeze([
     "WorkflowLoadStageContext", "Skill", "WorkflowGetAuthoringSummary", "WorkflowValidateAuthoringSession",
     "WorkflowDryRunAuthoringSession", "WorkflowPreparePublication", "WorkflowCompleteAuthoring",
-    "WorkflowPublishAuthoringSession",
+    "WorkflowPublishAuthoringSession", "WorkflowQueryResourcePackagePublication",
   ]),
   deploying: Object.freeze([
     "WorkflowLoadStageContext", "Skill", "WorkflowListApps", "WorkflowGetApp", "WorkflowListTypes",

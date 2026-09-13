@@ -67,6 +67,11 @@ export interface BuiltinEidolonResourceTree {
   readonly tree: AuthoredResourceTree
 }
 
+/** Host-owned, independently authored KindDefinition package roots. */
+export const EIDOLON_TRUSTED_KIND_DEFINITION_PACKAGE_ROOTS = Object.freeze([
+  "/.eidolon/contracts/ai-workflow",
+] as const)
+
 export interface EmbeddedBuiltinFile extends Blob {
   readonly name?: string
 }
@@ -240,6 +245,22 @@ export function createBuiltinEidolonResourcePackageReadPort(
   })
 }
 
+/**
+ * Loads only the builtin contracts package as a branded public-loader tree.
+ * Callers pass the resulting tree through `kindDefinitionImports`; it never
+ * becomes author-resource bytes or a synthetic catalog.
+ */
+export async function loadEidolonTrustedKindDefinitionImports(
+  readPort: Pick<BuiltinEidolonVfsReadPort, "stat" | "readDirectory" | "readBytes">,
+): Promise<readonly AuthoredResourceTree[]> {
+  const port = createBuiltinEidolonResourcePackageReadPort(readPort)
+  const roots = [] as string[]
+  for (const rootPath of EIDOLON_TRUSTED_KIND_DEFINITION_PACKAGE_ROOTS) {
+    if (await port.stat(`${rootPath}/manifest.xnl`)) roots.push(rootPath)
+  }
+  return Object.freeze(await Promise.all(roots.map(rootPath => loadResourceTreeFromReadPort({ port, rootPath }))))
+}
+
 export async function loadBuiltinEidolonVfs(port = createBuiltinEidolonVfsAssetPort()): Promise<BuiltinEidolonVfs> {
   const bytes = await port.readSnapshotBytes()
   let source: string
@@ -260,9 +281,11 @@ export async function loadBuiltinEidolonResourceTree(
   port = createBuiltinEidolonVfsAssetPort(),
 ): Promise<BuiltinEidolonResourceTree> {
   const builtin = await loadBuiltinEidolonVfs(port)
+  const kindDefinitionImports = await loadEidolonTrustedKindDefinitionImports(builtin.readPort)
   const tree = await loadResourceTreeFromReadPort({
     port: createBuiltinEidolonResourcePackageReadPort(builtin.readPort),
     rootPath: "/.eidolon/resources",
+    kindDefinitionImports,
   })
   return Object.freeze({ builtin, tree })
 }

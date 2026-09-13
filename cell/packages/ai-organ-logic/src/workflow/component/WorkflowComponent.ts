@@ -25,6 +25,7 @@ import { WorkflowDefinitionRepository } from "../runtime/WorkflowDefinitionRepos
 import { WorkflowCommandService } from "./WorkflowCommandService"
 import { WorkflowQueryService } from "./WorkflowQueryService"
 import { WorkflowResourcePackagePublisher } from "./WorkflowResourcePackagePublisher"
+import { WorkflowEffectiveVfsPackagePublisher } from "./WorkflowEffectiveVfsPackagePublisher"
 
 export class WorkflowComponent {
   readonly queries: WorkflowQueryService
@@ -33,7 +34,7 @@ export class WorkflowComponent {
   readonly sessions: WorkflowAuthoringSessionStore
   readonly catalog: WorkflowAuthoringCatalog
   readonly resourceRegistry: EidolonAppResourceRegistryAdapter
-  readonly resourcePackagePublisher?: WorkflowResourcePackagePublisher
+  readonly resourcePackagePublisher?: Pick<WorkflowResourcePackagePublisher, "publish"> & Partial<Pick<WorkflowEffectiveVfsPackagePublisher, "query">>
   readonly repository?: WorkflowDefinitionRepository
   readonly effectiveVfsAuthoring?: EidolonEffectiveVfsAuthoringPort
   readonly resourceLayers: readonly ResourcePackageLayerBinding[]
@@ -70,7 +71,9 @@ export class WorkflowComponent {
     this.effectiveVfsAuthoring = options?.effectiveVfsAuthoring
     this.resourceLayers = Object.freeze([...resourceLayers])
     this.resourcePackagePublisher = options?.resourcePackagePublisher
-      ?? (resourceLayers.some((layer) => layer.id === "workspace")
+      ?? (options?.effectiveVfsAuthoring
+        ? new WorkflowEffectiveVfsPackagePublisher(this.sessions, this.resourceRegistry, options.effectiveVfsAuthoring)
+        : resourceLayers.some((layer) => layer.id === "workspace")
         ? new WorkflowResourcePackagePublisher(this.sessions, this.resourceRegistry, resourceLayers)
         : undefined)
     this.repository = options?.repository ?? (this.authoring
@@ -211,6 +214,7 @@ export function createWorkflowComponent(options: WorkflowComponentOptions = {}):
     {
       registry: resourceRegistry,
       layers: resourceLayers,
+      effectiveVfsAuthoring: options.effectiveVfsAuthoring,
     },
   )
   return new WorkflowComponent({

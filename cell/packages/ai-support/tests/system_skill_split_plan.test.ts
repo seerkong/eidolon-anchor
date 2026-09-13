@@ -13,6 +13,18 @@ const supportRoot = path.resolve(import.meta.dir, "..")
 const sourceRoot = path.join(supportRoot, "src", "system-skill")
 
 describe("Eidolon Anchor system Skill split plan", () => {
+  test("ships resource-envelope workflow examples and trusted-standard-Kind creation guidance", () => {
+    const plan = loadEidolonSystemSkillDistributionPlan()
+    const content = (name: string) => new TextDecoder().decode(plan.files.find(file => file.targetRelativePath === `sys-eidolon-anchor-authoring/operations/${name}.md`)!.content)
+    const workflow = content("ai-workflow")
+    for (const example of workflow.matchAll(/```xnl\n([\s\S]*?)```/g)) {
+      expect(example[1]).toContain('envelopeVersion="halfcode.resource-envelope/v1" specVersion=1')
+      expect(example[1]).not.toMatch(/\bapiVersion=|\bversion=/)
+    }
+    expect(content("create-resource-package")).toContain("Do not copy standard KindDefinitions")
+    expect(content("create-resource-package")).toContain("packageVersion")
+  })
+
   test("ships resolvable Skill batches within the public eight-resource limit", () => {
     const plan = loadEidolonSystemSkillDistributionPlan()
     const decoder = new TextDecoder()
@@ -87,8 +99,8 @@ describe("Eidolon Anchor system Skill split plan", () => {
       "Halfcode.ResourceDsl.Skill.System": [],
       "Eidolon.Anchor.Skill.Authoring": ["Halfcode.ResourceDsl.Skill.System@1.0.0"],
       "Eidolon.Anchor.Skill.DevOps": [
-        "Eidolon.Anchor.Skill.Authoring@1.0.26",
-        "Eidolon.Anchor.Skill.Run@1.0.6",
+        "Eidolon.Anchor.Skill.Authoring@1.0.30",
+        "Eidolon.Anchor.Skill.Run@1.0.7",
       ],
     })
     expect(EXPECTED_EIDOLON_SYSTEM_SKILL_SET.map((entry) => entry.capsuleFqn)).toEqual(plan.topology)
@@ -237,6 +249,9 @@ describe("Eidolon Anchor system Skill split plan", () => {
     expect(authoring).toContain('"operations/batch-patch.md", "operations/validate-prepare.md", "operations/agent-definition.md"')
     expect(authoring).toContain("WorkflowPreparePublication")
     expect(authoring).toContain("WorkflowPublishAuthoringSession")
+    expect(authoring).toContain("WorkflowQueryResourcePackagePublication")
+    expect(authoring).toContain("publication_outcome_unknown")
+    expect(authoring).toContain("WorkflowGetAuthoringContext")
     expect(authoring).toContain("publication authorization")
     expect(authoring).not.toContain("implement the parser")
     expect(read("sys-eidolon-anchor-authoring/operations/legacy-vfs-workflow.md"))
@@ -279,8 +294,9 @@ describe("Eidolon Anchor system Skill split plan", () => {
     expect(agentExecution).toContain("do not depend on child conversation history")
     expect(agentDefinition).toContain("fn(runtime, input, config)")
     expect(agentDefinition).toContain("export async function runAgent")
-    expect(agentDefinition).toContain("<Content ?>Return only JSON.</?>")
-    expect(agentDefinition).toContain("a `content` property is metadata")
+    expect(agentDefinition).toContain('template = "Return only a raw JSON object."')
+    expect(agentDefinition).toContain("reads `Prompt.template` literally")
+    expect(agentDefinition).toContain("Neither a `content` property nor a nested `<Content>` element replaces that field")
     expect(agentDefinition).toContain("an indirect phrase such as \"matching the output schema\" is insufficient")
     expect(agentDefinition).not.toContain("function invokeAgent(input")
     expect(agentDefinition).toContain("validates the rendered Prompt content")

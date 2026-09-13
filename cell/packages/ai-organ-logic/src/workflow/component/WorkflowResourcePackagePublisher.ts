@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 import { lstat, realpath, rename, rm } from "node:fs/promises"
 import path from "node:path"
 import { freezeAIWorkflowRunResources } from "ai-workflow-logic/run-freeze"
+import { projectAIWorkflowAgentResources } from "ai-workflow-logic"
 
 import type {
   EidolonAppResourceRegistryAdapter,
@@ -115,7 +116,7 @@ function exactResourceRef(resourceId: string): `resource://${string}` {
   return `resource://${resourceId}`
 }
 
-function proofReceiptIds(proof: WorkflowResourcePackagePublicationProofSet): string[] {
+export function proofReceiptIds(proof: WorkflowResourcePackagePublicationProofSet): string[] {
   return [
     proof.packageLoadReceipt.receiptId,
     proof.registryProjectionReceipt.receiptId,
@@ -165,14 +166,14 @@ function workspaceResourceIds(snapshot: EidolonResourceRegistrySnapshot): Readon
   )
 }
 
-function exactProjection(snapshot: EidolonResourceRegistrySnapshot): {
+export function exactProjection(snapshot: EidolonResourceRegistrySnapshot, selectedIds?: ReadonlySet<string>): {
   appRefs: string[]
   workflowRefs: string[]
   entrypointWorkflowRefs: string[]
   agentRefs: string[]
   materialRefs: string[]
 } {
-  const workspaceIds = workspaceResourceIds(snapshot)
+  const workspaceIds = selectedIds ?? workspaceResourceIds(snapshot)
   const apps = snapshot.appBundles.filter((app) => workspaceIds.has(app.resource.resourceId))
   return {
     appRefs: sortedUnique(apps.map((app) => exactResourceRef(app.resource.resourceId))),
@@ -187,10 +188,11 @@ function exactProjection(snapshot: EidolonResourceRegistrySnapshot): {
   }
 }
 
-async function assertExactProofSnapshot(
+export async function assertExactProofSnapshot(
   proof: WorkflowResourcePackagePublicationProofSet,
   snapshot: EidolonResourceRegistrySnapshot,
   registry: EidolonAppResourceRegistryAdapter,
+  selectedIds?: ReadonlySet<string>,
 ): Promise<ReturnType<typeof exactProjection>> {
   if (
     snapshot.registry.compositionRevision !== proof.registryProjectionReceipt.compositionRevision
@@ -201,7 +203,7 @@ async function assertExactProofSnapshot(
       "Effective registry content changed after publication preparation.",
     )
   }
-  const projection = exactProjection(snapshot)
+  const projection = exactProjection(snapshot, selectedIds)
   const expected = {
     appRefs: proof.appProjectionReceipt.appRefs,
     workflowRefs: proof.appProjectionReceipt.workflowRefs,
@@ -219,8 +221,10 @@ async function assertExactProofSnapshot(
   }
   for (const receipt of proof.runResourceReceipts) {
     const frozen = freezeAIWorkflowRunResources({
-      registry: snapshot.registry,
-      projection: snapshot.agentResources,
+      registry: snapshot.contentIdentityRegistry,
+      projection: projectAIWorkflowAgentResources(snapshot.contentIdentityRegistry),
+      executionResources: snapshot.executionResources,
+      codeExecutions: await registry.compileAgentCodeExecutions(snapshot, receipt.task.agentDefinitionRef.slice("resource://".length)),
       task: receipt.task,
       contentIdentities: snapshot.contentIdentities,
     })
@@ -244,7 +248,7 @@ async function assertExactProofSnapshot(
     }
   }
   const projectedBindingRefs = sortedUnique(snapshot.holonExecutionBindings
-    .filter(({ resource }) => snapshot.registry.byId.get(resource.resourceId)?.effectiveOrigin?.layerId === "workspace")
+    .filter(({ resource }) => selectedIds ? selectedIds.has(resource.resourceId) : snapshot.registry.byId.get(resource.resourceId)?.effectiveOrigin?.layerId === "workspace")
     .map(({ binding }) => binding.bindingRef))
   const provedBindingRefs = proof.holonExecutionBindingReceipts.map(({ bindingRef }) => bindingRef)
   if (JSON.stringify(projectedBindingRefs) !== JSON.stringify(provedBindingRefs)) {

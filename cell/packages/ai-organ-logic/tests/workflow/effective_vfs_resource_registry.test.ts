@@ -1,13 +1,37 @@
-import { describe, expect, it } from "bun:test"
+import { afterEach, describe, expect, it } from "bun:test"
+import { cp, mkdtemp, readdir, readFile, rm } from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 
-import { EffectiveEidolonVfsMaterializer } from "@cell/symbiont-logic/resource/EffectiveEidolonVfsMaterializer"
+import { EffectiveEidolonVfsMaterializer, createMutationEidolonOverlay } from "@cell/symbiont-logic/resource/EffectiveEidolonVfsMaterializer"
+import { loadBuiltinEidolonVfs, prepareEffectiveEidolonVfs } from "@cell/mod-ai-coding/builtin-vfs"
 import {
   EidolonAppResourceRegistryAdapter,
   createFrozenEffectiveEidolonVfsReadPort,
 } from "../../src/resources/EidolonAppResourceRegistryAdapter"
-import { createWorkflowComponentForRuntimeBinding } from "../../src/workflow/component/WorkflowComponent"
+import {
+  bindWorkflowComponentToRuntime,
+  createWorkflowComponentForRuntimeBinding,
+} from "../../src/workflow/component/WorkflowComponent"
+import {
+  buildWorkflowCreateResourcePackageSessionToolDef,
+  buildWorkflowOpenAuthoringSessionToolDef,
+  buildWorkflowValidateAuthoringSessionToolDef,
+} from "../../src/workflow/tools/WorkflowAuthoringTools"
 import { VirtualFileSystem } from "xnl-vfs"
 import { depaAIResourceKindContract } from "ai-workflow-contract"
+
+const resourcePackageFixtureRoot = path.join(import.meta.dir, "fixtures", "resource-native-authoring-package")
+const temporaryRoots: string[] = []
+
+function deferred(): { promise: Promise<void>; resolve(): void } {
+  let resolve!: () => void
+  return { promise: new Promise<void>((done) => { resolve = done }), resolve }
+}
+
+afterEach(async () => {
+  await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+})
 
 function kindDefinition(): string {
   return depaAIResourceKindContract("Prompt").kindDefinitionSource
@@ -44,7 +68,61 @@ function effectiveVfs(description = "first", duplicate = false) {
   return new EffectiveEidolonVfsMaterializer({ builtinSnapshot: vfs.getSnapshot() }).read()
 }
 
+async function readTextResourcePackageFiles(root: string): Promise<Array<{ path: string; content: string }>> {
+  const files: Array<{ path: string; content: string }> = []
+  const visit = async (directory: string, prefix = ""): Promise<void> => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const relative = path.posix.join(prefix, entry.name)
+      const absolute = path.join(directory, entry.name)
+      if (entry.isDirectory()) {
+        await visit(absolute, relative)
+      } else if (entry.isFile() && entry.name !== "baseline.bin") {
+        files.push({ path: relative, content: await readFile(absolute, "utf8") })
+      }
+    }
+  }
+  await visit(root)
+  return files
+}
+
 describe("Effective VFS Halfcode registry projection", () => {
+  it("admits standard KindDefinitions from the immutable contracts package without author copies and freezes that authority", async () => {
+    const builtin = await loadBuiltinEidolonVfs()
+    const authoredCustom = await new EidolonAppResourceRegistryAdapter({
+      effectiveVfs: new EffectiveEidolonVfsMaterializer({ builtinSnapshot: builtin.vfsSnapshot }).read().readPort,
+    }).snapshot()
+    // Custom kinds remain self-contained author material; imports only supply
+    // installed public contracts.
+    expect(authoredCustom.registry.kindDefinitions.has("HolonTaskRuntimeDefinition")).toBe(true)
+    const materializer = new EffectiveEidolonVfsMaterializer({ builtinSnapshot: builtin.vfsSnapshot })
+    const result = await materializer.materialize({
+      expectedCurrentRevision: materializer.read().snapshot.revision,
+      overlays: [createMutationEidolonOverlay({
+        id: "remove-legacy-standard-definitions", kind: "workspace", order: 0,
+        mutations: [
+          { type: "FOLDER_DELETE", path: "vfs:///.eidolon/resources/KindDefinitions" },
+          { type: "FOLDER_CREATE", path: "vfs:///.eidolon/resources/KindDefinitions" },
+        ],
+      })],
+    })
+    expect(result.status).toBe("admitted")
+    if (result.status !== "admitted") return
+    const adapter = new EidolonAppResourceRegistryAdapter({ effectiveVfs: result.effective.readPort })
+    const snapshot = await adapter.snapshot()
+    expect(snapshot.registry.kindDefinitions.has("Prompt")).toBe(true)
+    expect(await result.effective.readPort.stat("/.eidolon/resources/KindDefinitions/Prompt/manifest.xnl")).toBeUndefined()
+
+    const closure = await adapter.captureAgentResourceObservation(snapshot)
+    expect(closure.files[".agent-resources/effective-vfs/.eidolon/contracts/ai-workflow/KindDefinitions/Prompt/manifest.xnl"]).toBeDefined()
+    const restored = await EidolonAppResourceRegistryAdapter.restoreAgentResourceObservation(closure)
+    expect((await restored.snapshot()).registry.kindDefinitions.has("Prompt")).toBe(true)
+
+    const forged = structuredClone(closure)
+    forged.files[".agent-resources/effective-vfs/.eidolon/contracts/ai-workflow/KindDefinitions/Prompt/manifest.xnl"] =
+      Buffer.from("<KindDefinition #forged>").toString("base64")
+    await expect(EidolonAppResourceRegistryAdapter.restoreAgentResourceObservation(forged)).rejects.toBeDefined()
+  })
+
   it("projects exactly one Halfcode tree and records its admitted VFS provenance", async () => {
     const effective = effectiveVfs()
     const adapter = new EidolonAppResourceRegistryAdapter({ effectiveVfs: effective.readPort })
@@ -144,6 +222,146 @@ describe("Effective VFS Halfcode registry projection", () => {
       .toEqual(["effective-vfs"])
     expect(component.effectiveVfsAuthoring).toBe(effectiveVfsAuthoring)
     expect(component.resourceLayers).toEqual([])
-    expect(component.resourcePackagePublisher).toBeUndefined()
+    expect(component.resourcePackagePublisher).toBeDefined()
+  })
+
+  it("opens the actual builtin package in an empty production workspace", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "eidolon-empty-workspace-authoring-"))
+    temporaryRoots.push(root)
+    const effective = await prepareEffectiveEidolonVfs({ homeEidolonRoot: path.join(root, "home"), workspaceEidolonRoot: path.join(root, ".eidolon") })
+    try {
+      const component = createWorkflowComponentForRuntimeBinding({ workDir: root, metadata: { resourcePackages: {
+        effectiveVfs: () => effective.authoring.read().readPort, effectiveVfsAuthoring: effective.authoring,
+      } } })
+      const runtime = { vm: { outerCtx: { workDir: root, metadata: {} } }, actor: {} } as any
+      bindWorkflowComponentToRuntime(runtime, component)
+      const result = JSON.parse(await buildWorkflowOpenAuthoringSessionToolDef().run(runtime, {}, {}))
+      expect(result).toMatchObject({ ok: true, artifactKind: "resource-package", target: { packageVersion: "1.0.0" } })
+      expect(result.workflow_progress.transition).toBe("workspace_opened")
+      // Opening the seed Agent package is valid; a Workflow must be authored before a Workflow publication proof exists.
+      await expect(component.sessions.prepareResourcePackagePublication({ sessionId: result.sessionId }))
+        .rejects.toThrow("requires at least one exact App, workflow and entrypoint projection")
+    } finally { effective.dispose() }
+  })
+
+  it("opens existing and fresh ResourcePackages through public tools in the production Effective VFS composition", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "eidolon-effective-resource-package-authoring-"))
+    temporaryRoots.push(root)
+    const workspaceEidolonRoot = path.join(root, ".eidolon")
+    await cp(resourcePackageFixtureRoot, path.join(workspaceEidolonRoot, "resources"), { recursive: true })
+    const effective = await prepareEffectiveEidolonVfs({
+      homeEidolonRoot: path.join(root, "home"),
+      workspaceEidolonRoot,
+    })
+    try {
+      const component = createWorkflowComponentForRuntimeBinding({
+        workDir: root,
+        metadata: {
+          resourcePackages: {
+            layers: [{ id: "workspace", rootDir: path.join(workspaceEidolonRoot, "resources") }],
+            effectiveVfs: () => effective.materializer.read().readPort,
+            effectiveVfsAuthoring: effective.authoring,
+          },
+        },
+      })
+      const runtime = { vm: { outerCtx: { workDir: root, metadata: {} } }, actor: {} } as any
+      bindWorkflowComponentToRuntime(runtime, component)
+      const before = await component.resourceRegistry.snapshot()
+      const explicitFiles = await readTextResourcePackageFiles(path.join(workspaceEidolonRoot, "resources"))
+
+      expect(before.effectiveVfs?.revision).toBe(effective.materializer.read().snapshot.revision)
+      expect(before.registry.layers.map(({ id }) => id)).toEqual(["effective-vfs"])
+      expect(before.registry.byId.get("eidolon.fixture.SummaryWorkflow")?.effectiveLayerId).toBe("effective-vfs")
+      expect(component.resourceLayers).toEqual([])
+      expect(component.resourcePackagePublisher).toBeDefined()
+
+      const opened = await Promise.allSettled([
+        buildWorkflowOpenAuthoringSessionToolDef().run(runtime, {
+          artifact_kind: "resource-package",
+          source_kind: "workspace-layer",
+          session_id: "effective-existing-resource-package",
+          selected_resource_refs: ["resource://eidolon.fixture.SummaryWorkflow"],
+        }, {}),
+        buildWorkflowCreateResourcePackageSessionToolDef().run(runtime, {
+          session_id: "effective-fresh-resource-package",
+          files: explicitFiles,
+          selected_resource_refs: ["resource://eidolon.fixture.SummaryWorkflow"],
+        }, {}),
+      ])
+
+      expect(opened.map((result) => result.status)).toEqual(["fulfilled", "fulfilled"])
+      for (const result of opened) {
+        if (result.status !== "fulfilled") throw result.reason
+        expect(JSON.parse(result.value)).toMatchObject({
+          ok: true,
+          artifactKind: "resource-package",
+          workflow_progress: { owner: "workflow.authoring", transition: "workspace_opened" },
+        })
+      }
+      const proofs = await Promise.all([
+        component.sessions.prepareResourcePackagePublication({ sessionId: "effective-existing-resource-package" }),
+        component.sessions.prepareResourcePackagePublication({ sessionId: "effective-fresh-resource-package" }),
+      ])
+      for (const proof of proofs) {
+        expect(proof.proofSet).toMatchObject({
+          kind: "workflow.resourcePackagePublicationProofSet",
+          baseRegistryRevision: before.registryRevision,
+          registryProjectionReceipt: { resourceCount: expect.any(Number) },
+        })
+      }
+      const candidateEntered = deferred()
+      const releaseCandidate = deferred()
+      const locked = component.sessions.withResourcePackagePublicationCandidate({
+        sessionId: "effective-existing-resource-package",
+        expectedRevision: proofs[0]!.revision,
+      }, async (candidate) => {
+        candidateEntered.resolve()
+        await releaseCandidate.promise
+        return candidate.revision
+      })
+      await candidateEntered.promise
+      let patchSettled = false
+      const patch = component.sessions.applyPatch({
+        sessionId: "effective-existing-resource-package",
+        expectedWorkingRevision: proofs[0]!.revision,
+        operations: [{ kind: "update", path: "/work/Apps/Summary.xnl", content: (await component.sessions.read(
+          "effective-existing-resource-package", "/work/Apps/Summary.xnl",
+        )).replace("Baseline summary app", "Locked edit") }],
+      }).then(() => { patchSettled = true })
+      await Promise.resolve()
+      expect(patchSettled).toBe(false)
+      releaseCandidate.resolve()
+      await locked
+      await patch
+      await component.sessions.write("effective-fresh-resource-package", "/work/Apps/Summary.xnl",
+        (await component.sessions.read("effective-fresh-resource-package", "/work/Apps/Summary.xnl"))
+          .replaceAll("resource://eidolon.fixture.SummaryWorkflow", "resource://eidolon.fixture.MissingWorkflow"))
+      const rejected = JSON.parse(await buildWorkflowValidateAuthoringSessionToolDef().run(runtime, {
+        session_id: "effective-fresh-resource-package",
+      }, {}))
+      expect(rejected).toMatchObject({ status: "authoring_error", error: { category: "invalid_candidate" },
+        publicationEffectDispatched: false, runtimeEffectDispatched: false })
+      expect(rejected.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({
+        code: expect.any(String), location: expect.stringContaining("Summary"), message: expect.stringContaining("MissingWorkflow"),
+      })]))
+      await component.sessions.write("effective-fresh-resource-package", "/work/Apps/Summary.xnl",
+        (await component.sessions.read("effective-fresh-resource-package", "/work/Apps/Summary.xnl"))
+          .replaceAll("resource://eidolon.fixture.MissingWorkflow", "resource://eidolon.fixture.SummaryWorkflow"))
+      await component.sessions.write("effective-fresh-resource-package", "/work/Apps/Summary.xnl",
+        (await component.sessions.read("effective-fresh-resource-package", "/work/Apps/Summary.xnl"))
+          .replace("entrypoint = true", "entrypoint = false"))
+      const invalidProjection = JSON.parse(await buildWorkflowValidateAuthoringSessionToolDef().run(runtime, {
+        session_id: "effective-fresh-resource-package",
+      }, {}))
+      expect(invalidProjection.status).toBe("authoring_error")
+      expect(invalidProjection.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({
+        code: expect.any(String), message: expect.stringMatching(/entrypoint/),
+      })]))
+      const after = await component.resourceRegistry.snapshot()
+      expect(after.effectiveVfs?.revision).toBe(before.effectiveVfs?.revision)
+      expect(after.registryRevision).toBe(before.registryRevision)
+    } finally {
+      effective.dispose()
+    }
   })
 })

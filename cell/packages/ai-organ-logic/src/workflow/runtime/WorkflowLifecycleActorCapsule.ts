@@ -29,6 +29,7 @@ import {
 import { DEFAULT_WORKFLOW_ACTOR_BUDGET } from "./WorkflowActorProgress"
 
 const BOUND_ACTORS = new WeakSet<AiAgentActor>()
+const NODE_CHILD_TOOLSET_BUILDERS = new WeakMap<AiAgentActor, AiAgentActor["callbacks"]["buildToolset"]>()
 
 function profileForVm(vm: AiAgentVm) {
   const toolRegistry = vm.registries.toolRegistry
@@ -79,10 +80,28 @@ function bindLifecycleActorToolset(
   profileRegistry: WorkflowLifecycleToolProfileRegistry,
 ): void {
   if (BOUND_ACTORS.has(actor)) return
+  NODE_CHILD_TOOLSET_BUILDERS.set(actor, actor.callbacks.buildToolset)
   actor.callbacks.buildToolset = (currentVm, currentActor) => (
     projectExactLifecycleToolset(currentVm, currentActor, profileRegistry)
   )
   BOUND_ACTORS.add(actor)
+}
+
+/**
+ * Returns the ordinary host toolset builder captured before a lifecycle Actor
+ * was bound to its lifecycle-only profile. Resource workflow nodes are normal
+ * business Actors: inheriting the lifecycle callback would require a facet
+ * that node admission correctly prohibits.
+ */
+export function resolveWorkflowLifecycleNodeChildToolset(
+  actor: AiAgentActor,
+): AiAgentActor["callbacks"]["buildToolset"] | undefined {
+  if (!readWorkflowLifecycleFacet(actor)) return undefined
+  const buildToolset = NODE_CHILD_TOOLSET_BUILDERS.get(actor)
+  if (!buildToolset) {
+    throw new Error("WORKFLOW_LIFECYCLE_NODE_TOOLSET_UNAVAILABLE: lifecycle Actor has no captured host toolset builder")
+  }
+  return buildToolset
 }
 
 export function recoverWorkflowLifecycleActorCapability(vm: AiAgentVm, actor: AiAgentActor): boolean {
@@ -166,6 +185,8 @@ async function spawnWorkflowLifecycleActorWithStrategy(
     strategyRevision,
     stage: "planning",
   })
+  const nodeChildBuildToolset = parentActor.callbacks.buildToolset
+  const inheritedNodeChildBuildToolset = resolveWorkflowLifecycleNodeChildToolset(parentActor) ?? nodeChildBuildToolset
   return await spawnChildExecutionActor(vm, parentActor, {
     description: params.description,
     prompt: params.prompt,
@@ -186,6 +207,10 @@ async function spawnWorkflowLifecycleActorWithStrategy(
     toolCallId: params.toolCallId,
     parentToolName: params.parentToolName,
     retainActor: params.retainActor,
-    onActorCreated: params.onActorCreated,
+    onActorCreated: (actor) => {
+      NODE_CHILD_TOOLSET_BUILDERS.set(actor, inheritedNodeChildBuildToolset)
+      BOUND_ACTORS.add(actor)
+      params.onActorCreated?.(actor)
+    },
   })
 }

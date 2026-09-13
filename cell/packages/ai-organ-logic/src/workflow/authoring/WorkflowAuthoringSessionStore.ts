@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto"
 import path from "node:path"
 import type { AiWorkflowForm, AIWorkflowDefinitionBinding } from "@cell/ai-workflow-contract"
 import type { AIWorkflowAgentTaskRef } from "ai-workflow-contract"
+import { projectAIWorkflowAgentResources } from "ai-workflow-logic"
 import { freezeAIWorkflowRunResources } from "ai-workflow-logic/run-freeze"
 import { loadResourceTree, type ResourceDiagnostic } from "halfcode-compiler.xnl/resource-core"
 import ts from "typescript"
@@ -23,6 +24,10 @@ import {
   type WorkflowAuthoringFile,
   type WorkflowAuthoringStore,
 } from "./WorkflowAuthoringStore"
+import {
+  createWorkflowResourceBackend,
+  workflowResourceBackendOwnsPath,
+} from "./WorkflowResourceBackend"
 
 const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/
 const MOUNTS = Object.freeze({
@@ -41,12 +46,15 @@ export type WorkflowLegacyVfsTarget = {
 
 export type WorkflowResourcePackageTarget = {
   kind: "workspace-resource-package"
-  layerId: "workspace"
+  layerId: "workspace" | "effective-vfs"
+  /** A physical cache/projection root; never the Effective VFS authority. */
   rootDir: string
   packageId: string
   packageVersion: string
   baseArtifactRevision: string
   baseRegistryRevision: string
+  baseEffectiveVfsRevision?: string
+  ownedPaths?: string[]
   selectedResourceRefs: string[]
 }
 
@@ -88,6 +96,8 @@ type WorkflowResourcePackageProofReceiptBase = {
   workingRevision: string
   baseArtifactRevision: string
   baseRegistryRevision: string
+  /** Present only when the authoring base was an admitted Effective VFS revision. */
+  baseEffectiveVfsRevision?: string
   artifactDigest: string
   createdAt: string
 }
@@ -97,6 +107,7 @@ export type WorkflowResourcePackagePublicationProofSet = {
   revision: string
   baseArtifactRevision: string
   baseRegistryRevision: string
+  baseEffectiveVfsRevision?: string
   artifactDigest: string
   packageLoadReceipt: WorkflowResourcePackageProofReceiptBase & {
     kind: "workflow.resourcePackageLoadReceipt"
@@ -172,6 +183,7 @@ export type WorkflowResourcePackagePublicationProofSet = {
 export type WorkflowResourcePackageAuthoringBinding = {
   registry: EidolonAppResourceRegistryAdapter
   layers: readonly ResourcePackageLayerBinding[]
+  effectiveVfsAuthoring?: import("../../resources").EidolonEffectiveVfsAuthoringPort
 }
 
 export type WorkflowResourcePackageSource =
@@ -222,11 +234,15 @@ export type WorkflowResourcePackagePublicationReceipt = {
   sourceRevision: string
   baseArtifactRevision: string
   baseRegistryRevision: string
+  /** Present only when the authoring base was an admitted Effective VFS revision. */
+  baseEffectiveVfsRevision?: string
   packageId: string
   packageVersion: string
   artifactDigest: string
   compositionRevision: string
   registryRevision: string
+  /** Present only when publication committed one Effective VFS revision. */
+  effectiveVfsRevision?: string
   appRefs: string[]
   entrypointWorkflowRefs: string[]
   workflowRefs: string[]
@@ -468,6 +484,10 @@ const RESOURCE_PACKAGE_PUBLICATION_RECEIPT_KEYS = Object.freeze([
   "sessionId",
   "sourceRevision",
   "workflowRefs",
+] as const)
+const OPTIONAL_RESOURCE_PACKAGE_PUBLICATION_RECEIPT_KEYS = Object.freeze([
+  "baseEffectiveVfsRevision",
+  "effectiveVfsRevision",
 ] as const)
 
 const RESOURCE_PACKAGE_PROOF_RECEIPT_KINDS = Object.freeze([
@@ -723,11 +743,13 @@ function canonicalResourcePackagePublicationReceiptPayload(
     sourceRevision: input.sourceRevision,
     baseArtifactRevision: input.baseArtifactRevision,
     baseRegistryRevision: input.baseRegistryRevision,
+    ...(input.baseEffectiveVfsRevision ? { baseEffectiveVfsRevision: input.baseEffectiveVfsRevision } : {}),
     packageId: input.packageId,
     packageVersion: input.packageVersion,
     artifactDigest: input.artifactDigest,
     compositionRevision: input.compositionRevision,
     registryRevision: input.registryRevision,
+    ...(input.effectiveVfsRevision ? { effectiveVfsRevision: input.effectiveVfsRevision } : {}),
     appRefs: [...input.appRefs],
     entrypointWorkflowRefs: [...input.entrypointWorkflowRefs],
     workflowRefs: [...input.workflowRefs],
@@ -787,12 +809,15 @@ function validateResourcePackagePublicationReceipt(
   }
   if (Object.getOwnPropertySymbols(value).length > 0) receiptInvalid("Receipt must not contain symbol fields.")
   const names = Object.getOwnPropertyNames(value).sort(compareCodeUnits)
+  const allowed = [...RESOURCE_PACKAGE_PUBLICATION_RECEIPT_KEYS, ...OPTIONAL_RESOURCE_PACKAGE_PUBLICATION_RECEIPT_KEYS]
   if (
-    names.length !== RESOURCE_PACKAGE_PUBLICATION_RECEIPT_KEYS.length
-    || names.some((name, index) => name !== RESOURCE_PACKAGE_PUBLICATION_RECEIPT_KEYS[index])
+    names.some((name) => !allowed.includes(name as never))
+    || RESOURCE_PACKAGE_PUBLICATION_RECEIPT_KEYS.some((name) => !names.includes(name))
+    || names.length !== RESOURCE_PACKAGE_PUBLICATION_RECEIPT_KEYS.length
+      + OPTIONAL_RESOURCE_PACKAGE_PUBLICATION_RECEIPT_KEYS.filter((name) => names.includes(name)).length
   ) receiptInvalid("Receipt fields do not match the closed v1 schema.")
   const record: Record<string, unknown> = {}
-  for (const name of RESOURCE_PACKAGE_PUBLICATION_RECEIPT_KEYS) {
+  for (const name of names) {
     const descriptor = Object.getOwnPropertyDescriptor(value, name)
     if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) {
       receiptInvalid(`Receipt ${name} must be one enumerable data field.`)
@@ -834,11 +859,17 @@ function validateResourcePackagePublicationReceipt(
     sourceRevision,
     baseArtifactRevision: exactSha256(record.baseArtifactRevision, "baseArtifactRevision"),
     baseRegistryRevision: exactSha256(record.baseRegistryRevision, "baseRegistryRevision"),
+    ...(record.baseEffectiveVfsRevision === undefined ? {} : {
+      baseEffectiveVfsRevision: exactSha256(record.baseEffectiveVfsRevision, "baseEffectiveVfsRevision"),
+    }),
     packageId: exactReceiptString(record.packageId, "packageId"),
     packageVersion: exactReceiptString(record.packageVersion, "packageVersion"),
     artifactDigest: exactSha256(record.artifactDigest, "artifactDigest"),
     compositionRevision: exactSha256(record.compositionRevision, "compositionRevision"),
     registryRevision: exactSha256(record.registryRevision, "registryRevision"),
+    ...(record.effectiveVfsRevision === undefined ? {} : {
+      effectiveVfsRevision: exactSha256(record.effectiveVfsRevision, "effectiveVfsRevision"),
+    }),
     appRefs: Object.freeze(appRefs) as string[],
     entrypointWorkflowRefs: Object.freeze(entrypointWorkflowRefs) as string[],
     workflowRefs: Object.freeze(workflowRefs) as string[],
@@ -881,6 +912,7 @@ function validateResourcePackagePublicationReceipt(
     if (
       receipt.baseArtifactRevision !== proofSet.baseArtifactRevision
       || receipt.baseRegistryRevision !== proofSet.baseRegistryRevision
+      || receipt.baseEffectiveVfsRevision !== proofSet.baseEffectiveVfsRevision
       || receipt.compositionRevision !== proofSet.registryProjectionReceipt.compositionRevision
       || receipt.registryRevision !== proofSet.registryProjectionReceipt.registryRevision
       || !exactStringArraysEqual(receipt.proofReceiptIds, resourcePackageProofReceiptIds(proofSet))
@@ -1047,7 +1079,7 @@ function assertResourcePackageTarget(target: unknown): WorkflowResourcePackageTa
   const raw = target as Record<string, unknown>
   if (
     raw.kind !== "workspace-resource-package"
-    || raw.layerId !== "workspace"
+    || (raw.layerId !== "workspace" && raw.layerId !== "effective-vfs")
     || typeof raw.rootDir !== "string"
     || !path.isAbsolute(raw.rootDir)
     || typeof raw.packageId !== "string"
@@ -1060,14 +1092,35 @@ function assertResourcePackageTarget(target: unknown): WorkflowResourcePackageTa
   }
   return {
     kind: "workspace-resource-package",
-    layerId: "workspace",
+    layerId: raw.layerId,
     rootDir: path.resolve(raw.rootDir),
     packageId: raw.packageId,
     packageVersion: raw.packageVersion,
     baseArtifactRevision: raw.baseArtifactRevision,
     baseRegistryRevision: raw.baseRegistryRevision,
+    ...(raw.baseEffectiveVfsRevision === undefined ? {} : {
+      baseEffectiveVfsRevision: exactSha256(raw.baseEffectiveVfsRevision, "baseEffectiveVfsRevision"),
+    }),
+    ...(raw.ownedPaths === undefined ? {} : {
+      ownedPaths: sortedUnique((raw.ownedPaths as unknown[]).map((value) => safeRelative(String(value)))),
+    }),
     selectedResourceRefs: raw.selectedResourceRefs.map((value) => exactResourceRef(String(value))),
   }
+}
+
+/** Candidate membership is explicit for Effective VFS; legacy physical sessions retain their layer rule. */
+export function resourcePackageSnapshotResourceIds(
+  snapshot: EidolonResourceRegistrySnapshot,
+  target: WorkflowResourcePackageTarget,
+  ownedPaths: ReadonlySet<string> = new Set(target.ownedPaths ?? []),
+): Set<string> {
+  return new Set([...snapshot.registry.byId.values()]
+    .filter((entry) => entry.resource !== undefined && (target.layerId === "effective-vfs"
+      ? entry.effectiveOrigin?.layerId === "effective-vfs"
+        && entry.effectiveOrigin.packageId === target.packageId
+        && ownedPaths.has(entry.resource.logicalPath)
+      : entry.effectiveOrigin?.layerId === "workspace"))
+    .map((entry) => entry.resourceId))
 }
 
 function safeRelative(value: string, allowRoot = false): string {
@@ -1089,14 +1142,22 @@ function errorCode(error: unknown): string | undefined {
 
 function resourceDiagnostics(error: unknown): readonly ResourceDiagnostic[] {
   const diagnostics = (error as { diagnostics?: unknown })?.diagnostics
-  if (!Array.isArray(diagnostics)) return []
-  return diagnostics.filter((item): item is ResourceDiagnostic => (
+  const structured = Array.isArray(diagnostics) ? diagnostics.filter((item): item is ResourceDiagnostic => (
     typeof item === "object"
     && item !== null
     && typeof (item as ResourceDiagnostic).code === "string"
     && typeof (item as ResourceDiagnostic).location === "string"
     && typeof (item as ResourceDiagnostic).message === "string"
-  ))
+  )) : []
+  if (structured.length > 0) return structured
+  // Profile projectors can reject semantically invalid XNL with a coded Error,
+  // rather than the resource loader's diagnostic array. Keep that repair evidence.
+  if (error instanceof Error) return [{
+    code: typeof errorCode(error) === "string" ? errorCode(error)! : "WORKFLOW_RESOURCE_PACKAGE_CANDIDATE_ERROR",
+    location: "resource-package",
+    message: error.message.slice(0, 2048),
+  }]
+  return []
 }
 
 function escapeRegExp(value: string): string {
@@ -1930,27 +1991,19 @@ export class WorkflowAuthoringSessionStore {
     if (!this.resourcePackages) {
       throw new Error("Workflow resource-package authoring requires an injected registry and layer binding")
     }
-    const workspace = this.resourcePackages.layers.find((layer) => layer.id === "workspace")
-    if (!workspace) throw new Error("Workflow resource-package authoring requires one injected workspace layer")
     return this.resourcePackages
   }
 
-  private workspaceResourceLayer(): ResourcePackageLayerBinding & { id: "workspace" } {
-    const binding = this.resourcePackageBinding().layers.find((layer) => layer.id === "workspace")
-    if (!binding) throw new Error("Workflow resource-package authoring requires one injected workspace layer")
-    return binding as ResourcePackageLayerBinding & { id: "workspace" }
+  private resourcePackageBackend() {
+    return createWorkflowResourceBackend(this.resourcePackageBinding())
   }
 
-  private candidateLayers(candidateRoot: string): readonly ResourcePackageLayerBinding[] {
-    return Object.freeze(this.resourcePackageBinding().layers.map((layer) => Object.freeze(
-      layer.id === "workspace" ? { id: "workspace" as const, rootDir: candidateRoot } : layer,
-    )))
-  }
-
-  private async physicalTree(rootDir: string): Promise<WorkflowAuthoringBinaryFile[]> {
-    const source = new NodeWorkflowAuthoringStore(rootDir)
-    const paths = await source.tree()
-    return Promise.all(paths.map(async (item) => ({ path: item, bytes: await source.readBytes(item) })))
+  private async resourcePackageCandidate(sessionId: string) {
+    const files = await this.mountBinaryFiles(sessionId, "work")
+    return this.resourcePackageBackend().loadCandidate({
+      files,
+      physicalRoot: this.candidateRoot(sessionId),
+    })
   }
 
   private candidateRoot(sessionId: string): string {
@@ -1974,15 +2027,14 @@ export class WorkflowAuthoringSessionStore {
     } catch (error) {
       if (errorCode(error) !== "ENOENT") throw error
     }
-    const authority = this.resourcePackageBinding()
-    const workspace = this.workspaceResourceLayer()
+    const backend = this.resourcePackageBackend()
     let selectedResourceRefs = (input.selectedResourceRefs ?? []).map(exactResourceRef)
     if (new Set(selectedResourceRefs).size !== selectedResourceRefs.length) {
       throw new Error("Workflow resource-package selection contains duplicate exact refs")
     }
-    const liveFiles = await this.physicalTree(workspace.rootDir)
+    const liveFiles = await backend.readBaseFiles()
     const liveBaseArtifactRevision = hashWorkflowBinaryFiles(liveFiles)
-    const liveSnapshot = await authority.registry.snapshot()
+    const liveSnapshot = await backend.loadLiveSnapshot()
     const sourceFiles = input.source.kind === "workspace-layer"
       ? liveFiles
       : cloneBinaryFiles(input.source.files)
@@ -2002,25 +2054,23 @@ export class WorkflowAuthoringSessionStore {
         await this.store.writeBytesAtomic(`${this.root(sessionId)}/base/${file.path}`, file.bytes)
         await this.store.writeBytesAtomic(`${this.root(sessionId)}/work/${file.path}`, file.bytes)
       }
-      const candidateRoot = this.candidateRoot(sessionId)
-      const loaded = await loadResourceTree({ rootDir: candidateRoot })
-      const candidateSnapshot = await authority.registry.loadIsolatedSnapshot({
-        layers: this.candidateLayers(candidateRoot),
-      })
+      const candidate = await this.resourcePackageCandidate(sessionId)
+      const loaded = candidate.tree
+      const candidateSnapshot = candidate.snapshot
       if (selectedResourceRefs.length === 0) {
         selectedResourceRefs = sortedUnique([
           ...candidateSnapshot.appBundles
-            .filter((item) => candidateSnapshot.registry.byId.get(item.resource.resourceId)?.effectiveOrigin?.layerId === "workspace")
+            .filter((item) => workflowResourceBackendOwnsPath(candidate, item.resource.logicalPath))
             .map((item) => resourceRef(item.resource.resourceId)),
           ...candidateSnapshot.agentResources.agentDefinitions
-            .filter((item) => candidateSnapshot.registry.byId.get(item.resource.resourceId)?.effectiveOrigin?.layerId === "workspace")
+            .filter((item) => workflowResourceBackendOwnsPath(candidate, item.resource.logicalPath))
             .map((item) => resourceRef(item.resource.resourceId)),
         ])
       }
       for (const ref of selectedResourceRefs) {
         const id = ref.slice("resource://".length)
         const selected = candidateSnapshot.registry.byId.get(id)
-        if (!selected?.resource || selected.effectiveOrigin?.layerId !== "workspace") {
+        if (!selected?.resource || !workflowResourceBackendOwnsPath(candidate, selected.resource.logicalPath)) {
           throw new Error(`Selected resource is not owned by the candidate workspace package: ${ref}`)
         }
       }
@@ -2033,12 +2083,14 @@ export class WorkflowAuthoringSessionStore {
       const packageVersion = resourcePackageVersion(loaded.manifest)
       const target: WorkflowResourcePackageTarget = {
         kind: "workspace-resource-package",
-        layerId: "workspace",
-        rootDir: workspace.rootDir,
+        layerId: backend.mode === "effective-vfs" ? "effective-vfs" : "workspace",
+        rootDir: backend.workspaceResourceRoot,
         packageId: loaded.manifest.resourceId,
         packageVersion,
         baseArtifactRevision: liveBaseArtifactRevision,
         baseRegistryRevision: liveSnapshot.registryRevision,
+        ...(liveSnapshot.effectiveVfs ? { baseEffectiveVfsRevision: liveSnapshot.effectiveVfs.revision } : {}),
+        ownedPaths: [...candidate.ownedPaths].sort(compareCodeUnits),
         selectedResourceRefs,
       }
       const session: WorkflowAuthoringSession & {
@@ -2133,13 +2185,12 @@ export class WorkflowAuthoringSessionStore {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 24) {
       throw new Error("Workflow resource selection read limit must be between 1 and 24")
     }
-    const snapshot = await this.resourcePackageBinding().registry.loadIsolatedSnapshot({
-      layers: this.candidateLayers(this.candidateRoot(sessionId)),
-    })
+    const candidate = await this.resourcePackageCandidate(sessionId)
+    const snapshot = candidate.snapshot
     const resourceIds = this.resourcePackageSelectionClosure(snapshot, session.target.selectedResourceRefs)
     const logicalPaths = resourceIds
       .map((resourceId) => snapshot.registry.byId.get(resourceId))
-      .filter((entry) => entry?.resource && entry.effectiveOrigin?.layerId === "workspace")
+      .filter((entry) => entry?.resource && workflowResourceBackendOwnsPath(candidate, entry.resource.logicalPath))
       .map((entry) => entry!.resource!.logicalPath)
     const kindDefinitionPaths = this.resourcePackageSelectionKindDefinitionPaths(snapshot, resourceIds)
     const dependencyPaths = this.resourcePackageSelectionDependencyPaths(snapshot, new Set(resourceIds))
@@ -2268,6 +2319,10 @@ export class WorkflowAuthoringSessionStore {
   }
 
   async write(sessionId: string, logicalPath: string, content: string): Promise<{ path: string; revision: string }> {
+    return this.store.withExclusiveLock(this.lockPath(sessionId), () => this.writeUnlocked(sessionId, logicalPath, content))
+  }
+
+  private async writeUnlocked(sessionId: string, logicalPath: string, content: string): Promise<{ path: string; revision: string }> {
     const active = await this.readMetadata(sessionId)
     const resolved = this.resolve(sessionId, logicalPath)
     if (MOUNTS[resolved.mount] === "read_only") throw new Error(`${resolved.mount} is read-only`)
@@ -2294,11 +2349,13 @@ export class WorkflowAuthoringSessionStore {
   }
 
   async edit(sessionId: string, logicalPath: string, oldText: string, newText: string): Promise<{ path: string; revision: string }> {
-    const content = await this.read(sessionId, logicalPath)
-    if (!content.includes(oldText)) throw new Error("oldText not found in workflow authoring file")
-    const result = await this.write(sessionId, logicalPath, content.replace(oldText, newText))
-    await this.appendAudit(sessionId, "edit", { path: logicalPath })
-    return result
+    return this.store.withExclusiveLock(this.lockPath(sessionId), async () => {
+      const content = await this.read(sessionId, logicalPath)
+      if (!content.includes(oldText)) throw new Error("oldText not found in workflow authoring file")
+      const result = await this.writeUnlocked(sessionId, logicalPath, content.replace(oldText, newText))
+      await this.appendAudit(sessionId, "edit", { path: logicalPath })
+      return result
+    })
   }
 
   async patch(sessionId: string, patchSource: string): Promise<{ paths: string[]; revision: string }> {
@@ -2408,6 +2465,10 @@ export class WorkflowAuthoringSessionStore {
   }
 
   async delete(sessionId: string, logicalPath: string): Promise<{ path: string; deleted: true }> {
+    return this.store.withExclusiveLock(this.lockPath(sessionId), () => this.deleteUnlocked(sessionId, logicalPath))
+  }
+
+  private async deleteUnlocked(sessionId: string, logicalPath: string): Promise<{ path: string; deleted: true }> {
     const resolved = this.resolve(sessionId, logicalPath)
     if (MOUNTS[resolved.mount] === "read_only") throw new Error(`${resolved.mount} is read-only`)
     if (!resolved.relative) throw new Error("Workflow authoring delete requires a nested path")
@@ -2619,6 +2680,7 @@ export class WorkflowAuthoringSessionStore {
       || proofSet.artifactDigest !== session.workingRevision
       || proofSet.baseArtifactRevision !== session.target.baseArtifactRevision
       || proofSet.baseRegistryRevision !== session.target.baseRegistryRevision
+      || proofSet.baseEffectiveVfsRevision !== session.target.baseEffectiveVfsRevision
     ) {
       throw new Error("Workflow ResourcePackage publication requires one complete current proof receipt set")
     }
@@ -2635,6 +2697,28 @@ export class WorkflowAuthoringSessionStore {
     }
   }
 
+  /**
+   * Holds the session mutation lock from the exact proof/byte read through the
+   * caller's native CAS and optional receipt finalization. The scoped finalizer
+   * advances session state without reacquiring the held lock.
+   */
+  async withResourcePackagePublicationCandidate<T>(
+    input: { sessionId: string; expectedRevision: string },
+    callback: (candidate: WorkflowResourcePackagePublicationCandidate,
+      finalize: (receipt: WorkflowResourcePackagePublicationReceipt) => Promise<WorkflowResourcePackagePublicationReceipt>) => Promise<T>,
+  ): Promise<T> {
+    return this.store.withExclusiveLock(this.lockPath(input.sessionId), async () => {
+      const candidate = await this.resourcePackagePublicationCandidate(input)
+      let active = true
+      try {
+        return await callback(candidate, receipt => {
+          if (!active) throw new Error("WORKFLOW_RESOURCE_PACKAGE_FINALIZER_EXPIRED")
+          return this.recordResourcePackagePublicationUnlocked({ ...input, receipt, files: candidate.files })
+        })
+      } finally { active = false }
+    })
+  }
+
   async recordResourcePackagePublication(input: {
     sessionId: string
     expectedRevision: string
@@ -2642,7 +2726,16 @@ export class WorkflowAuthoringSessionStore {
     files: readonly WorkflowAuthoringBinaryFile[]
     recoveryAuthority?: object
   }): Promise<WorkflowResourcePackagePublicationReceipt> {
-    return this.store.withExclusiveLock(this.lockPath(input.sessionId), async () => {
+    return this.store.withExclusiveLock(this.lockPath(input.sessionId), () => this.recordResourcePackagePublicationUnlocked(input))
+  }
+
+  private async recordResourcePackagePublicationUnlocked(input: {
+    sessionId: string
+    expectedRevision: string
+    receipt: WorkflowResourcePackagePublicationReceipt
+    files: readonly WorkflowAuthoringBinaryFile[]
+    recoveryAuthority?: object
+  }): Promise<WorkflowResourcePackagePublicationReceipt> {
       const session = await this.readMetadata(input.sessionId)
       if (session.artifactKind !== "resource-package" || session.target.kind !== "workspace-resource-package") {
         throw new Error("Workflow ResourcePackage receipt requires a resource-package session")
@@ -2739,6 +2832,7 @@ export class WorkflowAuthoringSessionStore {
         ...session.target,
         baseArtifactRevision: receipt.artifactDigest,
         baseRegistryRevision: receipt.registryRevision,
+        ...(receipt.effectiveVfsRevision ? { baseEffectiveVfsRevision: receipt.effectiveVfsRevision } : {}),
       }
       const updated = this.deriveSession({
         ...session,
@@ -2777,7 +2871,6 @@ export class WorkflowAuthoringSessionStore {
         this.resourcePackagePublicationRecoveryAuthorities.delete(input.recoveryAuthority)
       }
       return existing ?? receipt
-    })
   }
 
   async createAuthoringReceipt(input: {
@@ -3024,14 +3117,15 @@ export class WorkflowAuthoringSessionStore {
     }
     const target = session.target
     const authority = this.resourcePackageBinding()
-    const liveFiles = await this.physicalTree(target.rootDir)
+    const backend = this.resourcePackageBackend()
+    const liveFiles = await backend.readBaseFiles()
     const liveArtifactRevision = hashWorkflowBinaryFiles(liveFiles)
     if (liveArtifactRevision !== target.baseArtifactRevision) {
       throw new Error(`Workflow resource package live base revision conflict: expected ${target.baseArtifactRevision}, current ${liveArtifactRevision}`)
     }
     let liveSnapshot
     try {
-      liveSnapshot = await authority.registry.loadIsolatedSnapshot({ layers: authority.layers })
+      liveSnapshot = await backend.loadLiveSnapshot()
     } catch (error) {
       throw new WorkflowResourcePackageValidationError(
         "Workflow resource package live base validation failed",
@@ -3041,24 +3135,27 @@ export class WorkflowAuthoringSessionStore {
     if (liveSnapshot.registryRevision !== target.baseRegistryRevision) {
       throw new Error(`Workflow resource package live base registry revision conflict: expected ${target.baseRegistryRevision}, current ${liveSnapshot.registryRevision}`)
     }
+    if (target.baseEffectiveVfsRevision !== liveSnapshot.effectiveVfs?.revision) {
+      throw new Error(`Workflow resource package Effective VFS revision conflict: expected ${target.baseEffectiveVfsRevision ?? "none"}, current ${liveSnapshot.effectiveVfs?.revision ?? "none"}`)
+    }
     const revision = await this.workRevision(input.sessionId)
     if (
       session.resourcePackageProofSet?.revision === revision
       && session.resourcePackageProofSet.baseArtifactRevision === target.baseArtifactRevision
       && session.resourcePackageProofSet.baseRegistryRevision === target.baseRegistryRevision
+      && session.resourcePackageProofSet.baseEffectiveVfsRevision === target.baseEffectiveVfsRevision
       && session.resourcePackageProofSet.artifactDigest === revision
     ) {
       return { revision, proofSet: session.resourcePackageProofSet }
     }
 
-    const candidateRoot = this.candidateRoot(input.sessionId)
     let loaded
     let snapshot
+    let candidate
     try {
-      loaded = await loadResourceTree({ rootDir: candidateRoot })
-      snapshot = await authority.registry.loadIsolatedSnapshot({
-        layers: this.candidateLayers(candidateRoot),
-      })
+      candidate = await this.resourcePackageCandidate(input.sessionId)
+      loaded = candidate.tree
+      snapshot = candidate.snapshot
     } catch (error) {
       throw new WorkflowResourcePackageValidationError(
         "Workflow resource package candidate validation failed",
@@ -3084,6 +3181,7 @@ export class WorkflowAuthoringSessionStore {
       workingRevision: revision,
       baseArtifactRevision: target.baseArtifactRevision,
       baseRegistryRevision: target.baseRegistryRevision,
+      ...(target.baseEffectiveVfsRevision ? { baseEffectiveVfsRevision: target.baseEffectiveVfsRevision } : {}),
       artifactDigest,
       createdAt: now,
     }
@@ -3092,6 +3190,7 @@ export class WorkflowAuthoringSessionStore {
       receiptId: proofReceiptId(kind, input.sessionId, revision, digestJson({
         baseArtifactRevision: target.baseArtifactRevision,
         baseRegistryRevision: target.baseRegistryRevision,
+        ...(target.baseEffectiveVfsRevision ? { baseEffectiveVfsRevision: target.baseEffectiveVfsRevision } : {}),
         discriminator,
       })),
     })
@@ -3111,11 +3210,7 @@ export class WorkflowAuthoringSessionStore {
       contentTreeDigest: digestJson(contentTree),
       diagnosticCount: 0,
     }
-    const workspaceResourceIds = new Set(
-      [...snapshot.registry.byId.values()]
-        .filter((entry) => entry.resource !== undefined && entry.effectiveOrigin?.layerId === "workspace")
-        .map((entry) => entry.resourceId),
-    )
+    const workspaceResourceIds = resourcePackageSnapshotResourceIds(snapshot, target, candidate.ownedPaths)
     const effectiveResources = [...snapshot.registry.byId.values()]
       .filter((entry) => entry.resource !== undefined && workspaceResourceIds.has(entry.resourceId))
     const registryProjectionReceipt: WorkflowResourcePackagePublicationProofSet["registryProjectionReceipt"] = {
@@ -3341,8 +3436,13 @@ export class WorkflowAuthoringSessionStore {
       compareCodeUnits(agentTaskKey(left), agentTaskKey(right))
     ))) {
       const frozen = freezeAIWorkflowRunResources({
-        registry: snapshot.registry,
-        projection: snapshot.agentResources,
+        registry: snapshot.contentIdentityRegistry,
+        projection: projectAIWorkflowAgentResources(snapshot.contentIdentityRegistry),
+        executionResources: snapshot.executionResources,
+        codeExecutions: await authority.registry.compileAgentCodeExecutions(
+          snapshot,
+          task.agentDefinitionRef.slice("resource://".length),
+        ),
         task,
         contentIdentities: snapshot.contentIdentities,
       })
@@ -3390,6 +3490,7 @@ export class WorkflowAuthoringSessionStore {
       revision,
       baseArtifactRevision: target.baseArtifactRevision,
       baseRegistryRevision: target.baseRegistryRevision,
+      ...(target.baseEffectiveVfsRevision ? { baseEffectiveVfsRevision: target.baseEffectiveVfsRevision } : {}),
       artifactDigest,
       packageLoadReceipt,
       registryProjectionReceipt,
@@ -3402,6 +3503,10 @@ export class WorkflowAuthoringSessionStore {
     }
     session = this.deriveSession({
       ...session,
+      target: {
+        ...target,
+        ownedPaths: [...candidate.ownedPaths].sort(compareCodeUnits),
+      },
       workingRevision: revision,
       currentRevision: revision,
       resourcePackageProofSet: proofSet,

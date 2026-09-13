@@ -66,8 +66,7 @@ it("retains the exact unchanged publication receipt and rejects stale native no-
 })
 
 function child(f: Awaited<ReturnType<typeof fixture>>, mode: string, argument = "") {
-  const localBinding = path.resolve(".tmp/holon-resource-autonomy-source.json")
-  const tsconfig = process.env.EIDOLON_TEST_TSCONFIG ?? (existsSync(localBinding) ? localBinding : path.resolve("cell/tsconfig.json"))
+  const tsconfig = process.env.EIDOLON_TEST_TSCONFIG ?? path.resolve(import.meta.dir, "../../../tsconfig.json")
   return Bun.spawn([process.execPath, "--tsconfig-override", tsconfig, path.join(import.meta.dir, "fixtures/effective_vfs_authority_process.ts"), mode, f.options.databasePath, f.workspace, argument], { stdout: "pipe", stderr: "pipe" })
 }
 
@@ -154,6 +153,64 @@ it("rejects a projection with a forged before-image before committing its head o
   expect(owner.read()).toEqual(before)
   expect(owner.lookupPublication("invalid")).toBeUndefined()
   owner.close()
+})
+
+it("atomically admits a byte write batch and projects create, update, and delete", async () => {
+  const f = await fixture(); await writeFile(path.join(f.workspace, "resources/Old.bin"), "old")
+  f.vfs.writeFile("vfs:///.eidolon/resources/Old.bin", "old", { fileType: "text", metadataId: "old" })
+  const options = { ...f.options, builtinSnapshot: f.vfs.getSnapshot() }
+  const owner = new LocalFileEffectiveEidolonVfsAuthority(options)
+  const m = new EffectiveEidolonVfsMaterializer({ builtinSnapshot: options.builtinSnapshot, authority: owner }); await m.restore()
+  const writes = [
+    { logicalPath: "/.eidolon/resources/One.bin", before: { state: "absent" as const }, after: { state: "present" as const, bytesBase64: Buffer.from([0, 1, 2]).toString("base64"), digest: `sha256:${new Bun.CryptoHasher("sha256").update(new Uint8Array([0, 1, 2])).digest("hex")}` } },
+    { logicalPath: "/.eidolon/resources/Old.bin", before: { state: "present" as const, bytesBase64: Buffer.from("old").toString("base64"), digest: `sha256:${new Bun.CryptoHasher("sha256").update("old").digest("hex")}` }, after: { state: "absent" as const } },
+  ]
+  const prepared = await m.prepare({ expectedCurrentRevision: m.read().snapshot.revision, overlays: [createMutationEidolonOverlay({ id: "workspace", kind: "workspace", order: 0, mutations: [
+    { type: "FILE_CREATE", path: "vfs:///.eidolon/resources/One.bin", expectedId: "one", payload: { content: Buffer.from([0, 1, 2]).toString("base64"), fileType: "binary" } },
+    { type: "FILE_DELETE", path: "vfs:///.eidolon/resources/Old.bin", expectedId: "old" },
+  ] })] })
+  if (prepared.status !== "prepared") throw new Error("prepare")
+  const result = await m.admit(prepared.candidate, { transactionId: "tx-batch", planDigest: "plan", receiptDigest: "receipt" }, undefined, writes)
+  expect(result.status).toBe("admitted")
+  expect(await readFile(path.join(f.workspace, "resources/One.bin"))).toEqual(Buffer.from([0, 1, 2]))
+  expect(existsSync(path.join(f.workspace, "resources/Old.bin"))).toBeFalse()
+  owner.close()
+})
+
+it("rejects an invalid batch before durable CAS or any physical projection", async () => {
+  const f = await fixture(); const owner = new LocalFileEffectiveEidolonVfsAuthority(f.options)
+  const m = new EffectiveEidolonVfsMaterializer({ builtinSnapshot: f.vfs.getSnapshot(), authority: owner }); await m.restore(); const before = owner.read()
+  const prepared = await m.prepare({ expectedCurrentRevision: m.read().snapshot.revision, overlays: [overlay("<Test #one>")] })
+  if (prepared.status !== "prepared") throw new Error("prepare")
+  await expect(m.admit(prepared.candidate, { transactionId: "tx-invalid-batch", planDigest: "plan", receiptDigest: "receipt" }, undefined, [{
+    logicalPath: "/.eidolon/resources/Test.xnl", before: { state: "absent" }, after: { state: "present", bytesBase64: "not-base64!", digest: "sha256:bad" },
+  }] as any)).rejects.toThrow("BYTE_IMAGE_INVALID")
+  expect(owner.read()).toEqual(before)
+  expect(owner.lookupPublication("tx-invalid-batch")).toBeUndefined()
+  owner.close()
+})
+
+it("records a partial batch projection for idempotent recovery after a per-file failure", async () => {
+  const f = await fixture(); let projections = 0
+  const owner = new LocalFileEffectiveEidolonVfsAuthority({ ...f.options, beforeProjection() { if (++projections === 2) throw new Error("injected") } })
+  const m = new EffectiveEidolonVfsMaterializer({ builtinSnapshot: f.vfs.getSnapshot(), authority: owner }); await m.restore()
+  const bytes = (text: string) => ({ state: "present" as const, bytesBase64: Buffer.from(text).toString("base64"), digest: `sha256:${new Bun.CryptoHasher("sha256").update(text).digest("hex")}` })
+  const prepared = await m.prepare({ expectedCurrentRevision: m.read().snapshot.revision, overlays: [createMutationEidolonOverlay({ id: "workspace", kind: "workspace", order: 0, mutations: [
+    { type: "FILE_CREATE", path: "vfs:///.eidolon/resources/One.xnl", expectedId: "one", payload: { content: "one", fileType: "xnl" } },
+    { type: "FILE_CREATE", path: "vfs:///.eidolon/resources/Two.xnl", expectedId: "two", payload: { content: "two", fileType: "xnl" } },
+  ] })] })
+  if (prepared.status !== "prepared") throw new Error("prepare")
+  await expect(m.admit(prepared.candidate, { transactionId: "tx-recover-batch", planDigest: "plan", receiptDigest: "receipt" }, undefined, [
+    { logicalPath: "/.eidolon/resources/One.xnl", before: { state: "absent" }, after: bytes("one") },
+    { logicalPath: "/.eidolon/resources/Two.xnl", before: { state: "absent" }, after: bytes("two") },
+  ])).rejects.toThrow("injected")
+  expect(owner.lookupPublication("tx-recover-batch")?.receipt.status).toBe("admitted")
+  owner.close()
+  const recovered = new LocalFileEffectiveEidolonVfsAuthority(f.options)
+  recovered.recoverProjections(); recovered.recoverProjections()
+  expect(await readFile(path.join(f.workspace, "resources/One.xnl"), "utf8")).toBe("one")
+  expect(await readFile(path.join(f.workspace, "resources/Two.xnl"), "utf8")).toBe("two")
+  recovered.close()
 })
 
 it.each(["history", "head", "context", "missing-digest"])("fails closed on accidental %s publication corruption", async field => {

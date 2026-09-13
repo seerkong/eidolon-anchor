@@ -10,14 +10,19 @@ import {
   type PrepareEffectiveEidolonVfsResult,
 } from "@cell/symbiont-logic/resource/EffectiveEidolonVfsMaterializer"
 import path from "node:path"
-import { lstat } from "node:fs/promises"
+import { createHash } from "node:crypto"
+import { lstat, readFile, readdir } from "node:fs/promises"
+import type { Dirent } from "node:fs"
+import type { VfsMutation } from "xnl-vfs"
 import { loadResourceTreeFromReadPort } from "halfcode-compiler.xnl/resource-core"
 import { LocalFileEffectiveEidolonVfsAuthority } from "@cell/ai-support/runtime/LocalFileEffectiveEidolonVfsAuthority"
-import type { EidolonVfsPublicationAssociation, EidolonVfsPublicationRecord, EidolonVfsWorkspaceWrite } from "@cell/symbiont-contract/resource/EffectiveEidolonVFS"
+import type { EidolonVfsPublicationAssociation, EidolonVfsPublicationRecord, EidolonVfsWorkspaceByteWrite, EidolonVfsWorkspaceWrite } from "@cell/symbiont-contract/resource/EffectiveEidolonVFS"
 import type { EffectiveEidolonVfsPublicationAuthority } from "@cell/symbiont-logic/resource/EffectiveEidolonVfsPublication"
+import type { EidolonEffectiveVfsAuthoringPort, EidolonResourcePackageFile } from "@cell/symbiont-logic/resource/EffectiveEidolonVfsAuthoring"
 
 import {
   createBuiltinEidolonResourcePackageReadPort,
+  loadEidolonTrustedKindDefinitionImports,
   loadBuiltinEidolonVfs,
   type BuiltinEidolonVfsAssetPort,
 } from "./index"
@@ -34,18 +39,7 @@ export interface PreparedEffectiveEidolonVfs {
   readonly materializer: EffectiveEidolonVfsMaterializer
   /** Closes only the backend created by this composition root. */
   dispose(): void
-  readonly authoring: Readonly<{
-    workspaceResourceRoot: string
-    read(): EffectiveEidolonVfsView
-    prepare(input: Readonly<{
-      expectedCurrentRevision: `sha256:${string}`
-      logicalPath: `/.eidolon/resources/${string}`
-      authorityText: string
-    }>): Promise<PrepareEffectiveEidolonVfsResult>
-    admit(candidate: EffectiveEidolonVfsCandidate, association?: EidolonVfsPublicationAssociation, workspaceWrite?: EidolonVfsWorkspaceWrite): Promise<EffectiveEidolonVfsMaterializationResult>
-    lookupPublication(transactionId: string): Promise<EidolonVfsPublicationRecord | undefined>
-    restore(): Promise<EffectiveEidolonVfsView>
-  }>
+  readonly authoring: EidolonEffectiveVfsAuthoringPort
 }
 
 async function loadConfiguredOverlays(input: PrepareEffectiveEidolonVfsInput) {
@@ -118,9 +112,11 @@ async function initializeEffectiveEidolonVfs(
     validators: [{
       id: "halfcode-effective-resource-tree",
       async validate({ readPort }) {
+        const kindDefinitionImports = await loadEidolonTrustedKindDefinitionImports(readPort)
         await loadResourceTreeFromReadPort({
           port: createBuiltinEidolonResourcePackageReadPort(readPort),
           rootPath: "/.eidolon/resources",
+          kindDefinitionImports,
         })
         return []
       },
@@ -139,31 +135,41 @@ async function initializeEffectiveEidolonVfs(
       : result.receipt.diagnostics
     throw new Error(`Effective Eidolon VFS materialization failed: ${diagnostics.map((item) => `${item.code}: ${item.message}`).join("; ")}`)
   }
-  const authoring = Object.freeze({
-    workspaceResourceRoot: path.join(input.workspaceEidolonRoot, "resources"),
+  const workspaceResourceRoot = path.join(input.workspaceEidolonRoot, "resources")
+  const packageCandidates = new WeakMap<EffectiveEidolonVfsCandidate, { readonly writes: readonly EidolonVfsWorkspaceByteWrite[]; readonly sourceDigest: string }>()
+  const prepareWrites = async (expectedCurrentRevision: `sha256:${string}`, mutations: readonly VfsMutation[], writes: readonly EidolonVfsWorkspaceByteWrite[]): Promise<PrepareEffectiveEidolonVfsResult> => {
+    const overlays = await loadOverlays()
+    const sourceDigest = configuredOverlayDigest(overlays)
+    const baseline = await materializer.prepare({ expectedCurrentRevision, overlays })
+    if (baseline.status !== "prepared") return baseline
+    if (baseline.candidate.effective.snapshot.revision !== materializer.read().snapshot.revision) throw new Error("EIDOLON_VFS_OVERLAY_SOURCE_DRIFT")
+    const prepared = await materializer.prepare({ expectedCurrentRevision, overlays: [...overlays, createMutationEidolonOverlay({
+      id: "workspace-authoring-intent", kind: "workspace", order: overlays.length, mutations,
+    })] })
+    if (prepared.status === "prepared") packageCandidates.set(prepared.candidate, Object.freeze({ writes: Object.freeze([...writes]), sourceDigest }))
+    return prepared
+  }
+  const authoring: EidolonEffectiveVfsAuthoringPort = Object.freeze({
+    workspaceResourceRoot,
     read: () => materializer.read(),
     prepare: async (authoringInput: Readonly<{
       expectedCurrentRevision: `sha256:${string}`
       logicalPath: `/.eidolon/resources/${string}`
       authorityText: string
     }>) => {
+      const prefix = "/.eidolon/resources/"
+      if (!authoringInput.logicalPath.startsWith(prefix)) throw new Error("EIDOLON_VFS_AUTHORING_PATH_INVALID")
+      const relativePath = authoringInput.logicalPath.slice(prefix.length)
+      normalizePackageFiles([{ path: relativePath, bytes: new Uint8Array() }])
       const overlays = await loadOverlays()
       const baseline = await materializer.prepare({ expectedCurrentRevision: authoringInput.expectedCurrentRevision, overlays })
       if (baseline.status !== "prepared") return baseline
-      if (baseline.candidate.effective.snapshot.revision !== materializer.read().snapshot.revision) {
-        throw new Error("EIDOLON_VFS_OVERLAY_SOURCE_DRIFT")
-      }
+      if (baseline.candidate.effective.snapshot.revision !== materializer.read().snapshot.revision) throw new Error("EIDOLON_VFS_OVERLAY_SOURCE_DRIFT")
       const existing = await baseline.candidate.effective.readPort.stat(authoringInput.logicalPath)
       if (existing && existing.kind !== "file") throw new Error("EIDOLON_VFS_AUTHORING_TARGET_NOT_FILE")
-      return materializer.prepare({
-        expectedCurrentRevision: authoringInput.expectedCurrentRevision,
-        overlays: [
-        ...overlays,
-        createMutationEidolonOverlay({
-          id: "workspace-authoring-intent",
-          kind: "workspace",
-          order: overlays.length,
-          mutations: [{
+      const before = await physicalBytes(path.join(workspaceResourceRoot, relativePath))
+      const after = new TextEncoder().encode(authoringInput.authorityText)
+      return prepareWrites(authoringInput.expectedCurrentRevision, [{
             type: existing ? "CONTENT_UPDATE" : "FILE_CREATE",
             path: `vfs://${authoringInput.logicalPath}`,
             expectedId: existing?.nodeId ?? stableEidolonOverlayNodeId(
@@ -172,16 +178,102 @@ async function initializeEffectiveEidolonVfs(
               authoringInput.logicalPath,
             ),
             payload: { content: authoringInput.authorityText, fileType: "xnl" },
-          }],
-        }),
-        ],
-      })
+          }], [{ logicalPath: authoringInput.logicalPath, before: image(before), after: image(after) }])
     },
-    admit: (candidate: EffectiveEidolonVfsCandidate, association?: EidolonVfsPublicationAssociation, workspaceWrite?: EidolonVfsWorkspaceWrite) => materializer.admit(candidate, association, workspaceWrite),
+    admit: async (candidate: EffectiveEidolonVfsCandidate, association?: EidolonVfsPublicationAssociation, workspaceWrite?: EidolonVfsWorkspaceWrite) => {
+      const prepared = packageCandidates.get(candidate)
+      if (!prepared) return materializer.admit(candidate, association, workspaceWrite)
+      if (configuredOverlayDigest(await loadOverlays()) !== prepared.sourceDigest) throw new Error("EIDOLON_VFS_OVERLAY_SOURCE_DRIFT")
+      packageCandidates.delete(candidate)
+      return materializer.admit(candidate, association, undefined, prepared.writes)
+    },
+    preparePackage: async ({ expectedCurrentRevision, files }: Readonly<{ expectedCurrentRevision: `sha256:${string}`; files: readonly EidolonResourcePackageFile[] }>) => {
+      const desired = normalizePackageFiles(files)
+      const existing = await physicalTree(workspaceResourceRoot)
+      const writes = new Map<string, EidolonVfsWorkspaceByteWrite>()
+      for (const [relative, bytes] of desired) writes.set(relative, { logicalPath: `/.eidolon/resources/${relative}`, before: image(existing.get(relative)), after: image(bytes) })
+      for (const [relative, bytes] of existing) if (!desired.has(relative)) writes.set(relative, { logicalPath: `/.eidolon/resources/${relative}`, before: image(bytes), after: { state: "absent" } })
+      const folders = new Set<string>()
+      for (const relative of desired.keys()) {
+        const parts = relative.split("/"); parts.pop()
+        while (parts.length) { folders.add(parts.join("/")); parts.pop() }
+      }
+      const mutations: VfsMutation[] = [
+        { type: "FOLDER_DELETE", path: "vfs:///.eidolon/resources" },
+        { type: "FOLDER_CREATE", path: "vfs:///.eidolon/resources", expectedId: stableEidolonOverlayNodeId("workspace-directory", "directory", "/.eidolon/resources") },
+      ]
+      for (const folder of [...folders].sort((a, b) => a.split("/").length - b.split("/").length || a.localeCompare(b))) mutations.push({ type: "FOLDER_CREATE", path: `vfs:///.eidolon/resources/${folder}`, expectedId: stableEidolonOverlayNodeId("workspace-directory", "directory", `/.eidolon/resources/${folder}`) })
+      for (const [relative, bytes] of [...desired].sort(([a], [b]) => a.localeCompare(b))) {
+        const logicalPath = `/.eidolon/resources/${relative}`
+        const decoded = packageFileType(relative, bytes)
+        mutations.push({ type: "FILE_CREATE", path: `vfs://${logicalPath}`, expectedId: stableEidolonOverlayNodeId("workspace-directory", "file", logicalPath), payload: { content: decoded.content, fileType: decoded.fileType } })
+      }
+      return prepareWrites(expectedCurrentRevision, mutations, [...writes.values()])
+    },
+    admitPackage: async (candidate: EffectiveEidolonVfsCandidate, association: EidolonVfsPublicationAssociation) => {
+      const prepared = packageCandidates.get(candidate)
+      if (!prepared) throw new Error("EIDOLON_VFS_AUTHORING_CANDIDATE_INVALID")
+      if (configuredOverlayDigest(await loadOverlays()) !== prepared.sourceDigest) throw new Error("EIDOLON_VFS_OVERLAY_SOURCE_DRIFT")
+      packageCandidates.delete(candidate)
+      return materializer.admit(candidate, association, undefined, prepared.writes)
+    },
     lookupPublication: (transactionId: string) => materializer.lookupPublication(transactionId),
     restore: () => materializer.restore(),
   })
   return Object.freeze({ effective: result.effective, materializer, authoring,
     dispose,
   })
+}
+
+function configuredOverlayDigest(overlays: readonly EidolonVfsOverlayMaterial[]): string {
+  return createHash("sha256").update(JSON.stringify(overlays.map(({ descriptor }) => descriptor))).digest("hex")
+}
+function image(bytes: Uint8Array | undefined): EidolonVfsWorkspaceByteWrite["before"] {
+  if (!bytes) return { state: "absent" }
+  return { state: "present", bytesBase64: Buffer.from(bytes).toString("base64"), digest: `sha256:${createHash("sha256").update(bytes).digest("hex")}` }
+}
+async function physicalBytes(file: string): Promise<Uint8Array | undefined> {
+  try {
+    const status = await lstat(file)
+    if (status.isSymbolicLink()) throw new Error("EIDOLON_VFS_WORKSPACE_SYMLINK")
+    if (!status.isFile()) throw new Error("EIDOLON_VFS_AUTHORING_TARGET_NOT_FILE")
+    return new Uint8Array(await readFile(file))
+  } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw error }
+}
+async function physicalTree(root: string): Promise<Map<string, Uint8Array>> {
+  const files = new Map<string, Uint8Array>()
+  const visit = async (directory: string, relative: string): Promise<void> => {
+    let entries: Dirent<string>[]
+    try { entries = await readdir(directory, { withFileTypes: true, encoding: "utf8" }) } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error }
+    for (const entry of entries) {
+      const childRelative = relative ? `${relative}/${entry.name}` : entry.name
+      const child = path.join(directory, entry.name)
+      if (entry.isSymbolicLink()) throw new Error("EIDOLON_VFS_WORKSPACE_SYMLINK")
+      if (entry.isDirectory()) { await visit(child, childRelative); continue }
+      if (!entry.isFile()) throw new Error("EIDOLON_VFS_WORKSPACE_ENTRY_INVALID")
+      files.set(childRelative, new Uint8Array(await readFile(child)))
+    }
+  }
+  await visit(root, "")
+  return files
+}
+function normalizePackageFiles(files: readonly EidolonResourcePackageFile[]): Map<string, Uint8Array> {
+  const normalized = new Map<string, Uint8Array>()
+  for (const file of files) {
+    if (!file || typeof file.path !== "string" || !(file.bytes instanceof Uint8Array)) throw new Error("EIDOLON_VFS_AUTHORING_FILE_INVALID")
+    const relative = file.path.replace(/^\/+/, "")
+    if (!relative || relative !== file.path || relative.split("/").some(part => !part || part === "." || part === ".." || part.includes("\\") || part.includes("\0"))) throw new Error("EIDOLON_VFS_AUTHORING_PATH_INVALID")
+    if (normalized.has(relative)) throw new Error("EIDOLON_VFS_AUTHORING_PATH_DUPLICATE")
+    normalized.set(relative, new Uint8Array(file.bytes))
+  }
+  return normalized
+}
+function packageFileType(relative: string, bytes: Uint8Array): { readonly fileType: "text" | "xnl" | "binary"; readonly content: string } {
+  try {
+    const content = new TextDecoder("utf-8", { fatal: true }).decode(bytes)
+    return { fileType: relative.toLowerCase().endsWith(".xnl") ? "xnl" : "text", content }
+  } catch {
+    if (relative.toLowerCase().endsWith(".xnl")) throw new Error("EIDOLON_VFS_AUTHORING_XNL_UTF8_INVALID")
+    return { fileType: "binary", content: Buffer.from(bytes).toString("base64") }
+  }
 }

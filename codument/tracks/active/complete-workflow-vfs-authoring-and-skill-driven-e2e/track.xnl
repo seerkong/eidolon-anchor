@@ -1,0 +1,214 @@
+<Track #complete-workflow-vfs-authoring-and-skill-driven-e2e apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "在完整 Halfcode Skill App 拆分前，接通统一整包 VFS 编辑发布并完成正常 system skill 驱动的 Data/Ctrl/Holon/Member 真实 E2E。" description = "资源读取、草稿与发布能力分离；整候选 CAS、恢复、可信 Kind、结构化诊断和正常 CLI 收尾；保留后续公共宿主接缝。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-12T19:31:50.131Z" updated_at = "2026-09-12T22:38:15.627Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+  ]>
+  <TaskSpace #space_complete-workflow-vfs-authoring-and-skill-driven-e2e { name = "complete-workflow-vfs-authoring-and-skill-driven-e2e" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "事实基线与统一协议" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "复现生产装配和能力缺口" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M2BK6FSK125493KACHCQA7RR>
+            用正常 Terminal/WorkflowComponent 组合经公开工具复现 fresh/existing session 失败，覆盖单文件 authoring 和 registry 来源；建立 D01/D08/D10 的失败测试。
+            </?01M2BK6FSK125493KACHCQA7RR>
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M2BK6FSK125493KACHCQA7RS>
+              失败测试定位 workspace layer 断言且无资源发布；记录现有事实 owner、效果及调用路径。
+              </?01M2BK6FSK125493KACHCQA7RS>
+            ]>
+          )>
+          <Task #P1-T2 { name = "定义资源、草稿与发布接口" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M2BK6FSK125493KACHCQA7RT>
+            实现显式 typed ports、错误结果、版本/proof/receipt 数据契约及 runtime 绑定；明确文件和 VFS 共同与可选能力，复用现有 depa-processor 注册机制。
+            </?01M2BK6FSK125493KACHCQA7RT>
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M2BK6FSK125493KACHCQA7RV>
+              类型检查和契约测试通过；协议无任意 service locator，无新的 authority，D02/D05/D06/D07 可由明确数据表达。
+              </?01M2BK6FSK125493KACHCQA7RV>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "资源后端与可恢复整包会话" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "建立跨后端读取与草稿 conformance" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M2BK6FSK125493KACHCQA7RW>
+            先为 file/VFS 的读取、依赖来源、草稿 mutation、字节保持、无 root 隐式切换和代码材料缓存建立 D02/D03/D06 测试。
+            </?01M2BK6FSK125493KACHCQA7RW>
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M2BK6FSK125493KACHCQA7RX>
+              同一测试契约分别运行两后端，缺失能力明确拒绝；测试确实覆盖加载器而非只有 readText。
+              </?01M2BK6FSK125493KACHCQA7RX>
+            ]>
+          )>
+          <Task #P2-T2 { name = "接通 session 与生产能力装配" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M2BK6FSK125493KACHCQA7RY>
+            替换 session 对物理 layer 的强制依赖；读取正确 base/来源、管理可恢复 work revision 并适配依赖加载；保留明确的 physical 兼容。
+            </?01M2BK6FSK125493KACHCQA7RY>
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M2BK6FSK125493KACHCQA7RZ>
+              D01/D02/D06/D13 通过，fresh 和 existing 均由生产装配打开，未编辑基线字节不变，session 重启可恢复。
+              </?01M2BK6FSK125493KACHCQA7RZ>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "整包准入与故障恢复" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "建立多文件原子和恢复故障矩阵" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M2BK6FSK125493KACHCQA7S0>
+            先添加 create/update/delete/move、混合类型、late invalid、stale、prepare 漂移、投影失败、退出和重复 ID 的 D03–D07 测试。
+            </?01M2BK6FSK125493KACHCQA7S0>
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M2BK6FSK125493KACHCQA7S1>
+              各故障位置可重复注入并独立检查 authority/head/receipt/投影，不以总超时替代状态断言。
+              </?01M2BK6FSK125493KACHCQA7S1>
+            ]>
+          )>
+          <Task #P3-T2 { name = "接通整候选 prepare 和单次 CAS" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M2BK6FSK125493KACHCQA7S2>
+            复用 XNL mutation/VFS 与 materializer，绑定完整候选 proof，按宿主范围准入；单文件 AgentDefinition 编辑委托同一能力，保持旧签名兼容。
+            </?01M2BK6FSK125493KACHCQA7S2>
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M2BK6FSK125493KACHCQA7S3>
+              D03/D04/D05/D06/D08 通过；后置无效文件不泄漏前置写入；仅 publication 不执行实例。
+              </?01M2BK6FSK125493KACHCQA7S3>
+            ]>
+          )>
+          <Task #P3-T3 { name = "完成幂等发布和持久投影恢复" status = "DONE" priority = "P0" order = 2 } (
+            <Description ?01M2BK6FSK125493KACHCQA7S4>
+            复用 publication journal，明确未准入、已准入待投影、完成及未知结果；查询重复操作，恢复 session/authority/投影，不重复副作用。
+            </?01M2BK6FSK125493KACHCQA7S4>
+            <Acceptance [
+              <Criterion #P3-T3-AC1 { checked = true } ?01M2BK6FSK125493KACHCQA7S5>
+              D07/D12/D13 通过；新进程从持久材料恢复，回执和权威回读对应同一发布事实，历史不被改写。
+              </?01M2BK6FSK125493KACHCQA7S5>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "可信契约与 System Skill 分流" status = "DONE" priority = "P0" order = 3 } (
+        <SubNodes [
+          <Task #P4-T1 { name = "验证标准契约来源和错误分类" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M2BK6FSK125493KACHCQA7S6>
+            先验证真实安装 Kind 的读取与锁定、标准定义无需复制、自定义 Kind 合法路径、伪指纹/schemaRef 缺失及各类结构化错误。
+            </?01M2BK6FSK125493KACHCQA7S6>
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M2BK6FSK125493KACHCQA7S7>
+              D09/D10 通过，宿主未绑定与缺包明确区分，未知发布结果不得进入盲目重试。
+              </?01M2BK6FSK125493KACHCQA7S7>
+            ]>
+          )>
+          <Task #P4-T2 { name = "修正工具适配与 Skill 操作协议" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M2BK6FSK125493KACHCQA7S8>
+            工具共用 Processor；更新 Run/Authoring/DevOps 所需正文、阶段加载与标准契约获取，生成产物保持一致，不在 kernel 堆叠业务操作。
+            </?01M2BK6FSK125493KACHCQA7S8>
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M2BK6FSK125493KACHCQA7S9>
+              针对性工具/Skill 回归及生成一致性通过；能力故障不触发 fresh create，父/子 Agent 分别加载所需知识。
+              </?01M2BK6FSK125493KACHCQA7S9>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P5 { name = "正常安装与确定性产品闭环" status = "DONE" priority = "P0" order = 4 } (
+        <SubNodes [
+          <Task #P5-T1 { name = "验证完整生产组合与兼容" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M2BK6FSK125493KACHCQA7SA>
+            在真实生产 composition 经公开工具完成创建/编辑/prepare/发布/回读/执行与新进程恢复，覆盖单文件兼容和时序等待问题。
+            </?01M2BK6FSK125493KACHCQA7SA>
+            <Acceptance [
+              <Criterion #P5-T1-AC1 { checked = true } ?01M2BK6FSK125493KACHCQA7SB>
+              D01–D10/D12–D14 全部通过；类型检查、现有发布与 Holon/Member 回归通过，无测试特供装配。
+              </?01M2BK6FSK125493KACHCQA7SB>
+            ]>
+          )>
+          <Task #P5-T2 { name = "验证 global 安装与启动知识一致" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M2BK6FSK125493KACHCQA7SC>
+            检查实际分发的四项 system skill、global init 隔离安装与正常 CLI 启动；记录身份、摘要与任务相关正文加载；排除启动自动修补假象。
+            </?01M2BK6FSK125493KACHCQA7SC>
+            <Acceptance [
+              <Criterion #P5-T2-AC1 { checked = true } ?01M2BK6FSK125493KACHCQA7SD>
+              D11 通过；113 文件是历史基线而非固定断言，新增分发闭包由生成器重新计算并验证。
+              </?01M2BK6FSK125493KACHCQA7SD>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P6 { name = "真实 iqingwa 与 Skill 驱动 E2E" status = "DONE" priority = "P0" order = 5 } (
+        <SubNodes [
+          <Task #P6-T1 { name = "准备可审计 live harness 与预算" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M2BK6FSK125493KACHCQA7SE>
+            以 iqingwa / DeepSeek v4 Pro 精确模型配置、隔离 home/workspace、显式授权和共享预算建立 harness；Codex 执行者使用 GPT-5.6 Terra；离线验证取消/预算/脱敏/无自动重试。
+            </?01M2BK6FSK125493KACHCQA7SE>
+            <Acceptance [
+              <Criterion #P6-T1-AC1 { checked = true } ?01M2BK6FSK125493KACHCQA7SF>
+              运行清单有请求数、token、时长界限，所有 Codex 执行者使用 GPT-5.6 Terra；未开启 live 不发送真实请求。
+              </?01M2BK6FSK125493KACHCQA7SF>
+            ]>
+          )>
+          <Task #P6-T2 { name = "完成 Data 创建发布执行" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M2BK6FSK125493KACHCQA7SG>
+            正常 CLI 经 Skill 与 WorkflowFulfill 完成 L01，独立 oracle 验证运行产物并核对 provider 实际看见的操作和契约。
+            </?01M2BK6FSK125493KACHCQA7SG>
+            <Acceptance [
+              <Criterion #P6-T2-AC1 { checked = true } ?01M2BK6FSK125493KACHCQA7SH>
+              L01 通过且有新候选、proof、publication、instance/run 和业务输出；仅模型回答不得算执行。
+              </?01M2BK6FSK125493KACHCQA7SH>
+            ]>
+          )>
+          <Task #P6-T3 { name = "完成 Ctrl 与编辑版本冻结" status = "DONE" priority = "P0" order = 2 } (
+            <Description ?01M2BK6FSK125493KACHCQA7SJ>
+            完成 L02/L03，Ctrl 控制计算与真实业务 Agent 步骤，独立修改 Data 包发布 V2 并验证旧实例 V1、新实例 V2 及新进程恢复；不新增 Ctrl→Data 持久嵌套调用。
+            </?01M2BK6FSK125493KACHCQA7SJ>
+            <Acceptance [
+              <Criterion #P6-T3-AC1 { checked = true } ?01M2BK6FSK125493KACHCQA7SK>
+              L02/L03 通过；输入输出和控制步骤确实运行，实例不通过实时查询偷换依赖。
+              </?01M2BK6FSK125493KACHCQA7SK>
+            ]>
+          )>
+          <Task #P6-T4 { name = "完成组织派单与主会话收尾" status = "DONE" priority = "P0" order = 3 } (
+            <Description ?01M2BK6FSK125493KACHCQA7SM>
+            完成 L04/L05；经公开 HolonAssign/MemberAssign 派单，Worker 自行读知识，记录 settled、父最终答复和 CLI 正常退出。
+            </?01M2BK6FSK125493KACHCQA7SM>
+            <Acceptance [
+              <Criterion #P6-T4-AC1 { checked = true } ?01M2BK6FSK125493KACHCQA7SN>
+              两条路由与正常收尾均通过；900 秒边界终止/paused 不算成功，阶段耗时可解释。
+              </?01M2BK6FSK125493KACHCQA7SN>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P7 { name = "独立验收与接续收口" status = "DONE" priority = "P0" order = 6 } (
+        <SubNodes [
+          <Task #P7-T1 { name = "独立复核验收矩阵" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M2BK6FSK125493KACHCQA7SP>
+            独立 GPT-5.6 Terra 验证者实际运行必要检查，按 D01–D14/L01–L05 核对新证据，区分旧结果、未运行、失败和通过。
+            </?01M2BK6FSK125493KACHCQA7SP>
+            <Acceptance [
+              <Criterion #P7-T1-AC1 { checked = true } ?01M2BK6FSK125493KACHCQA7SQ>
+              验收矩阵无遗漏、无未解释失败；不以 Skill 安装或离线模型结果替代 live 业务证据。
+              </?01M2BK6FSK125493KACHCQA7SQ>
+            ]>
+          )>
+          <Task #P7-T2 { name = "沉淀行为与公共宿主接续" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M2BK6FSK125493KACHCQA7SR>
+            补充接口/兼容/恢复说明、脱敏总结和未来 Halfcode 公共能力缺口；更新 backlog，保持旧 Holon mission 历史，完成最终方向复核。
+            </?01M2BK6FSK125493KACHCQA7SR>
+            <Acceptance [
+              <Criterion #P7-T2-AC1 { checked = true } ?01M2BK6FSK125493KACHCQA7SS>
+              新设计、测试命令和实际结果一致，完整 Skill App 迁移边界清晰，手动提交模式保留且不自动发布 npm。
+              </?01M2BK6FSK125493KACHCQA7SS>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

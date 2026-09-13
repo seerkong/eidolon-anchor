@@ -35,12 +35,9 @@ import { safePathLexicalIssue } from "halfcode-compiler.xnl/resource-mapping"
 import type {
   EffectiveEidolonVfsCandidate,
   EffectiveEidolonVfsMaterializationResult,
-  EffectiveEidolonVfsView,
-  PrepareEffectiveEidolonVfsResult,
 } from "@cell/symbiont-logic/resource/EffectiveEidolonVfsMaterializer"
 import type {
   EidolonVfsPublicationAssociation,
-  EidolonVfsWorkspaceWrite,
   EidolonVfsPublicationRecord,
 } from "@cell/symbiont-contract/resource/EffectiveEidolonVFS"
 
@@ -66,19 +63,8 @@ export type EidolonAIAgentDefinitionAuthoringResult = Readonly<{
  * Effective VFS authority. The candidate stays unpublished while Halfcode
  * parses and reconciles it.
  */
-export type EidolonEffectiveVfsAuthoringPort = Readonly<{
-  workspaceResourceRoot: string
-  read(): EffectiveEidolonVfsView
-  prepare(input: Readonly<{
-    expectedCurrentRevision: `sha256:${string}`
-    logicalPath: `/.eidolon/resources/${string}`
-    authorityText: string
-  }>): Promise<PrepareEffectiveEidolonVfsResult>
-  admit(candidate: EffectiveEidolonVfsCandidate, association?: EidolonVfsPublicationAssociation,
-    workspaceWrite?: EidolonVfsWorkspaceWrite): Promise<EffectiveEidolonVfsMaterializationResult>
-  lookupPublication?(transactionId: string): Promise<EidolonVfsPublicationRecord | undefined>
-  restore?(): Promise<EffectiveEidolonVfsView>
-}>
+export type { EidolonEffectiveVfsAuthoringPort } from "@cell/symbiont-logic/resource/EffectiveEidolonVfsAuthoring"
+import type { EidolonEffectiveVfsAuthoringPort } from "@cell/symbiont-logic/resource/EffectiveEidolonVfsAuthoring"
 
 export type EidolonAIAgentDefinitionAuthoringFaultObserver = Readonly<{
   afterPrepared?(input: Readonly<{ transactionId: string; planDigest: string }>): void | Promise<void>

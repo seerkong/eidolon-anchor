@@ -13,14 +13,22 @@ For an existing package, first follow `open-resource-package.md` and use its exa
 
 Use bounded `Skill.resources` batches. Resource paths are relative to the named installed Skill. Reading the Skill root or knowing a directory exists does not mean these language references have been read.
 
+## Current host invocation capabilities
+
+For a Ctrl workflow that executes an Agent, load `operations/agent-definition.md`. Use an ordinary `Run` whose runtime-first code calls `runtime.ai.effects.runAgent`; the exact workflow/node/Agent tuple and material bindings are frozen with the instance. This is the supported executable Agent path.
+
+The shared Flow DSL reference describes `CallFlow` grammar across several products. The current Eidolon host does not bind a durable AICtrlWorkflow-to-AIDataWorkflow invocation resolver or child-flow lifecycle. Do not infer that capability from grammar acceptance, invent a `runtime.workflow` API, or keep searching for an undeclared Skill path. If specifically asked for Ctrl-to-Data invocation, report the missing host capability. An App may contain separately executable Ctrl and Data workflows; this does not make one a nested execution of the other.
+
+Keep each `WorkflowFulfill` invocation focused on one selected workflow and one fulfillment outcome. When the user requests execution of a baseline followed by editing and executing a new version, the parent coordinates separate gateway invocations and retains the actual receipts between them. Do not change a baseline before the requested baseline run has completed.
+
 ## Native XNL, not XML
 
-XNL uses `#identity`, header metadata, `{}` attributes, `()` child domains and `[]` ordered items. It has no `<?xml ...?>` declaration, XML self-closing `/>` nodes, XML `id="..."` replacement for `#identity`, or XML entity encoding such as `&quot;` for source strings. Keep resource envelope metadata such as `envelopeVersion`/`specVersion`, and definition metadata such as `apiVersion`/`version`, in their declared channels; do not relocate unrelated metadata.
+XNL uses `#identity`, header metadata, `{}` attributes, `()` child domains and `[]` ordered items. It has no `<?xml ...?>` declaration, XML self-closing `/>` nodes, XML `id="..."` replacement for `#identity`, or XML entity encoding such as `&quot;` for source strings. Every Halfcode resource root, including AIDataWorkflow and AICtrlWorkflow, requires `envelopeVersion="halfcode.resource-envelope/v1" specVersion=1` in its header. Do not copy `apiVersion`/`version` from historical standalone Flow examples into these resource roots. The ResourcePackage manifest also declares its business `packageVersion` in `{}`.
 
 These are minimal definition examples to explain node syntax. They are not complete ResourcePackages or evidence of business acceptance:
 
 ```xnl
-<AIDataWorkflow #example.Identity apiVersion="depa.flows/v1" version="1.0.0" (
+<AIDataWorkflow #example.Identity envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 (
   <FlowContract #example.Identity { inputPorts = ["value"] outputPorts = ["result"] }>
 ) [
   <EntryNode #entry>
@@ -29,7 +37,7 @@ These are minimal definition examples to explain node syntax. They are not compl
 ```
 
 ```xnl
-<AICtrlWorkflow #example.ReturnInput apiVersion="depa.flows/v1" version="1.0.0" (
+<AICtrlWorkflow #example.ReturnInput envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 (
   <FlowContract #example.ReturnInput>
 ) [
   <Return #return>

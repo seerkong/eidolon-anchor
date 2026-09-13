@@ -4,6 +4,7 @@ import {
   BUILTIN_EIDOLON_VFS_ASSET_PATH,
   createEmbeddedBuiltinEidolonVfsAssetPort,
   createSourceBuiltinEidolonVfsAssetPort,
+  loadEidolonTrustedKindDefinitionImports,
   loadBuiltinEidolonVfs,
   type EmbeddedBuiltinFile,
 } from "../src/builtin-vfs"
@@ -40,6 +41,15 @@ describe("Builtin Eidolon VFS runtime", () => {
       .toEqual(await source.readPort.readDirectory("/.eidolon/resources"))
     expect(await embedded.readPort.readBytes("/.eidolon/resources/manifest.xnl"))
       .toEqual(await source.readPort.readBytes("/.eidolon/resources/manifest.xnl"))
+  })
+
+  it("ships standard KindDefinitions as an independent trusted package", async () => {
+    const builtin = await loadBuiltinEidolonVfs(createSourceBuiltinEidolonVfsAssetPort())
+    expect((await builtin.readPort.stat("/.eidolon/contracts/ai-workflow/manifest.xnl"))?.kind).toBe("file")
+    const imports = await loadEidolonTrustedKindDefinitionImports(builtin.readPort)
+    expect(imports).toHaveLength(1)
+    expect(imports[0]?.registry.kindDefinitions.has("Prompt")).toBe(true)
+    expect(imports[0]?.registry.kindDefinitions.has("AIAgentDefinition")).toBe(true)
   })
 
   it("fails closed for missing, duplicate, invalid or out-of-root input", async () => {

@@ -14,6 +14,43 @@ afterEach(async () => {
 })
 
 describe("production Effective Eidolon VFS preparation", () => {
+  it("prepares and admits a complete byte package through the durable batch authority", async () => {
+    const parent = await mkdtemp(path.join(tmpdir(), "eidolon-effective-package-authoring-")); roots.push(parent)
+    const home = path.join(parent, "home"); const workspace = path.join(parent, "workspace")
+    await mkdir(home); await mkdir(workspace)
+    const runtime = await prepareEffectiveEidolonVfs({ homeEidolonRoot: home, workspaceEidolonRoot: workspace })
+    for (const logicalPath of ["/.eidolon/contracts/forged.xnl", "/.eidolon/resources/../outside.xnl", "/.eidolon/resources//bad.xnl"]) {
+      await expect(runtime.authoring.prepare({ expectedCurrentRevision: runtime.authoring.read().snapshot.revision,
+        logicalPath: logicalPath as `/.eidolon/resources/${string}`, authorityText: "<Prompt>" })).rejects.toThrow("AUTHORING_PATH_INVALID")
+    }
+    const files: { path: string; bytes: Uint8Array }[] = []
+    const collect = async (logicalPath: string, relative = ""): Promise<void> => {
+      for (const entry of await runtime.authoring.read().readPort.readDirectory(logicalPath) ?? []) {
+        const next = relative ? `${relative}/${entry.logicalPath.split("/").at(-1)!}` : entry.logicalPath.split("/").at(-1)!
+        if (entry.kind === "directory") await collect(entry.logicalPath, next)
+        else files.push({ path: next, bytes: (await runtime.authoring.read().readPort.readBytes(entry.logicalPath))! })
+      }
+    }
+    await collect("/.eidolon/resources")
+    files.push({ path: "Opaque/payload.bin", bytes: new Uint8Array([0, 255, 1]) })
+    const prepared = await runtime.authoring.preparePackage!({ expectedCurrentRevision: runtime.authoring.read().snapshot.revision, files })
+    expect(prepared.status).toBe("prepared"); if (prepared.status !== "prepared") throw new Error("prepare")
+    const admitted = await runtime.authoring.admitPackage!(prepared.candidate, { transactionId: "package-batch", planDigest: "plan", receiptDigest: "receipt" })
+    expect(admitted.status).toBe("admitted")
+    expect(await readFile(path.join(workspace, "resources/Opaque/payload.bin"))).toEqual(Buffer.from([0, 255, 1]))
+    const moved = files.map(file => file.path === "Opaque/payload.bin" ? { ...file, path: "Moved/payload.bin" } : file)
+    const next = await runtime.authoring.preparePackage!({ expectedCurrentRevision: runtime.authoring.read().snapshot.revision, files: moved })
+    if (next.status !== "prepared") throw new Error("move prepare")
+    expect((await runtime.authoring.admitPackage!(next.candidate, { transactionId: "package-move", planDigest: "move", receiptDigest: "receipt-move" })).status).toBe("admitted")
+    const revision = runtime.authoring.read().snapshot.revision
+    runtime.dispose()
+    const restarted = await prepareEffectiveEidolonVfs({ homeEidolonRoot: home, workspaceEidolonRoot: workspace })
+    try {
+      expect(restarted.authoring.read().snapshot.revision).toBe(revision)
+      expect(await restarted.authoring.read().readPort.stat("/.eidolon/resources/Opaque")).toBeUndefined()
+    } finally { restarted.dispose() }
+  })
+
   it("restores a committed projection before reading overlays and updates an existing builtin node by its actual identity", async () => {
     const parent = await mkdtemp(path.join(tmpdir(), "eidolon-effective-recover-")); roots.push(parent)
     const home = path.join(parent, "home"); const workspace = path.join(parent, "workspace")

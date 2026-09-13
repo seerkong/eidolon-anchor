@@ -169,6 +169,34 @@ describe("native AI workflow tools", () => {
     })
   })
 
+  it("exposes one installed Kind contract through the actual model schema without copying standard definitions", async () => {
+    const context = buildWorkflowNativeToolDefs().find(
+      (def) => def.schema.function.name === "WorkflowGetAuthoringContext",
+    )!
+    expect(context.schema.function.parameters).toMatchObject({
+      properties: {
+        kind: { type: "string", enum: expect.arrayContaining(["Prompt", "AICtrlWorkflow"]) },
+        spec_version: { type: "integer", minimum: 1 },
+      },
+    })
+    const output = JSON.parse(await context.run(makeRuntime() as any, {
+      stage: "definition",
+      kind: "Prompt",
+    }, {}))
+    expect(output).toMatchObject({
+      ok: true,
+      installedKindContract: {
+        kind: "Prompt",
+        source: { package: "ai-workflow-contract", version: "0.2.1" },
+        revision: { specVersion: 1, contractFingerprint: expect.stringMatching(/^sha256:/) },
+        kindDefinitionSource: expect.stringContaining("KindDefinition"),
+        effectDispatched: false,
+      },
+    })
+    expect(buildWorkflowNativeToolDefs().map((def) => def.schema.function.name))
+      .toContain("WorkflowQueryResourcePackagePublication")
+  })
+
   it("publishes disjoint default, existing, fresh ResourcePackage and legacy open-session parameter branches", () => {
     const open = buildWorkflowNativeToolDefs().find(
       (def) => def.schema.function.name === "WorkflowOpenAuthoringSession",
@@ -291,7 +319,7 @@ describe("native AI workflow tools", () => {
       (def) => def.schema.function.name === "WorkflowOpenAuthoringSession",
     )!
 
-    expect(deepSeek.chatCompletionsEffectBundle?.id).toBe("deepseek-official-chat")
+    expect(deepSeek.chatCompletionsEffectBundle?.id).toBe("deepseek-chat")
     expect(responses.chatCompletionsEffectBundle).toBeUndefined()
     expect(responses.normalizedChatCompletionsStreamBinding?.id).toBe("openai-responses-normalized")
 

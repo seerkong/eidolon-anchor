@@ -163,7 +163,8 @@ function errorWithCause(message: string, cause: unknown): Error {
 }
 
 export function resolveEidolonGlobalRoot(explicitRoot?: string): string {
-  return path.resolve(explicitRoot ?? process.env.EIDOLON_GLOBAL_DIR ?? path.join(homedir(), ".eidolon"));
+  return path.resolve(explicitRoot ?? process.env.EIDOLON_GLOBAL_DIR
+    ?? path.join(process.env.HOME || process.env.USERPROFILE || homedir(), ".eidolon"));
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

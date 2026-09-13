@@ -1,0 +1,35 @@
+<BehaviorPatch #track.complete-workflow-vfs-authoring-and-skill-driven-e2e.behavior_patch.eidolon-resource-native-app-registry apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-resource-native-app-registry" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-resource-native-app-registry/requirements/backend-independent-authoring-read-chain" } (
+      <Requirement #backend-independent-authoring-read-chain (
+        <Statement ?>资源读取与草稿编辑 SHALL 接受显式后端与材料闭包，并把权威发布作为独立能力；相同读取/草稿契约可由普通文件与 VFS 适配实现。</?>
+        <Suites [
+          <Suite #product-contract { name = "生产接口与行为契约" } (
+            <Cases [
+              <Case #file-vfs-conformance (
+                <Given ?>file 和 VFS 适配各提供共同读取与草稿能力</?>
+                <When ?>执行相同 stat/list/read、依赖读取及草稿变更测试</?>
+                <Then ?>内容、类型、identity、来源和声明的版本语义 SHALL 一致；缺少准入能力的后端明确拒绝，不伪造 CAS。</?>
+              )>
+              <Case #read-scope-write-scope (
+                <Given ?>有效视图合并 builtin、home 和 workspace</?>
+                <When ?>候选请求修改宿主未授予的路径</?>
+                <Then ?>宿主 MUST 拒绝，读取可见性不得转化成写权限，App 自报权限不得生效。</?>
+              )>
+              <Case #closed-loading-chain (
+                <Given ?>Skill 安装包与待编辑 VFS 使用不同来源和 root</?>
+                <When ?>registry、编译器或执行材料加载解析依赖</?>
+                <Then ?>系统 SHALL 使用所选来源及锁定闭包；受控物理缓存由闭包生成并校验，不访问隐含工作目录或反写 authority。</?>
+              )>
+              <Case #correct-runtime-owner (
+                <Given ?>调用方需要操作运行中 Eidolon 的资源</?>
+                <When ?>工具或未来独立 CLI 请求读取或发布</?>
+                <Then ?>操作 MUST 绑定正确 runtime/持久 authority，不能用另建 VFS 冒充当前状态；已有调用适配不得复制领域 Processor。</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

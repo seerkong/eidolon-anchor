@@ -1,0 +1,47 @@
+<BehaviorPatch #track.complete-workflow-vfs-authoring-and-skill-driven-e2e.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/effective-vfs-resource-package-authoring" } (
+      <Requirement #effective-vfs-resource-package-authoring (
+        <Statement ?>系统 SHALL 在正常 Effective VFS 装配中以统一整包能力完成可恢复草稿、完整候选验证、单次准入和权威回读，并保持 authoring/publication/execution 的独立授权。</?>
+        <Suites [
+          <Suite #product-contract { name = "生产接口与行为契约" } (
+            <Cases [
+              <Case #normal-composition (
+                <Given ?>正常 Terminal 已绑定 Effective VFS 且不存在 physical workspace layer</?>
+                <When ?>公开工具打开既有包或创建新包</?>
+                <Then ?>两条路径 MUST 创建绑定正确 base revision 与宿主可写范围的可恢复 session，不能要求虚构物理 layer。</?>
+              )>
+              <Case #atomic-file-set (
+                <Given ?>候选包含 manifest、XNL、代码的创建、修改、删除和移动</?>
+                <When ?>系统 prepare 并发布候选</?>
+                <Then ?>系统 SHALL 完整验证跨文件依赖并通过一次 CAS 准入；任一文件或依赖无效时 live 状态不变，未改文件字节保留。</?>
+              )>
+              <Case #proof-input-drift (
+                <Given ?>候选已 prepare</?>
+                <When ?>working revision、base revision、contract lock、来源或授权依据变化后提交旧 proof</?>
+                <Then ?>系统 MUST 拒绝失效候选并保留可修复草稿，不能复用旧校验结论。</?>
+              )>
+              <Case #recover-publication (
+                <Given ?>准入前后或投影期间发生失败、退出或返回超时</?>
+                <When ?>新进程查询或恢复同一 publication ID</?>
+                <Then ?>系统 SHALL 区分未提交、已提交待投影和已完成状态，查询实际回执并恢复，不重复准入或运行副作用。</?>
+              )>
+              <Case #single-file-delegation (
+                <Given ?>AgentDefinition 单文件编辑与 Workflow 整包编辑使用同一 authority</?>
+                <When ?>两个正式入口分别发布合法变更</?>
+                <Then ?>系统 SHALL 共享底层写入与回执语义，保持单文件外部行为兼容；发布本身不自动创建运行实例。</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/resource-package-authoring-publication/suites/whole-package-session/cases/explicit-package-input" } (
+      <Case #explicit-package-input (
+        <Given ?>调用方提供完整 ResourcePackage，系统标准 Kind 由可信安装契约提供，自定义 Kind 随包显式声明。</?>
+        <When ?>Eidolon 打开 resource-package authoring。</?>
+        <Then ?>Halfcode SHALL 以锁定的标准 Kind 输入与包内自定义定义解析候选；生产代码 MUST NOT 猜造通用 KindDefinition，也不要求每个包重复复制标准系统 Kind。</?>
+      )>
+    )>
+  ]>
+)>

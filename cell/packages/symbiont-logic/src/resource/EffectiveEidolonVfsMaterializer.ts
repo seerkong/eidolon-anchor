@@ -17,6 +17,7 @@ import {
   type EidolonVfsOverlayKind,
   type EidolonVfsPublicationAssociation,
   type EidolonVfsPublicationRecord,
+  type EidolonVfsWorkspaceByteWrite,
   type EidolonVfsWorkspaceWrite,
   type EidolonVfsReadPort,
   type LegacyResourceVfsProjection,
@@ -204,9 +205,15 @@ const PHYSICAL_OVERLAY_EXCLUDED_ROOTS = new Set([
   // configuration/resource overlay is being projected.
   "projects",
   "sessions",
+  // Workflow drafts, receipts, frozen instances and legacy bundles have their
+  // own explicit store. Writing a draft must not change its resource CAS base.
+  "workflows",
   // Legacy resource surfaces owned by their existing loaders.
   "commands",
   "skills",
+  // Builtin trusted contract authorities are immutable input to resource
+  // admission.  Workspace/home overlays must never replace their bytes.
+  "contracts",
 ])
 
 function isExcludedPhysicalOverlayEntry(relativeDirectory: string, name: string): boolean {
@@ -587,7 +594,7 @@ export class EffectiveEidolonVfsMaterializer {
     return Object.freeze({ status: "prepared" as const, plan, candidate })
   }
 
-  async admit(candidate: EffectiveEidolonVfsCandidate, association?: EidolonVfsPublicationAssociation, workspaceWrite?: EidolonVfsWorkspaceWrite): Promise<EffectiveEidolonVfsMaterializationResult> {
+  async admit(candidate: EffectiveEidolonVfsCandidate, association?: EidolonVfsPublicationAssociation, workspaceWrite?: EidolonVfsWorkspaceWrite, workspaceWrites?: readonly EidolonVfsWorkspaceByteWrite[]): Promise<EffectiveEidolonVfsMaterializationResult> {
     const prepared = this.#preparedCandidates.get(candidate)
     if (!prepared) {
       return this.#rejected(candidate.plan, [{
@@ -610,8 +617,9 @@ export class EffectiveEidolonVfsMaterializer {
     // diff may validly preserve an old root identity when an overlay replaces a
     // whole document, so materialization deliberately persists exact content.
     const mutations = exactPersistenceMutations(authorityBase.snapshot, overlayPlan.candidate)
-    if (workspaceWrite && !this.#publicationAuthority) throw new Error("EIDOLON_VFS_DURABLE_WORKSPACE_AUTHORITY_REQUIRED")
-    const publicationContext = { plan, validators: evidence, ...(association ? { association } : {}), ...(workspaceWrite ? { workspaceWrite } : {}) }
+    if (workspaceWrite && workspaceWrites) throw new Error("EIDOLON_VFS_WORKSPACE_WRITE_FORM_CONFLICT")
+    if ((workspaceWrite || workspaceWrites) && !this.#publicationAuthority) throw new Error("EIDOLON_VFS_DURABLE_WORKSPACE_AUTHORITY_REQUIRED")
+    const publicationContext = { plan, validators: evidence, ...(association ? { association } : {}), ...(workspaceWrite ? { workspaceWrite } : {}), ...(workspaceWrites ? { workspaceWrites } : {}) }
     const publicationKey = eidolonVfsPublicationKey(publicationContext)
     const publish = await publishRevisionedVfsOverlayPlan(this.#publicationAuthority?.scopePublication(publicationContext) ?? this.#authority, {
       base: authorityBase,

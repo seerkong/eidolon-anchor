@@ -6,6 +6,7 @@ import type { DataElementNode } from "xnl-core"
 import { serializeVfsSnapshotToString } from "xnl-vfs"
 import {
   DEPA_AI_RESOURCE_ENVELOPE_VERSION,
+  DEPA_AI_RESOURCE_KIND_CONTRACTS,
   DEPA_AI_RESOURCE_SPEC_VERSION,
   depaAIResourceKindContract,
   type DepaAIResourceKind,
@@ -33,6 +34,7 @@ export { BUILTIN_EIDOLON_AGENT_REF, BUILTIN_EIDOLON_SNAPSHOT_FILE_NAME }
 const packageRoot = path.resolve(import.meta.dir, "..")
 const authoringRoot = path.join(packageRoot, "resources", "builtin-eidolon")
 const resourceRoot = path.join(authoringRoot, ".eidolon", "resources")
+const contractRoot = path.join(authoringRoot, ".eidolon", "contracts", "ai-workflow")
 const snapshotPath = path.join(packageRoot, "src", "builtin-vfs", BUILTIN_EIDOLON_SNAPSHOT_FILE_NAME)
 const check = process.argv.includes("--check")
 
@@ -88,7 +90,7 @@ export function builtinEidolonResourceFiles(): Readonly<Record<string, string>> 
     .map((name) => `    <ToolRef #${name} { kind = "Tool" ref = "resource://${name}" }>`)
     .join("\n")
   const files: Record<string, string> = {
-    "manifest.xnl": `<ResourcePackage #eidolon.coding.package envelopeVersion="${DEPA_AI_RESOURCE_ENVELOPE_VERSION}" specVersion=${DEPA_AI_RESOURCE_SPEC_VERSION} { lifecycle = "Active" description = "Builtin mature Eidolon Coding Agent resources" } (\n  <Catalogs [\n    <Catalog #kind_definitions { kind = "KindDefinition" shape = "directory" root = "vfs://./KindDefinitions/" entry = "manifest.xnl" }>\n    <Catalog #agents { kind = "AIAgentDefinition" shape = "single-file" root = "vfs://./Agents/" }>\n    <Catalog #prompts { kind = "Prompt" shape = "single-file" root = "vfs://./Prompts/" }>\n    <Catalog #message_sources { kind = "AgentMessageSource" shape = "single-file" root = "vfs://./MessageSources/" }>\n    <Catalog #context_pipelines { kind = "AgentContextPipeline" shape = "single-file" root = "vfs://./ContextPipelines/" }>\n    <Catalog #tools { kind = "Tool" shape = "single-file" root = "vfs://./Tools/" }>\n  ]>\n)>\n`,
+    "manifest.xnl": `<ResourcePackage #eidolon.coding.package envelopeVersion="${DEPA_AI_RESOURCE_ENVELOPE_VERSION}" specVersion=${DEPA_AI_RESOURCE_SPEC_VERSION} { lifecycle = "Active" packageVersion = "1.0.0" description = "Builtin mature Eidolon Coding Agent resources" } (\n  <Catalogs [\n    <Catalog #kind_definitions { kind = "KindDefinition" shape = "directory" root = "vfs://./KindDefinitions/" entry = "manifest.xnl" }>\n    <Catalog #agents { kind = "AIAgentDefinition" shape = "single-file" root = "vfs://./Agents/" }>\n    <Catalog #prompts { kind = "Prompt" shape = "single-file" root = "vfs://./Prompts/" }>\n    <Catalog #message_sources { kind = "AgentMessageSource" shape = "single-file" root = "vfs://./MessageSources/" }>\n    <Catalog #context_pipelines { kind = "AgentContextPipeline" shape = "single-file" root = "vfs://./ContextPipelines/" }>\n    <Catalog #tools { kind = "Tool" shape = "single-file" root = "vfs://./Tools/" }>\n  ]>\n)>\n`,
     "Agents/CodeAgent.xnl": `<AIAgentDefinition #eidolon.coding.CodeAgent envelopeVersion="${DEPA_AI_RESOURCE_ENVELOPE_VERSION}" specVersion=${DEPA_AI_RESOURCE_SPEC_VERSION} { lifecycle = "Active" description = "Mature reusable Eidolon coding agent" } (\n  <MessagePrefix [\n    <Message #kernel { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.coding.KernelPrompt" }>\n    <Message #coding { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.coding.CodingPrompt" }>\n    <MessageSource #workspace { kind = "AgentMessageSource" ref = "resource://eidolon.coding.WorkspaceAgents" }>\n  ]>\n  <ContextPipeline { kind = "AgentContextPipeline" ref = "resource://eidolon.coding.StandardContext" }>\n  <ToolRefs [\n${toolRefs}\n  ]>\n  <MaterialPortRefs []>\n)>\n`,
     "Prompts/KernelPrompt.xnl": promptResource(
       "eidolon.coding.KernelPrompt",
@@ -112,6 +114,25 @@ export function builtinEidolonResourceFiles(): Readonly<Record<string, string>> 
     HOLON_TASK_RUNTIME_DEFINITION_KIND_DEFINITION_SOURCE
   for (const name of TOOL_NAMES) {
     files[`Tools/${name}.xnl`] = `<Tool #${name} envelopeVersion="${DEPA_AI_RESOURCE_ENVELOPE_VERSION}" specVersion=${DEPA_AI_RESOURCE_SPEC_VERSION} { lifecycle = "Stable" description = "Eidolon ${name} execution capability" }>\n`
+  }
+  return Object.freeze(Object.fromEntries(Object.entries(files).sort(([left], [right]) => left.localeCompare(right))))
+}
+
+/**
+ * An independently loadable KindDefinition-only package.  These bytes are
+ * host-owned builtin material, never copied into an author's ResourcePackage.
+ */
+export function builtinEidolonTrustedKindContractFiles(): Readonly<Record<string, string>> {
+  const files: Record<string, string> = {
+    "manifest.xnl": `<ResourcePackage #eidolon.contracts.ai_workflow envelopeVersion="${DEPA_AI_RESOURCE_ENVELOPE_VERSION}" specVersion=${DEPA_AI_RESOURCE_SPEC_VERSION} { lifecycle = "Stable" description = "Trusted ai-workflow KindDefinition authority" } (\n  <Catalogs [\n    <Catalog #kind_definitions { kind = "KindDefinition" shape = "directory" root = "vfs://./KindDefinitions/" entry = "manifest.xnl" }>\n  ]>\n)>\n`,
+  }
+  const latestByKind = new Map<string, (typeof DEPA_AI_RESOURCE_KIND_CONTRACTS)[number]>()
+  for (const contract of DEPA_AI_RESOURCE_KIND_CONTRACTS) {
+    const current = latestByKind.get(contract.kind)
+    if (!current || contract.revision.specVersion > current.revision.specVersion) latestByKind.set(contract.kind, contract)
+  }
+  for (const contract of [...latestByKind.values()].sort((left, right) => left.kind.localeCompare(right.kind))) {
+    files[`KindDefinitions/${contract.kind}/manifest.xnl`] = contract.kindDefinitionSource
   }
   return Object.freeze(Object.fromEntries(Object.entries(files).sort(([left], [right]) => left.localeCompare(right))))
 }
@@ -175,11 +196,16 @@ function vfsDirectory(name: string, logicalPath: string, directory: TreeDirector
   }
 }
 
-export function generateBuiltinEidolonVfsSnapshot(files = builtinEidolonResourceFiles()): string {
+export function generateBuiltinEidolonVfsSnapshot(
+  files = builtinEidolonResourceFiles(),
+  trustedKindContracts = builtinEidolonTrustedKindContractFiles(),
+): string {
   const resources = resourceTree(files)
+  const contracts = resourceTree(trustedKindContracts)
   const root: TreeDirectory = { kind: "directory", children: new Map([
     [".eidolon", { kind: "directory", children: new Map([
       ["resources", resources],
+      ["contracts", { kind: "directory", children: new Map([["ai-workflow", contracts]]) }],
     ]) }],
   ]) }
   const snapshot = vfsDirectory("project", "vfs://", root)
@@ -221,6 +247,7 @@ async function assertOrWrite(filePath: string, expected: string): Promise<void> 
 
 async function main(): Promise<void> {
   const files = builtinEidolonResourceFiles()
+  const trustedKindContracts = builtinEidolonTrustedKindContractFiles()
   const expectedPaths = Object.keys(files).sort()
   const existingPaths = await listBuiltinResourceFiles(resourceRoot)
   const unexpected = existingPaths.filter((entry) => !Object.hasOwn(files, entry))
@@ -228,9 +255,16 @@ async function main(): Promise<void> {
   for (const relativePath of expectedPaths) {
     await assertOrWrite(path.join(resourceRoot, relativePath), files[relativePath]!)
   }
-  await assertOrWrite(snapshotPath, generateBuiltinEidolonVfsSnapshot(files))
+  const expectedContractPaths = Object.keys(trustedKindContracts).sort()
+  const existingContractPaths = await listBuiltinResourceFiles(contractRoot)
+  const unexpectedContracts = existingContractPaths.filter((entry) => !Object.hasOwn(trustedKindContracts, entry))
+  if (unexpectedContracts.length > 0) throw new TypeError(`Unexpected Builtin contract file(s): ${unexpectedContracts.join(", ")}`)
+  for (const relativePath of expectedContractPaths) {
+    await assertOrWrite(path.join(contractRoot, relativePath), trustedKindContracts[relativePath]!)
+  }
+  await assertOrWrite(snapshotPath, generateBuiltinEidolonVfsSnapshot(files, trustedKindContracts))
   const status = check ? "verified" : "generated"
-  process.stdout.write(`${status} ${expectedPaths.length} resources and ${path.relative(packageRoot, snapshotPath)}\n`)
+  process.stdout.write(`${status} ${expectedPaths.length} resources, ${expectedContractPaths.length} trusted contract files and ${path.relative(packageRoot, snapshotPath)}\n`)
 }
 
 if (import.meta.main) await main()

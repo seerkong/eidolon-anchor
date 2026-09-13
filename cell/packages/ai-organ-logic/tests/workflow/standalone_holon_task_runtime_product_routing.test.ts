@@ -135,8 +135,17 @@ describe("standalone Holon task product routing", () => {
       registryRef: "resource://registries/file-admitted-public-routing",
     })
     const candidate = admission("holon-file-team", "member-file-worker")
+    const submitted: any[] = []
     registerHolonTaskRuntimeCapabilityBinding(local.vm, mounted.scope, {
-      admission: candidate, route: route(candidate),
+      admission: candidate, route: (() => {
+        const actual = route(candidate)
+        const submit = actual.taskSpace.submit
+        actual.taskSpace.submit = async (input) => {
+          submitted.push(input.invocation)
+          return submit(input)
+        }
+        return actual
+      })(),
       processorConfig: { leaseDurationMs: 30_000, maxSteps: 64 },
     })
     expect(getOrganizationManager().listHolons(local.vm)).toEqual([])
@@ -145,14 +154,21 @@ describe("standalone Holon task product routing", () => {
       [buildMemberAssignToolDef(), "member-file-worker"],
     ] as const).entries()) {
       const result = JSON.parse(await (tool as any).run({ ...local, toolCallId: `file-admission-${index}` }, {
-        // A word boundary at the title limit must not make the canonical name
-        // invalid; the full content remains the actual task input.
-        target, mode: "final", content: `${"x".repeat(119)} use the installed system Skills`,
+        // Multiline/un-normalized bodies must still derive a canonical label;
+        // no title cleanup may change the full task input.
+        target, mode: "final", content: `任务 cafe\u0301\n\t读取 Skill\u0000\u007f\n${"x".repeat(119)} use the installed system Skills`,
       }, {}))
       expect(result.ok).toBe(true)
       expect(result.admission_id).toBe(candidate.admissionId)
       expect(result.terminal_status).toBe("Succeeded")
       expect(result.service_runtime_ref).toBe(mounted.serviceRuntimeRef)
+    }
+    expect(submitted).toHaveLength(2)
+    for (const request of submitted) {
+      expect(request.taskRequest.name).toBe(request.taskRequest.name.normalize("NFC"))
+      expect(request.taskRequest.name).not.toMatch(/[\u0000-\u001f\u007f]/)
+      expect(request.taskRequest.name.length).toBeLessThanOrEqual(120)
+      expect(request.input.content).toBe(`任务 cafe\u0301\n\t读取 Skill\u0000\u007f\n${"x".repeat(119)} use the installed system Skills`)
     }
     expect(getOrganizationManager().listHolons(local.vm)).toEqual([])
   })

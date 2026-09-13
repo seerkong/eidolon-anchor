@@ -18,6 +18,7 @@ export const WORKFLOW_LIFECYCLE_DEFINITION_TOOL_NAMES = [
   "WorkflowPreparePublication",
   "WorkflowCompleteAuthoring",
   "WorkflowPublishAuthoringSession",
+  "WorkflowQueryResourcePackagePublication",
   "WorkflowListAuthoringSessions",
   "WorkflowGetAuthoringSummary",
   "WorkflowWorkspace",

@@ -13,6 +13,7 @@ import { EidolonWorkflowEffectProvider } from "../../src/workflow/effects/Eidolo
 import { WorkflowFactStore } from "../../src/workflow/runtime/WorkflowFactStore"
 import { readWorkflowPublicRuntimeEvidence } from "../../src/workflow/runtime/WorkflowPublicRuntimeEvidence"
 import { resolveProviderCacheActorClass } from "../../src/llm/ProviderCacheActorAttribution"
+import { validateAgentExecutionInput } from "../../src/agent/AgentExecutionContract"
 
 const ACTIVE_RUN = {
   workflow: { ref: "resource://demo.workflow.Active", scheme: "resource" as const },
@@ -21,6 +22,29 @@ const ACTIVE_RUN = {
 }
 
 describe("Eidolon workflow effect provider contract", () => {
+  it("retains the exact input-schema rejection before any Agent execution fact is admitted", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "eidolon-agent-preparation-diagnostic-"))
+    try {
+      const facts = new WorkflowFactStore(root)
+      const provider = new EidolonWorkflowEffectProvider({ vm: {}, actor: {} } as any, {} as any,
+        facts, undefined, () => ACTIVE_RUN, {
+          workflowForm: "AICtrlWorkflow",
+          resourceRegistry: { async prepareWorkflowAgentExecution(_task: unknown, { payload }: { payload: unknown }) {
+            validateAgentExecutionInput({
+              input: { payload, materials: [] },
+              inputSchema: { type: "object", properties: { totalCents: { type: "number" } }, additionalProperties: false },
+            } as any)
+            throw new Error("Invalid input unexpectedly admitted")
+          } } as any,
+        })
+      await expect(provider.invoke({ run: ACTIVE_RUN, effectId: "invalid-schema", operation: "ai.agent",
+        nodeId: "review-order", input: { agentDefinitionRef: "resource://eidolon.fixture.Reviewer",
+          payload: { totalCents: 950, shippingCents: 100 } },
+      } as any)).rejects.toThrow("AGENT_EXECUTION_SCHEMA_MISMATCH")
+      expect(await facts.loadAgentExecutionFact("active-run", 3, "invalid-schema")).toBeUndefined()
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+
   it("publishes concurrent same-key Agent facts exclusively", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "eidolon-workflow-agent-exclusive-"))
     try {

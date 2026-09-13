@@ -3,6 +3,7 @@ import os from "node:os"
 import path from "node:path"
 
 import { afterEach, describe, expect, it } from "bun:test"
+import { depaAIResourceKindContract } from "ai-workflow-contract"
 
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
 import { assembleAiCodingRuntimeProfile } from "@cell/mod-profiles"
@@ -67,7 +68,7 @@ function makeTempHomeDir(): string {
 function writeStandaloneAgentResourcePackage(workdir: string): void {
   const root = path.join(workdir, ".eidolon", "resources")
   const files: Record<string, string> = {
-    "manifest.xnl": `<ResourcePackage #eidolon.terminal.fixture.package apiVersion="halfcode.resources/v1" version="1.0.0" {
+    "manifest.xnl": `<ResourcePackage #eidolon.terminal.fixture.package envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Active"
   description = "Terminal resource Agent fixture"
 } (
@@ -78,38 +79,25 @@ function writeStandaloneAgentResourcePackage(workdir: string): void {
   ]>
 )>
 `,
-    "KindDefinitions/AIAgentDefinition/manifest.xnl": `<KindDefinition #eidolon.terminal.fixture.kind.AIAgentDefinition apiVersion="halfcode.resources/v1" version="1.0.0" {
-  lifecycle = "Stable"
-  resourceKind = "AIAgentDefinition"
-  sourceShapes = ["single-file"]
-  currentApiVersion = "depa.flows/v1"
-  supportedApiVersions = ["depa.flows/v1"]
-}>
-`,
-    "KindDefinitions/Prompt/manifest.xnl": `<KindDefinition #eidolon.terminal.fixture.kind.Prompt apiVersion="halfcode.resources/v1" version="1.0.0" {
-  lifecycle = "Stable"
-  resourceKind = "Prompt"
-  sourceShapes = ["single-file"]
-  currentApiVersion = "depa.flows/v1"
-  supportedApiVersions = ["depa.flows/v1"]
-}>
-`,
-    "Agents/Terminal.xnl": `<AIAgentDefinition #eidolon.terminal.fixture.Agent apiVersion="depa.flows/v1" version="1.0.0" {
+    // Exact installed definitions are allowed as legacy local copies.  The
+    // fixture must not invent the removed halfcode.resources/v1 authority.
+    "KindDefinitions/AIAgentDefinition/manifest.xnl": depaAIResourceKindContract("AIAgentDefinition").kindDefinitionSource,
+    "KindDefinitions/Prompt/manifest.xnl": depaAIResourceKindContract("Prompt").kindDefinitionSource,
+    "Agents/Terminal.xnl": `<AIAgentDefinition #eidolon.terminal.fixture.Agent envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Active"
   description = "Terminal resource Agent"
 } (
-  <Messages [
+  <MessagePrefix [
     <Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.terminal.fixture.Prompt" }>
   ]>
   <ToolRefs []>
   <MaterialPortRefs []>
 )>
 `,
-    "Prompts/Terminal.xnl": `<Prompt #eidolon.terminal.fixture.Prompt apiVersion="depa.flows/v1" version="1.0.0" {
+    "Prompts/Terminal.xnl": `<Prompt #eidolon.terminal.fixture.Prompt envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
   lifecycle = "Active"
-} (
-  <Content ?>Use the exact Terminal resource context.</?>
-)>
+  template = "Use the exact Terminal resource context."
+}>
 `,
   }
   for (const [relativePath, content] of Object.entries(files)) {

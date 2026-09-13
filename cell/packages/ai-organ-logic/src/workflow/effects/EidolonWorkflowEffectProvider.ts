@@ -24,6 +24,7 @@ import {
   spawnChildExecutionActor,
   type AddressedChildExecutionReference,
 } from "../../agent/DelegateActor"
+import { resolveWorkflowLifecycleNodeChildToolset } from "../runtime/WorkflowLifecycleActorCapsule"
 import { materializeConversationHistoryMessagesFromVm } from "../../conversation/ConversationDomainRuntime"
 import { getActorWorkContext } from "../../runtime/ContextControlPlane"
 import { hashWorkflowSources, type WorkflowAuthoringStore } from "../authoring"
@@ -618,6 +619,7 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
         resolvedConfig: prepared.plan.agentConfig,
         origin,
         toolCallId: request.effectId,
+        buildToolset: resolveWorkflowLifecycleNodeChildToolset(this.runtime.actor),
         validateActor: assertWorkflowNodeActorIsolation,
         onActorAdmitted: (reference) => {
           this.recordNodeEvidence({
@@ -658,6 +660,7 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
       origin,
       mode: "sync_wait",
       toolCallId: request.effectId,
+      buildToolset: resolveWorkflowLifecycleNodeChildToolset(this.runtime.actor),
       validateBeforeRegistration: assertWorkflowNodeActorIsolation,
       onActorCreated: (actor) => {
         childActor = actor
@@ -704,8 +707,9 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
       const diagnostics = Array.isArray((error as { diagnostics?: unknown }).diagnostics)
         ? (error as { diagnostics: readonly unknown[] }).diagnostics
         : []
+      const reason = error instanceof Error ? error.message.slice(0, 2048) : "Unknown Agent preparation failure"
       throw new Error(
-        `WORKFLOW_RESOURCE_AGENT_PREPARATION_FAILED: task=${JSON.stringify(task)} diagnostics=${JSON.stringify(diagnostics)}`,
+        `WORKFLOW_RESOURCE_AGENT_PREPARATION_FAILED: task=${JSON.stringify(task)} reason=${reason} diagnostics=${JSON.stringify(diagnostics)}`,
         { cause: error },
       )
     }

@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { QuestionnaireRequestPayload } from "@cell/ai-core-contract/runtime/Questionnaire";
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry";
 import { upsertPendingQuestionnaireRow } from "@cell/ai-core-logic";
@@ -15,6 +16,7 @@ import {
   type LocalPermissionDecision,
   type WorkspaceAccessApprovalGrant,
   evaluateLocalToolPermission,
+  isProtectedPermissionConfigPath,
 } from "./LocalPermissionEvaluator";
 
 export const LOCAL_PERMISSION_QUESTIONNAIRE_PENDING_OUTPUT = "LOCAL_PERMISSION_QUESTIONNAIRE_PENDING";
@@ -91,13 +93,21 @@ function resolveExecProtocolPermissionMode(runtime: any): ExecProtocolPermission
   return "interactive";
 }
 
+/**
+ * Modes that trust the model to act without approval prompts. `dangerous`
+ * (`--yolo`) and `full-auto` are unified, so this is true for both; only the
+ * prompting modes (`interactive`/`default`) are excluded.
+ */
 export function isDangerousExecProtocolMode(runtime: any): boolean {
-  return resolveExecProtocolPermissionMode(runtime) === "dangerous";
+  const mode = resolveExecProtocolPermissionMode(runtime);
+  return mode === "dangerous" || mode === "full-auto";
 }
 
 const TOOL_GUARDED_BASH_FRAGMENTS = ["rm -rf /", "sudo", "shutdown", "reboot", "> /dev/"];
 
 export function isToolGuardedBashCommand(runtime: any, command: string): boolean {
+  // `sudo` is withheld only in the modes that still prompt for approval; both
+  // trusted modes (dangerous and full-auto) share one behaviour here too.
   return TOOL_GUARDED_BASH_FRAGMENTS
     .filter((fragment) => fragment !== "sudo" || !isDangerousExecProtocolMode(runtime))
     .some((fragment) => command.includes(fragment));
@@ -132,34 +142,25 @@ export function authorizeLocalToolCall(runtime: any, toolName: string, payload: 
     if (decision.action === "allow") {
       return { ok: true };
     }
-    if (
-      execProtocolMode === "dangerous" &&
-      decision.reasonCode !== "protected_permission_config" &&
-      decision.reasonCode !== "workspace_scope_violation"
-    ) {
-      // dangerous: full bypass (except protected permission config / workspace scope).
-      return { ok: true };
-    }
-    if (
-      execProtocolMode === "full-auto" &&
-      decision.reasonCode !== "protected_permission_config" &&
-      decision.reasonCode !== "workspace_scope_violation" &&
-      decision.approvalGrant?.kind !== "workspace_access_grant"
-    ) {
-      // full-auto: workspace-bounded automatic execution — default-deny when no
-      // explicit rule matches is treated as allowed inside the workspace, unless
-      // it hits a protected config path, leaves the workspace scope, or requires
-      // an external workspace-access grant.
-      return { ok: true };
+    // `dangerous` (`--yolo`) and `full-auto` share one behaviour: the model is
+    // trusted to act, so a normal deny or an unmatched rule is not a boundary.
+    // The single remaining boundary is the write-protected local permission
+    // config list (`permissions.json`, `workspace-access.json`), which is
+    // withheld because writing it is how the agent would author its own
+    // authority. Every other path is allowed in both modes.
+    if (execProtocolMode === "dangerous" || execProtocolMode === "full-auto") {
+      const resolvedDecisionPath =
+        typeof decision.resolvedPath === "string" ? path.resolve(decision.resolvedPath) : undefined;
+      const writesProtectedConfig =
+        decision.permissionName !== "read" &&
+        typeof resolvedDecisionPath === "string" &&
+        isProtectedPermissionConfigPath(resolvedDecisionPath, resolveLocalPermissionAuthorityRootFromRuntime(runtime));
+      if (!writesProtectedConfig) {
+        return { ok: true };
+      }
     }
     if (decision.action === "deny") {
       return { ok: false, output: `Error: ${decision.message || "local permission denied"}` };
-    }
-    if (execProtocolMode === "full-auto") {
-      if (decision.approvalGrant?.kind === "workspace_access_grant") {
-        return { ok: false, output: "Error: workspace access grant required" };
-      }
-      return { ok: true };
     }
     if (execProtocolMode === "default") {
       return {

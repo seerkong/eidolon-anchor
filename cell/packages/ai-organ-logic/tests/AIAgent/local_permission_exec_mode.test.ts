@@ -98,7 +98,7 @@ describe("local permission exec modes", () => {
     }
   });
 
-  test("full-auto auto-approves local ask but still blocks workspace grant requests", () => {
+  test("full-auto auto-approves local ask and external reads under the unified mode behaviour", () => {
     const { workDir, authorityRoot, externalFile } = buildPermissionSandbox();
 
     const localAsk = authorizeLocalToolCall(
@@ -108,15 +108,14 @@ describe("local permission exec modes", () => {
     );
     expect(localAsk).toEqual({ ok: true });
 
-    const externalGrant = authorizeLocalToolCall(
+    // full-auto and dangerous now share one behaviour: leaving the workspace is
+    // not itself a boundary. Only writing the protected permission config is.
+    const externalRead = authorizeLocalToolCall(
       buildRuntime({ workDir, authorityRoot, mode: "full-auto" }),
       "read",
       { filePath: externalFile, scopeIntent: "external" },
     );
-    expect(externalGrant.ok).toBe(false);
-    if (!externalGrant.ok) {
-      expect(externalGrant.output).toContain("workspace access grant required");
-    }
+    expect(externalRead).toEqual({ ok: true });
   });
 
   test("unsupported bash syntax follows approval semantics instead of surfacing parser errors", () => {
@@ -200,7 +199,7 @@ describe("local permission exec modes", () => {
     expect(result).toEqual({ ok: true });
   });
 
-  test("dangerous mode cannot reinterpret a workspace-scoped parent path as external", () => {
+  test("dangerous mode may read a workspace-scoped parent path under the unified behaviour", () => {
     const { workDir, authorityRoot } = buildPermissionSandbox();
     const result = authorizeLocalToolCall(
       buildRuntime({ workDir, authorityRoot, mode: "dangerous" }),
@@ -208,7 +207,93 @@ describe("local permission exec modes", () => {
       { path: path.dirname(workDir) },
     );
 
+    // The unified mode behaviour does not treat leaving the workspace as a
+    // boundary; only writing the protected permission config is withheld.
+    expect(result).toEqual({ ok: true });
+  });
+});
+
+describe("unified dangerous and full-auto behaviour", () => {
+  test("dangerous mode reads files under the authority root", () => {
+    const { workDir, authorityRoot } = buildPermissionSandbox();
+    fs.mkdirSync(path.join(authorityRoot, "skills", "depa-codument"), { recursive: true });
+    const skillFile = path.join(authorityRoot, "skills", "depa-codument", "SKILL.md");
+    fs.writeFileSync(skillFile, "# skill");
+
+    // The agent must be able to consume its own installed skills instead of
+    // failing closed on a path that only leaves the business workspace.
+    const result = authorizeLocalToolCall(
+      buildRuntime({ workDir, authorityRoot, mode: "dangerous" }),
+      "read",
+      { filePath: skillFile },
+    );
+
+    expect(result).toEqual({ ok: true });
+  });
+
+  test("dangerous mode may read outside the authority root", () => {
+    const { workDir, authorityRoot, externalFile } = buildPermissionSandbox();
+
+    // Under the unified mode behaviour, only the protected write list is a
+    // boundary; a read outside the authority root is allowed.
+    const result = authorizeLocalToolCall(
+      buildRuntime({ workDir, authorityRoot, mode: "dangerous" }),
+      "read",
+      { filePath: externalFile },
+    );
+
+    expect(result).toEqual({ ok: true });
+  });
+
+  test("dangerous mode still protects the permission config from writes", () => {
+    const { workDir, authorityRoot } = buildPermissionSandbox();
+    const permissionFile = path.join(authorityRoot, "permissions.json");
+
+    // The permission config is the one write path that must stay protected
+    // even under --yolo (covered jointly for both modes below).
+    const result = authorizeLocalToolCall(
+      buildRuntime({ workDir, authorityRoot, mode: "dangerous" }),
+      "write",
+      { filePath: permissionFile, content: "{}" },
+    );
+
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.output).toContain("workspace_scope_violation");
+  });
+
+  test("full-auto also reads the authority root under the unified behaviour", () => {
+    const { workDir, authorityRoot } = buildPermissionSandbox();
+    fs.mkdirSync(path.join(authorityRoot, "skills"), { recursive: true });
+    const skillFile = path.join(authorityRoot, "skills", "SKILL.md");
+    fs.writeFileSync(skillFile, "# skill");
+
+    // The two modes are unified, so full-auto gains the same authority-root
+    // read access that dangerous has.
+    const result = authorizeLocalToolCall(
+      buildRuntime({ workDir, authorityRoot, mode: "full-auto" }),
+      "read",
+      { filePath: skillFile },
+    );
+
+    expect(result).toEqual({ ok: true });
+  });
+
+  test("both modes still refuse writing the protected permission config", () => {
+    const { workDir, authorityRoot } = buildPermissionSandbox();
+    const permissionFile = path.join(authorityRoot, "permissions.json");
+    const workspaceAccessFile = path.join(authorityRoot, "workspace-access.json");
+
+    for (const mode of ["dangerous", "full-auto"] as const) {
+      for (const target of [permissionFile, workspaceAccessFile]) {
+        const result = authorizeLocalToolCall(
+          buildRuntime({ workDir, authorityRoot, mode }),
+          "write",
+          { filePath: target, content: "{}" },
+        );
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.output).toContain("Protected local permission config path");
+        }
+      }
+    }
   });
 });

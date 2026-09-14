@@ -425,7 +425,12 @@ export function buildExecRuntimeMetadata(options: ExecRuntimeMetadataOptions): R
 
   metadata.sandbox_permissions = {
     ...sandboxPermissions,
-    sandbox_mode: options.approvalMode === "dangerous" ? "danger-full-access" : "workspace-write",
+    // `dangerous` and `full-auto` are unified trusted modes, so both run with
+    // full filesystem access; only the prompting modes stay workspace-write.
+    sandbox_mode:
+      options.approvalMode === "dangerous" || options.approvalMode === "full-auto"
+        ? "danger-full-access"
+        : "workspace-write",
     network_access: "enabled",
     approval_policy: "never",
   }

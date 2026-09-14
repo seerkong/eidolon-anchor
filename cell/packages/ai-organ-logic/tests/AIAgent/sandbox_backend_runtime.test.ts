@@ -605,7 +605,7 @@ describe("sandbox backend runtime", () => {
     expect(calls[0]?.executable).toBe("/usr/bin/sandbox-exec");
   });
 
-  it("removes only sudo from the Bash tool guard in yolo mode", async () => {
+  it("removes only sudo from the Bash tool guard in trusted modes", async () => {
     const calls: Array<{ executable: string; args: string[]; options: any }> = [];
     const spawnSyncFn = (executable: string, args: string[] | undefined, options: any) => {
       calls.push({ executable, args: args ?? [], options });
@@ -617,6 +617,7 @@ describe("sandbox backend runtime", () => {
     });
     expect(isToolGuardedBashCommand(yoloRuntime, "sudo true")).toBeFalse();
     expect(isToolGuardedBashCommand(yoloRuntime, "rm -rf /")).toBeTrue();
+    // A metadata-less runtime still prompts for approval, so sudo stays guarded.
     expect(isToolGuardedBashCommand(runtimeWithMetadata({}), "sudo true")).toBeTrue();
 
     const sudoResult = await bashCoreLogic(yoloRuntime, { command: "sudo true" }, { spawnSyncFn });
@@ -627,16 +628,29 @@ describe("sandbox backend runtime", () => {
     expect(destructiveResult).toBe("Error: Dangerous command blocked");
     expect(calls).toHaveLength(1);
 
+    // full-auto and dangerous are unified trusted modes, so sudo is released in
+    // both; the other destructive fragments stay guarded.
     const standardResult = await bashCoreLogic(
       runtimeWithMetadata({
         exec_protocol: { mode: "full-auto" },
-        sandbox_permissions: { sandbox_mode: "workspace-write" },
+        sandbox_permissions: { sandbox_mode: "danger-full-access" },
       }),
       { command: "sudo true" },
       { spawnSyncFn },
     );
-    expect(standardResult).toBe("Error: Dangerous command blocked");
-    expect(calls).toHaveLength(1);
+    expect(standardResult).toMatchObject({ output: "sudo-ran", outcome: { status: "completed" } });
+    expect(calls).toHaveLength(2);
+
+    const fullAutoDestructive = await bashCoreLogic(
+      runtimeWithMetadata({
+        exec_protocol: { mode: "full-auto" },
+        sandbox_permissions: { sandbox_mode: "danger-full-access" },
+      }),
+      { command: "rm -rf /" },
+      { spawnSyncFn },
+    );
+    expect(fullAutoDestructive).toBe("Error: Dangerous command blocked");
+    expect(calls).toHaveLength(2);
   });
 
   it("Bash tool accepts timeoutSeconds and passes milliseconds to the sandbox backend", async () => {

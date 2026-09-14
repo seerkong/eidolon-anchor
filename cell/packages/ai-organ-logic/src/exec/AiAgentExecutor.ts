@@ -4401,12 +4401,20 @@ function providerContextRepositoryForActor(params: {
     : typeof metadata.sessionId === "string" && metadata.sessionId
       ? String(metadata.sessionId)
       : "__unsessioned__";
+  // The landing zone and the logical identity are separate facts. They coincide
+  // for a normal session (dir basename == session key) but diverge under
+  // `--ephemeral`, where the landing zone is a random mkdtemp directory. Passing
+  // the identity explicitly keeps the repository addressing the same
+  // conversation the runtime addresses.
+  const logicalSessionId = typeof metadata.sessionId === "string" && metadata.sessionId.trim()
+    ? String(metadata.sessionId).trim()
+    : undefined;
   return Object.freeze({
     sessionDir,
     repository: (
       params.vm.outerCtx?.conversationPersistenceRepositoryFactory
       ?? getVmFallbackConversationPersistenceFactory(params.vm)
-    ).createRepository(sessionDir),
+    ).createRepository(sessionDir, logicalSessionId),
   });
 }
 

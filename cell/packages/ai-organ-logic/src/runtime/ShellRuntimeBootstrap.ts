@@ -312,7 +312,9 @@ export async function recoverOrCreateShellRuntime(
     }
     driver = recovered.driver as ReturnType<typeof createAiAgentOrchestratorDriverWithCooperative>;
   } else {
-    const conversationRepository = conversationPersistenceRepositoryFactory?.createRepository(params.sessionDir);
+    // Pass the logical session key explicitly: the session directory is a landing
+    // zone and may not equal the conversation identity (see the factory contract).
+    const conversationRepository = conversationPersistenceRepositoryFactory?.createRepository(params.sessionDir, params.sessionKey);
     const persistedSessionIndex = conversationRepository
       ? await conversationRepository.loadSessionIndex()
       : null;

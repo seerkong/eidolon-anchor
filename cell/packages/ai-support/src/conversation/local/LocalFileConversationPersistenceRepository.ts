@@ -1138,15 +1138,29 @@ function promptGenerationAttributes(generation: ActorPromptGenerationData): Reco
 
 export class LocalFileConversationPersistenceRepository implements ConversationPersistenceRepository {
   readonly sessionDir: string;
+  /**
+   * Logical conversation identity. Distinct from `sessionDir` (the physical
+   * landing zone): under `--ephemeral` the landing zone is a random `mkdtemp`
+   * directory, so using it as identity would address a different conversation
+   * than the runtime does. Falls back to `sessionDir` only when the caller has
+   * no separate identity (e.g. reading an existing on-disk session).
+   */
+  private readonly logicalSessionId: string;
   private readonly knownHistoryRecordIdsByGeneration = new Map<string, Set<string>>();
   private knownPromptGenerationIds: Set<string> | null = null;
   private readonly options: LocalFileConversationPersistenceRepositoryOptions;
   private recoveringProviderContextTransition: Promise<void> | null = null;
   private recoveringConversationForkInitialization: Promise<void> | null = null;
 
-  constructor(sessionDir: string, options: LocalFileConversationPersistenceRepositoryOptions = {}) {
+  constructor(
+    sessionDir: string,
+    options: LocalFileConversationPersistenceRepositoryOptions = {},
+    sessionId?: string,
+  ) {
     this.sessionDir = sessionDir;
     this.options = options;
+    const explicit = typeof sessionId === "string" ? sessionId.trim() : "";
+    this.logicalSessionId = explicit || sessionDir;
   }
 
   async withConversationAuthorityLease<T>(action: () => Promise<T>): Promise<T> {
@@ -1524,7 +1538,7 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
     await this.recoverConversationForkInitialization();
     await this.recoverProviderContextTransitionGeneration();
     const paths = getLocalConversationPaths(this.sessionDir);
-    return await readJsonBestEffort(paths.historyIndexPath, createDefaultHistoryIndex(this.sessionDir));
+    return await readJsonBestEffort(paths.historyIndexPath, createDefaultHistoryIndex(this.logicalSessionId));
   }
 
   async writeHistoryIndex(index: ConversationHistoryIndexSnapshot): Promise<void> {
@@ -1621,7 +1635,7 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
     await this.recoverConversationForkInitialization();
     await this.recoverProviderContextTransitionGeneration();
     const paths = getLocalConversationPaths(this.sessionDir);
-    return await readJsonBestEffort(paths.promptIndexPath, createDefaultPromptIndex(this.sessionDir));
+    return await readJsonBestEffort(paths.promptIndexPath, createDefaultPromptIndex(this.logicalSessionId));
   }
 
   async writePromptIndex(index: ConversationPromptIndexSnapshot): Promise<void> {
@@ -1681,7 +1695,7 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
     await this.recoverConversationForkInitialization();
     await this.recoverProviderContextTransitionGeneration();
     const paths = getLocalConversationPaths(this.sessionDir);
-    return await readJsonBestEffort(paths.sessionIndexPath, createDefaultSessionIndex(this.sessionDir));
+    return await readJsonBestEffort(paths.sessionIndexPath, createDefaultSessionIndex(this.logicalSessionId));
   }
 
   async writeSessionIndex(index: ConversationSessionIndexSnapshot): Promise<void> {
@@ -1695,7 +1709,7 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
     await this.recoverConversationForkInitialization();
     await this.recoverProviderContextTransitionGeneration();
     const paths = getLocalConversationPaths(this.sessionDir);
-    return await readJsonBestEffort(paths.artifactRefsPath, createDefaultArtifactRefs(this.sessionDir));
+    return await readJsonBestEffort(paths.artifactRefsPath, createDefaultArtifactRefs(this.logicalSessionId));
   }
 
   async writeArtifactRefs(snapshot: ConversationArtifactRefsSnapshot): Promise<void> {
@@ -1860,7 +1874,7 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
         const sessionRead = await readJsonExact<ConversationSessionIndexSnapshot>(
           getLocalConversationPaths(this.sessionDir).sessionIndexPath,
         ).then((sessionIndex) => ({ sessionIndex, exists: true })).catch((error) => {
-          if (error?.code === "ENOENT") return { sessionIndex: createDefaultSessionIndex(this.sessionDir), exists: false };
+          if (error?.code === "ENOENT") return { sessionIndex: createDefaultSessionIndex(this.logicalSessionId), exists: false };
           throw error;
         });
         const head = await readJsonExact<ConversationProviderContextTransitionHead>(paths.head).catch((error) => {
@@ -1927,7 +1941,7 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
 }
 
 export const LocalFileConversationPersistenceRepositoryFactory: ConversationPersistenceRepositoryFactory = {
-  createRepository(sessionDir: string) {
-    return new LocalFileConversationPersistenceRepository(sessionDir);
+  createRepository(sessionDir: string, sessionId?: string) {
+    return new LocalFileConversationPersistenceRepository(sessionDir, {}, sessionId);
   },
 };

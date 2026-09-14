@@ -188,6 +188,18 @@ export type ConversationProviderContextTransitionEvidence = Readonly<{
   }> | null;
 }>;
 
+/**
+ * `sessionDir` is the physical landing zone (where bytes are written); it is
+ * NOT the logical conversation identity. Under `--ephemeral` the landing zone is
+ * a random `mkdtemp` directory, so deriving the stored `sessionId` from it
+ * splits identity from the logical session key and makes the Conversation
+ * runtime and the persistence repository address different sessions.
+ *
+ * Callers that know the logical identity pass it as `sessionId`; the repository
+ * then records that value instead of the physical path. When omitted, the
+ * previous behaviour (derive from `sessionDir`) is preserved for callers with
+ * no separate identity, such as reading an existing on-disk session.
+ */
 export type ConversationPersistenceRepositoryFactory = {
-  createRepository: (sessionDir: string) => ConversationPersistenceRepository;
+  createRepository: (sessionDir: string, sessionId?: string) => ConversationPersistenceRepository;
 };

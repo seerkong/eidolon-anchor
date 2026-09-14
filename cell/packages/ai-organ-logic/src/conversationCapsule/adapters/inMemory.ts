@@ -206,10 +206,15 @@ function defaultArtifactRefs(sessionId: string): ConversationArtifactRefsSnapsho
 function createInMemoryConversationPersistenceRepository(
   sessionDir: string,
   store: InMemoryConversationStore,
+  sessionId?: string,
 ): ConversationPersistenceRepository {
+  // Identity and landing zone are separate facts; see the factory contract.
+  // The store stays keyed by sessionDir (the landing zone), while the recorded
+  // conversation identity is the explicit sessionId when one is supplied.
+  const logicalSessionId = typeof sessionId === "string" && sessionId.trim() ? sessionId.trim() : sessionDir;
   return {
     async loadHistoryIndex() {
-      return clone(store.historyIndex ?? defaultHistoryIndex(sessionDir));
+      return clone(store.historyIndex ?? defaultHistoryIndex(logicalSessionId));
     },
     async writeHistoryIndex(index) {
       store.historyIndex = clone(index);
@@ -226,7 +231,7 @@ function createInMemoryConversationPersistenceRepository(
     },
 
     async loadPromptIndex() {
-      return clone(store.promptIndex ?? defaultPromptIndex(sessionDir));
+      return clone(store.promptIndex ?? defaultPromptIndex(logicalSessionId));
     },
     async writePromptIndex(index) {
       store.promptIndex = clone(index);
@@ -243,14 +248,14 @@ function createInMemoryConversationPersistenceRepository(
     },
 
     async loadSessionIndex() {
-      return clone(store.sessionIndex ?? defaultSessionIndex(sessionDir));
+      return clone(store.sessionIndex ?? defaultSessionIndex(logicalSessionId));
     },
     async writeSessionIndex(index) {
       store.sessionIndex = clone(index);
     },
 
     async loadArtifactRefs() {
-      return clone(store.artifactRefs ?? defaultArtifactRefs(sessionDir));
+      return clone(store.artifactRefs ?? defaultArtifactRefs(logicalSessionId));
     },
     async writeArtifactRefs(snapshot) {
       store.artifactRefs = clone(snapshot);
@@ -309,7 +314,7 @@ function createInMemoryConversationPersistenceRepository(
       const head = store.providerContextTransitionHead;
       return verifyProviderContextTransitionEvidence(clone({
         sessionIndexExists: store.sessionIndex !== null,
-        sessionIndex: store.sessionIndex ?? defaultSessionIndex(sessionDir),
+        sessionIndex: store.sessionIndex ?? defaultSessionIndex(logicalSessionId),
         head,
         generation: head ? store.providerContextTransitionGenerations.get(head.transitionId) ?? null : null,
       }));
@@ -323,13 +328,13 @@ function createInMemoryConversationPersistenceRepository(
 export function createInMemoryConversationPersistenceAdapter(): ConversationPersistenceAdapter {
   const storesBySessionDir = new Map<string, InMemoryConversationStore>();
   return {
-    createRepository(sessionDir: string) {
+    createRepository(sessionDir: string, sessionId?: string) {
       let store = storesBySessionDir.get(sessionDir);
       if (!store) {
         store = createEmptyStore();
         storesBySessionDir.set(sessionDir, store);
       }
-      return createInMemoryConversationPersistenceRepository(sessionDir, store);
+      return createInMemoryConversationPersistenceRepository(sessionDir, store, sessionId);
     },
   };
 }

@@ -1,0 +1,132 @@
+<Mission #adopt-halfcode-cli-skill-app-runtime apiVersion="codument.tech/v1alpha1" version="1" {
+  status = "pending"
+  goal = "让 Eidolon 与 depa-codument 一样通过版本化 halfcode-cli-lite 公共包消费通用 Host，把变化快的 AI 确定性操作与文本协议拆为可动态发现/加载的 CLI Skill App；公共宿主获得与存储后端解耦的资源操作协议，Eidolon 保留 Effective VFS 准入、实例冻结与执行 owner，消除未发布跨仓源码候选依赖。"
+  description = "跨半仓演进：P0 能力清单与缺口取证，P1 Halfcode 公共资源后端协议与独立 consumer 验证，P2 Eidolon 三端口适配与标准分发，P3 Workflow 操作族首个 Skill App 切片，P4 真实 E2E 与收口。"
+  question_mode = "decision-tree"
+  question_severity = "auto"
+  revision = 1
+  created_at = "2026-09-13T09:46:13.601Z"
+  updated_at = "2026-09-13T09:46:13.601Z"
+} (
+  <Ports { scope = "mission" } [
+    <MaterialBundle { role = "state" name = "reports" domain = "mission" path = "vfs://./reports/" }>
+    <MaterialBundle { role = "analysis" name = "analysis" domain = "mission" path = "vfs://./analysis/" }>
+  ]>
+  <ProjectRefs [
+    <ProjectRef #host { kind = "host" }>
+    <ProjectRef #halfcode-cli { kind = "external" }>
+    <ProjectRef #xnl { kind = "external" }>
+    <ProjectRef #depa-codument { kind = "external" }>
+  ]>
+  <ActorSets { default = "default-control-loop" } [
+    <ActorSet #default-control-loop [
+      <Actor { role = "MissionPlanner" project_ref = "host" } (
+        <Description ?01M0ASAR000000000000000001>
+        依据 AT1 的三分归属（Halfcode 通用 / Eidolon 领域 / 双方契约）规划真实 Track：每个 Track 只改一个 owner 的权威面，跨仓契约先冻结再消费。优先能证明「同一 Processor 同时服务旧工具与 Skill App」的切片。
+        </?01M0ASAR000000000000000001>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "host" } (
+        <Description ?01M0ASAR000000000000000002>
+        在 #host 与 #halfcode-cli 两仓分别读取真实源码、包清单、public exports、测试、Skill 安装产物与既有 track/analysis 证据；核对包版本与 digest，区分「源码存在」与「已版本化发行并被独立消费」。
+        </?01M0ASAR000000000000000002>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "host" } (
+        <Description ?01M0ASAR000000000000000003>
+        比较期望的公共能力协议与实际 exports、Eidolon 实际装配与旧工具行为；判断某能力是缺失、重复 authority 还是被私有旁路替代。出现跨仓契约变更、需新增受保护面或真实 provider 花费时按 decision-tree 提决策，不自行放宽。
+        </?01M0ASAR000000000000000003>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "host" } (
+        <Description ?01M0ASAR000000000000000004>
+        创建并绑定 ready Track，先在 Halfcode 落地公共能力并用独立 consumer 证伪，再改 Eidolon 消费；每次改动跑定向回归与类型检查，真实 E2E 显式授权后执行。不把未发布候选、本地 pack 或源码路径当已发行事实。
+        </?01M0ASAR000000000000000004>
+      )>
+    ]>
+  ]>
+  <TaskSpace #space_adopt-halfcode-cli-skill-app-runtime { name = "adopt-halfcode-cli-skill-app-runtime" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #G1 { name = "能力清单与缺口取证" status = "NOT_STARTED" order = 0 } (
+        <SubNodes [
+          <Task #G1-T1 { name = "盘点 Eidolon AI 操作面与 Halfcode 公共能力面" status = "NOT_STARTED" order = 0 } (
+            <Description ?01M0ASAR000000000000000005>
+            在 #host 盘点全部 AI 工具、阶段策略、system skill 面、authoring/runtime 端口与私有分发生成器；在 #halfcode-cli 盘点 SkillApp/CommandOperation/HostBundle/LocalFunction 公开 Kind、HostCapabilityMap、ResourceEffect 与 WorkspacePort 的真实 exports。产出一张「可复用 / 领域 / 需新增公共」三分表，逐项注明证据路径。
+            </?01M0ASAR000000000000000005>
+          )>
+          <Task #G1-T2 { name = "固化 VFS 资源后端缺口与归属边界" status = "NOT_STARTED" order = 1 } (
+            <Description ?01M0ASAR000000000000000006>
+            以真实代码证明「动态加载的 Skill App 只能访问物理文件、无法触及 Effective VFS」这一断点，并明确资源读取/草稿编辑/发布准入三层各自的 owner：通用接口与协议归 #halfcode-cli，准入与冻结归 #host，结构原语归 #xnl。核对与既有 resource-ports.md 结论一致或说明差异。
+            </?01M0ASAR000000000000000006>
+          )>
+        ]>
+      )>
+      <TaskGroup #G2 { name = "Halfcode 公共资源后端协议" status = "NOT_STARTED" order = 1 } (
+        <SubNodes [
+          <Task #G2-T1 { name = "定义版本化资源后端与窄能力绑定契约" status = "NOT_STARTED" order = 0 } (
+            <Description ?01M0ASAR000000000000000007>
+            在 #halfcode-cli 公共包定义与存储后端解耦的资源操作协议：逻辑 URI 与稳定 identity 的读取、文件集草稿 mutation、整包 prepare/admit/CAS 与 publication receipt 查询；显式声明后端支持的能力集合，未提供的后端必须返回 capability unavailable，不得伪造 CAS。能力发现不得退化为 arbitrary invoke/eval 通道。
+            </?01M0ASAR000000000000000007>
+          )>
+          <Task #G2-T2 { name = "以独立第三方 consumer 证伪可复用性" status = "NOT_STARTED" order = 1 } (
+            <Description ?01M0ASAR000000000000000008>
+            在 monorepo 外构造一个非 Eidolon、非 Codument 的最小消费方，仅安装已打包的版本化公共制品，注册并使用新增的资源后端能力与一个 CommandOperation；验证不读取任一源码树、不依赖 workspace hoist。同时覆盖缺失能力、越界、旧浅行为的负例。
+            </?01M0ASAR000000000000000008>
+          )>
+        ]>
+      )>
+      <TaskGroup #G3 { name = "Eidolon 接线与标准分发" status = "NOT_STARTED" order = 2 } (
+        <SubNodes [
+          <Task #G3-T1 { name = "把 Effective VFS 三端口接入公共资源协议" status = "NOT_STARTED" order = 0 } (
+            <Description ?01M0ASAR000000000000000009>
+            在 #host 把已验证的资源读取、草稿编辑与发布准入绑定到公共协议；资源发现、依赖解析、候选校验和代码材料加载都必须走选定来源与闭包，不能只替换 readText/writeText 后仍访问物理目录。需要磁盘材料的执行器使用受控缓存，缓存不承担 authority。
+            </?01M0ASAR000000000000000009>
+          )>
+          <Task #G3-T2 { name = "替换私有分发生成器并移除未发布候选依赖" status = "NOT_STARTED" order = 1 } (
+            <Description ?01M0ASAR000000000000000010>
+            评估把 #host 的 GeneratedEidolonSystemSkillPlan.ts 私有生成路径换成标准公共分发与 CommandOperation 投影，并消除 overrides 指向 .tmp/candidates 的未发布 halfcode-compiler 候选，改用版本化发行物。若本轮无法完成，必须留下明确的替代路径与未决项，不得声称已公共化。
+            </?01M0ASAR000000000000000010>
+          )>
+        ]>
+      )>
+      <TaskGroup #G4 { name = "Workflow 操作族首个 Skill App 切片" status = "NOT_STARTED" order = 3 } (
+        <SubNodes [
+          <Task #G4-T1 { name = "收敛 Workflow authoring/run 操作到共享 Processor" status = "NOT_STARTED" order = 0 } (
+            <Description ?01M0ASAR000000000000000011>
+            把 Workflow 生命周期工具与九个阶段策略的操作语义收敛为可复用 Processor，旧工具成为薄适配；确定这些操作所需的资源身份、材料版本与错误分流，为资源化准备稳定接口。此阶段不改变外部行为。
+            </?01M0ASAR000000000000000011>
+          )>
+          <Task #G4-T2 { name = "把操作声明与文本协议资源化为 Skill App" status = "NOT_STARTED" order = 1 } (
+            <Description ?01M0ASAR000000000000000012>
+            用公共注册、schema 与材料加载协议把操作声明、阶段知识与文本协议包装为动态 Skill App，并通过已验证的公共资源后端读取与编辑 Effective VFS。旧工具与新 App 必须调用同一 Processor、得到相同状态裁决与 receipt；不得按入口复制三套编排。
+            </?01M0ASAR000000000000000012>
+          )>
+        ]>
+      )>
+      <TaskGroup #G5 { name = "真实 E2E 与收口" status = "NOT_STARTED" order = 4 } (
+        <SubNodes [
+          <Task #G5-T1 { name = "验证动态加载不改变权限与冻结语义" status = "NOT_STARTED" order = 0 } (
+            <Description ?01M0ASAR000000000000000013>
+            验证动态加载只改变操作的发现与调用入口：资源 authority、工具授权、CAS、工作流实例冻结与恢复责任不变；新调用可采用重新准入的定义，执行中的操作与既有实例继续持有原冻结闭包。记录本次操作使用的 FQN、material digest 与契约版本。
+            </?01M0ASAR000000000000000013>
+          )>
+          <Task #G5-T2 { name = "隔离环境真实 E2E 与独立验收" status = "NOT_STARTED" order = 1 } (
+            <Description ?01M0ASAR000000000000000014>
+            在隔离 workspace/home 下用 system skill 与真实 provider 复跑 Data/Ctrl 工作流创建执行、既有包编辑发布与新实例版本对比，并保留 Holon/Member 派单回归；每场景独立判定 Skill 已加载、provider 可见、公开路由与业务结果。预算、模型与授权沿用用户已确认配置，不把离线通过当业务通过。
+            </?01M0ASAR000000000000000014>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_adopt-halfcode-cli-skill-app-runtime" } [
+      <Node #G2 [<After { ref = "G1" }>]>
+      <Node #G3 [<After { ref = "G2" }>]>
+      <Node #G4 [<After { ref = "G3" }>]>
+      <Node #G5 [<After { ref = "G4" }>]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "mission:after-node" } (
+      <MissionReconcile { max_tracks = 10 on_limit = "checkpoint" on_drift = "replan-or-block" }>
+    )>
+  ]>
+)>

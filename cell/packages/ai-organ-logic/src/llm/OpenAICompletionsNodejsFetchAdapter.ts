@@ -45,7 +45,7 @@ const TRANSPORT_EXTRA_BODY_KEYS = new Set([
   "stream_idle_timeout",
   "stream_idle_timeout_seconds",
 ]);
-const DEFAULT_FIRST_EVENT_TIMEOUT_SECONDS = 120;
+const DEFAULT_FIRST_EVENT_TIMEOUT_SECONDS = 180;
 
 type OpenAIStreamTimeouts = {
   requestStartedAt: number;

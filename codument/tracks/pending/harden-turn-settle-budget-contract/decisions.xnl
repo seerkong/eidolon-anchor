@@ -1,0 +1,117 @@
+<decision #track.harden-turn-settle-budget-contract.decision_scope apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = ["design.md" "track.xnl"] durable_candidate = true } [
+  <decision #track.harden-turn-settle-budget-contract.decision_api_scope apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P1" blocks = [] durable_candidate = false } (
+  <question ?01M2NR05R4HVZEH6ZCN346VG02>
+  settle 契约变更的范围：三个 settle API（`tickUntilBlocked` / `tickUntilForegroundSettled` / `tickUntilBackgroundSettled`）是否统一改为声明结果，还是只改主泵实际使用的 foreground 一个？
+  </?01M2NR05R4HVZEH6ZCN346VG02>
+  <recommendation ?01M2NR05R4HVZEH6ZCN346VG03>
+  三个统一改。它们同属 `ai-core-contract` 声明的 `orchestrator_driver` capsule 外表面，`tickUntilBlocked` 有同源 throw（`driverRuntime.ts:1659`），只改一个会留下同族语义不一致。
+  </?01M2NR05R4HVZEH6ZCN346VG03>
+  <options {  } [
+    <option { key = "A" recommended = true } (
+      <title ?01M2NR05R4HVZEH6ZCN346VG04>
+      三个 settle API 统一改为声明结果
+      </?01M2NR05R4HVZEH6ZCN346VG04>
+      <description ?01M2NR05R4HVZEH6ZCN346VG05>
+        三者共享同一结果类型与同一「预算耗尽」语义；三处 `Timeout after` throw 一并移除。调用方（主泵、快照前拱进度、后台泵、member inbox 投递）按同一契约处理。
+      </?01M2NR05R4HVZEH6ZCN346VG05>
+      <tradeoff ?01M2NR05R4HVZEH6ZCN346VG06>
+        迁移面更大：除主泵外，`tickUntilBackgroundSettled` 的调用点与测试也要按新契约核对。
+      </?01M2NR05R4HVZEH6ZCN346VG06>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?01M2NR05R4HVZEH6ZCN346VG07>
+      只改 tickUntilForegroundSettled
+      </?01M2NR05R4HVZEH6ZCN346VG07>
+      <description ?01M2NR05R4HVZEH6ZCN346VG08>
+        只改主泵实际使用的 foreground settle，另外两个保持既有 throw 行为。
+      </?01M2NR05R4HVZEH6ZCN346VG08>
+      <tradeoff ?01M2NR05R4HVZEH6ZCN346VG09>
+        改动面小，但同一个 capsule 外表面上并存两种预算语义；后续调用方需按函数名记忆差异，容易再次把预算当失败。
+      </?01M2NR05R4HVZEH6ZCN346VG09>
+    )>
+  ]>
+  <answer {  }
+  (
+    <raw-answer ?01M2NR05R4HVZEH6ZCN346VG1A>
+      用户 2026-09-16 选择：三个 settle API 全改。
+    </?01M2NR05R4HVZEH6ZCN346VG1A>
+    <decision-text ?01M2NR05R4HVZEH6ZCN346VG1B>
+      三个 settle API 统一改为声明结果；三处 `Timeout after` throw 全部移除，循环头 break 与 tick 后出口合并为同一语义。
+    </?01M2NR05R4HVZEH6ZCN346VG1B>
+    <rationale ?01M2NR05R4HVZEH6ZCN346VG1C>
+      同族 API 共享同一参数语义才能避免漂移复发；`tickUntilBlocked` 的既有注释已表明其 `maxTicks` 不限制 async 等待轮次，说明该族本就打算区分「泵送预算」与「必须完成」。
+    </?01M2NR05R4HVZEH6ZCN346VG1C>
+    <evidence ?01M2NR05R4HVZEH6ZCN346VG1D>
+      `driverRuntime.ts:1659`、`:1732`、`:1806` 三处同源 throw；`ai-core-contract/src/runtime/AiRuntimeControlBoundaries.ts:45-52` 把三者一并声明为 orchestrator_driver 的 outerAdapterSurface。
+    </?01M2NR05R4HVZEH6ZCN346VG1D>
+  )>
+  <confidence ?>
+  0.9
+  </?>
+  <reversibility ?>
+  moderate
+  </?>
+)>
+] (
+  <question ?01M2NQPVPG1RA8REHWNYZ7A2N9>
+  修复「长时工具导致 turn 被中止」时，变更应落在哪一层：把主泵的量子预算耗尽改为可继续的声明结果（driver 契约变更），还是保持 driver 抛错、只调大/去掉量子或让主泵吞掉异常？
+  </?01M2NQPVPG1RA8REHWNYZ7A2N9>
+  <recommendation ?01M2NQPVPG1RA8REHWNYZ7A2NA>
+  选 A：预算耗尽 SHALL 表达为声明结果，driver 不再以异常表达「没在本量子内收口」；turn 的唯一超时判据是 turn deadline。
+  </?01M2NQPVPG1RA8REHWNYZ7A2NA>
+  <options {  } [
+    <option { key = "A" recommended = true } (
+      <title ?01M2NQPVPG1RA8REHWNYZ7A2NB>
+        settle 预算耗尽返回声明结果（driver 契约变更）
+      </?01M2NQPVPG1RA8REHWNYZ7A2NB>
+      <description ?01M2NQPVPG1RA8REHWNYZ7A2NC>
+        tickUntil*Settled 在预算耗尽且未 settled 时返回形如 { status:"budget_exhausted", wallMs, stillRunning } 的结果；主泵据此继续推进并保持量子边界的 human wait / safepoint 评估；只有 turn deadline 耗尽才产 timeout_unsettled 并走既有 seal 路径。三处 throw 与循环头的 break 合并为同一语义。
+      </?01M2NQPVPG1RA8REHWNYZ7A2NC>
+      <tradeoff ?01M2NQPVPG1RA8REHWNYZ7A2ND>
+        变更 capsule 外表面返回类型（BREAKING），需迁移大量把 maxWallMs 当「未 settled 即 throw」断言用的测试；测试迁移是主要工作量。收益是异常不再能绕过 turn 的结果 union。
+      </?01M2NQPVPG1RA8REHWNYZ7A2ND>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?01M2NQPVPG1RA8REHWNYZ7A2NE>
+        主泵对 settle 加 .catch 吞掉异常
+      </?01M2NQPVPG1RA8REHWNYZ7A2NE>
+      <description ?01M2NQPVPG1RA8REHWNYZ7A2NG>
+        保留 driver 现有 throw；runInteractiveTurn 捕获后继续循环（与 progressBeforeSnapshot 的 best-effort 处理一致）。改动最小，行为上长工具也能活下来。
+      </?01M2NQPVPG1RA8REHWNYZ7A2NG>
+      <tradeoff ?01M2NQPVPG1RA8REHWNYZ7A2ND2>
+        driver 仍然用异常表达「预算用完」，主泵假装没听到：authority 错误，且真正的运行时故障与预算耗尽不可区分（都是同一个字符串异常）。把快照的 best-effort 语义套到 turn 裁决上。
+      </?01M2NQPVPG1RA8REHWNYZ7A2ND2>
+    )>
+    <option { key = "C" recommended = false } (
+      <title ?01M2NQPVPG1RA8REHWNYZ7A2NE2>
+        调整阈值：调大量子或去掉量子
+      </?01M2NQPVPG1RA8REHWNYZ7A2NE2>
+      <description ?01M2NQPVPG1RA8REHWNYZ7A2NG2>
+        把 1000ms 量子调大（如 30s），或不再按量子切片（去掉 --timeout 传参导致的有限 deadline）。
+      </?01M2NQPVPG1RA8REHWNYZ7A2NG2>
+      <tradeoff ?01M2NQPVPG1RA8REHWNYZ7A2ND3>
+        只是把失败阈值推后（更长的 bash 仍会死）；去掉切片则同时失去 human wait 与 safepoint 的量子边界可观察性，并让 turn deadline 语义退化。
+      </?01M2NQPVPG1RA8REHWNYZ7A2ND3>
+    )>
+  ]>
+  <answer {  } (
+    <raw-answer ?01M2NQPVPG1RA8REHWNYZ7A2NH>
+      用户 2026-09-16 要求修改该问题；本 track 采用 A。
+    </?01M2NQPVPG1RA8REHWNYZ7A2NH>
+    <decision-text ?01M2NQPVPG1RA8REHWNYZ7A2NJ>
+      采用 A：settle 的 wall 预算耗尽返回声明的「预算耗尽且未 settled」结果，driver 不再抛异常；turn 的唯一超时判据是 turn deadline，耗尽时走既有 timeout_unsettled + seal 路径，主泵不得以 .catch 吞掉 settle 结果。
+    </?01M2NQPVPG1RA8REHWNYZ7A2NJ>
+    <rationale ?01M2NQPVPG1RA8REHWNYZ7A2NK>
+      根因是两份事实共用 maxWallMs 一个名字：调用方的泵送量子 vs driver 的「必须收口否则失败」。B 让行为碰巧正确而 authority 仍错，且混淆预算耗尽与运行时故障；C 是调阈值，不能修语义，还会牺牲控制面可观察性。A 让预算耗尽回到它本该的位置——主泵继续观察的输入。
+    </?01M2NQPVPG1RA8REHWNYZ7A2NK>
+    <evidence ?01M2NQPVPG1RA8REHWNYZ7A2NM>
+      E2E blog plan-0 receipt failureSummary=Timeout after 1000ms（elapsedMs=147632；trace wallMs=145448、providerCalls=27 全 completed、toolCalls=47、toolOpen=1）；AiAgentRuntimeCoordinator.ts:404-409 的 1000ms 量子与其 410-417 的边界评估；driverRuntime.ts:1678-1680（break）与 1731-1733（throw）的同一 wall 双语义；AiAgentRuntimeCoordinator.ts:24-32 的 turn 结果 union 与 441-450 的 seal 路径；driverRuntime.ts:1602-1604 关于 maxTicks 不限制 async 等待轮次的既有注释。
+    </?01M2NQPVPG1RA8REHWNYZ7A2NM>
+  )>
+  <confidence ?>
+  0.85
+  </?>
+  <reversibility ?>
+  moderate
+  </?>
+)>

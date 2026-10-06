@@ -112,9 +112,11 @@ export const actorAssignCoreLogic: StdInnerLogic<
     if (mode === "final") {
       const { driver } = getControlRuntimeContext(runtime.vm, runtime.actor)
       const assistantCountBefore = countAssistantMessages(targetActor)
-      try {
-        await driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 120, maxWallMs: 2000 })
-      } catch (error) {
+      // A slice budget ending with the target still running means the member has
+      // not produced a final reply within this wait window; it is reported as a
+      // pending-ish outcome, not as a thrown failure.
+      const drain = await driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 120, maxWallMs: 2000 })
+      if (drain.status === "budget_exhausted" && drain.stillRunning) {
         return JSON.stringify({
           ok: true,
           target: targetQuery,
@@ -126,7 +128,6 @@ export const actorAssignCoreLogic: StdInnerLogic<
           accepted: true,
           completion_status: "timeout",
           result_text: null,
-          error: error instanceof Error ? error.message : String(error),
           watch_state: (targetActor as any).watchState ?? "unwatched",
         })
       }

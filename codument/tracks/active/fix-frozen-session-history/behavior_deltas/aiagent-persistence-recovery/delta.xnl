@@ -1,0 +1,51 @@
+<BehaviorPatch #track.fix-frozen-session-history.behavior_patch.aiagent-persistence-recovery apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-persistence-recovery" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/unsettled-turn-progress-not-stranded" } (
+      <Requirement #unsettled-turn-progress-not-stranded (
+        <Statement ?>当一个 turn 结束后仍有已完成但未落盘的 conversation 进度停留在内存缓冲中时，系统 SHALL 保证该进度不会在「既未 commit 到持久化 history、又不再有任何在途 turn 去 commit 它」的状态下被长期搁置。具体地：turn 无论以何种结局结束（`settled`、`blocked_on_human`、`timeout_unsettled`，或因运行时/传输故障中止），只要该 turn 曾把消息推入 conversation 单写者缓冲，系统 SHALL 在结束路径上把已完成进度 flush 到持久化 history，或显式地使其保持「有在途 turn 将提交它」的状态。SHALL NOT 依赖「只有 safepoint 安全才 flush」这一条路径作为唯一出口，从而让一次未达 safepoint 的 turn 结束把所有已缓冲进度留在内存里。已污染或未完成的 in-flight 消息 SHALL NOT 被 flush 成完成态。</?>
+        <Suites [
+          <Suite #unsettled-progress-not-stranded { name = "Unsettled turn progress is not stranded" } (
+            <Cases [
+              <Case #buffered-progress-flushed-on-turn-end [
+                <Given ?>一个 turn 已在内存 conversation 缓冲中产生若干已完成消息（如 user 输入、已完成的 assistant 回复、已配对的工具结果）</?>
+                <When ?>该 turn 结束且其 safepoint 不安全（例如仍处 mandatory_continuation，或未回到安全边界）</?>
+                <Then ?>这些已完成消息 SHALL 被 flush 到持久化 history，或被显式标记为有在途提交者</?>
+                <Then ?>SHALL NOT 出现「内存消息数大于持久化消息数」且再无在途 turn 可提交该差额的搁置状态</?>
+              ]>
+              <Case #in-flight-work-not-flushed-as-complete [
+                <Given ?>turn 结束时尚有未完成的工具执行或未收口的 assistant 消息</?>
+                <When ?>结束路径执行 flush</?>
+                <Then ?>仅已完成的进度 SHALL 被 flush</?>
+                <Then ?>in-flight / 未完成消息 SHALL NOT 被写为完成态</?>
+                <Then ?>SHALL NOT 因而对不安全的工具执行中状态取 VM 快照（保持既有 `timed-out-turn-progress-persisted` 语义）</?>
+              ]>
+              <Case #resumed-turn-sees-user-input [
+                <Given ?>用户在一个未收口 turn 的会话中提交了新的输入</?>
+                <When ?>该输入已被 runtime 接纳进 conversation 缓冲</?>
+                <Then ?>后续恢复或续做时，model-visible history SHALL 包含该输入</?>
+                <Then ?>SHALL NOT 出现「输入已被 runtime 接纳，但在 history 与 TUI 中均不可见」</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/stranded-buffered-progress-is-observable" } (
+      <Requirement #stranded-buffered-progress-is-observable (
+        <Statement ?>当一次 turn 结束、conversation 单写者缓冲中仍有已完成但未落盘的消息，且系统未能把它们 flush 出去时，运行时 SHALL 产生一条非致命、可观测的告警（结构化：会话标识、缓冲消息数、持久化消息数、未 flush 的原因/结局），使「未落盘进度被搁置」这一异常能被立即定位。SHALL NOT 静默吞掉；SHALL NOT 因此抛错或中断；SHALL NOT 新增第二个/兜底写者。</?>
+        <Suites [
+          <Suite #stranded-progress-observable { name = "Stranded buffered progress is observable" } (
+            <Cases [
+              <Case #warns-on-stranding [
+                <Given ?>turn 结束时内存缓冲中存在未落盘的已完成消息</?>
+                <When ?>结束路径无法完成 flush</?>
+                <Then ?>SHALL 产生一条含会话标识与消息数差额的可观测告警</?>
+                <Then ?>SHALL NOT 抛错、SHALL NOT 中断 turn、SHALL NOT 新增写者</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

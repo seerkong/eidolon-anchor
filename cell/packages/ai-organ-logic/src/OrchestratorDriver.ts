@@ -87,6 +87,29 @@ export type WaiterStoreResultMap = {
   leaderLedHolonRouteSignals: { resultText: string | null };
 };
 
+/**
+ * Outcome of one settle pump slice.
+ *
+ * `maxWallMs` on the tickUntil*Settled family is the budget for THIS pump
+ * slice — it lets a caller (the interactive turn pump) hand control back at a
+ * quantum boundary so it can re-evaluate human waits and snapshot safepoints
+ * while IO is still in flight. Exhausting that budget is a normal, expected
+ * outcome and SHALL NOT be reported as a failure: a turn's own deadline is the
+ * only thing that can fail a turn. Reporting it as a declared result also keeps
+ * "the slice is over" distinguishable from a genuine runtime/provider fault.
+ */
+export type TickDrainOutcome =
+  | { status: "settled" }
+  | {
+      status: "budget_exhausted";
+      /** Which budget ran out: the caller's wall clock, or the tick allowance. */
+      budget: "wall" | "ticks";
+      /** The caller's wall budget in milliseconds (`Infinity` when unbounded). */
+      wallMs: number;
+      /** Lane-scoped work was still `running` when the budget ran out. */
+      stillRunning: boolean;
+    };
+
 export type AiAgentOrchestratorDriver = {
   orchestratorId: string;
   actorRuntime: ActorRuntime<AiAgentOrchestratorRuntime, AiAgentOrchestrationSchema>;
@@ -117,9 +140,9 @@ export type AiAgentOrchestratorDriver = {
     reason?: FiberWaitingReason;
     controlKinds?: string[];
   }) => void;
-  tickUntilBlocked: (params: { now: number; maxTicks?: number; maxWallMs?: number }) => Promise<void>;
-  tickUntilForegroundSettled: (params: { now: number; maxTicks?: number; maxWallMs?: number }) => Promise<void>;
-  tickUntilBackgroundSettled: (params: { now: number; maxTicks?: number; maxWallMs?: number }) => Promise<void>;
+  tickUntilBlocked: (params: { now: number; maxTicks?: number; maxWallMs?: number }) => Promise<TickDrainOutcome>;
+  tickUntilForegroundSettled: (params: { now: number; maxTicks?: number; maxWallMs?: number }) => Promise<TickDrainOutcome>;
+  tickUntilBackgroundSettled: (params: { now: number; maxTicks?: number; maxWallMs?: number }) => Promise<TickDrainOutcome>;
   waitForSignal: <K extends keyof WaiterStoreResultMap>(params: {
     vm: AiAgentVm;
     waiterKey: string;

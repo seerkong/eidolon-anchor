@@ -1,0 +1,52 @@
+<BehaviorPatch #track.fix-tui-live-updates-in-actor-scope.behavior_patch.terminal-tui-shell apiVersion="codument.tech/v1alpha1" version="1" { capability = "terminal-tui-shell" } (
+  <Mutations [
+    <Upsert { selector = "behavior://terminal-tui-shell/requirements/virtualized-incremental-session-history" } (
+      <Requirement #virtualized-incremental-session-history (
+        <Statement ?>Terminal TUI SHALL 以尾页首屏、上滚增量读取和 viewport/overscan window 挂载展示长会话；已加载历史总量增长时，OpenTUI message-card renderable 数 SHALL 保持有界，prepend 页面 SHALL 保持用户可见锚点。TUI SHALL 让每个可查看的 actor 作用域（含用户通过 actor 切换查看的非主 actor）都具备实时增量：该作用域下新提交的消息与工具调用 SHALL 无需用户手动操作即可出现在视图中。actor 作用域 SHALL 只接收属于该 actor 的实时增量，SHALL NOT 把其他 actor 的输出串入当前视图。切换查看不同 actor SHALL 继续可用，且切换后 SHALL 同时获得历史与实时增量。</?>
+        <Suites [
+          <Suite #incremental-history-navigation { name = "Incremental virtual history navigation" } (
+            <Cases [
+              <Case #restore-mounts-tail-window-only (
+                <Given ?>用户恢复包含大量或超长消息卡片的会话</?>
+                <When ?>TUI 展示首屏</?>
+                <Then ?>TUI SHALL 只读取最新页并仅挂载 viewport 加 overscan 窗口，MUST NOT 同时创建全部历史卡片 renderable</?>
+              )>
+              <Case #restored-tool-cards-use-bounded-previews (
+                <Given ?>恢复页包含超长 shell output、edit diff、write content 或 context resource</?>
+                <When ?>对应工具卡片首次挂载</?>
+                <Then ?>TUI SHALL 只渲染有界预览并允许显式展开，虚拟高度估算 SHALL 与折叠态一致</?>
+              )>
+              <Case #scroll-up-loads-and-keeps-anchor (
+                <Given ?>当前页仍有更早历史且用户接近滚动顶部</?>
+                <When ?>TUI 加载并 prepend 上一页</?>
+                <Then ?>请求 SHALL 去重，原可见消息 SHALL 保持在相同 viewport 位置，用户可持续上滚直至首条消息</?>
+              )>
+            ]>
+          )>
+          <Suite #actor-scope-live-updates { name = "Actor-scoped views keep receiving live updates" } (
+            <Cases [
+              <Case #actor-scope-view-receives-live-messages-without-user-action [
+                <Given ?>用户正查看一个 actor 作用域的会话视图（该 actor 非当前选中的会话级视图）</?>
+                <When ?>该 actor 提交新的 assistant 消息或工具调用</?>
+                <Then ?>该消息 SHALL 无需用户滚动、重开或重新读取即出现在视图中</?>
+                <Then ?>SHALL NOT 出现「后端已持久化但视图静止」的状态</?>
+              ]>
+              <Case #actor-scope-view-filters-other-actors [
+                <Given ?>用户正查看 actor A 的作用域视图，同时 actor B 也在产生输出</?>
+                <When ?>actor B 提交消息</?>
+                <Then ?>actor B 的消息 SHALL NOT 出现在 actor A 的视图中</?>
+                <Then ?>actor A 的视图 SHALL 继续接收 actor A 自己的增量</?>
+              ]>
+              <Case #switching-actor-keeps-working-and-gets-live-updates [
+                <Given ?>用户在两个 actor 之间切换查看</?>
+                <When ?>切换完成后目标 actor 继续产生输出</?>
+                <Then ?>切换查看 SHALL 继续可用（目标 actor 的历史 SHALL 正确加载）</?>
+                <Then ?>切换后该视图 SHALL 同时获得历史与后续实时增量</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

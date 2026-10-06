@@ -216,10 +216,16 @@ export function evaluateLocalToolPermission(params: {
       }
       return normalizeBashSegment(segmentTokens);
     });
+    // Pure-assignment segments still belong to the serialized audit target, but
+    // they run nothing, so rule matching is skipped for them: a broad `*: deny`
+    // must not reject `D=/path`, and a broad `*: allow` must not appear to
+    // authorize anything by matching it.
+    const ruleEvaluatedSegments = normalizedSegments.filter((_, index) =>
+      !bashSegmentIsPureAssignment(segmentTokensList[index]!));
     const serializedTarget = serializeBashSegments(normalizedSegments);
     let firstAskRule: LocalPermissionRule | undefined;
     let firstAskSegment: string | undefined;
-    for (const segment of normalizedSegments) {
+    for (const segment of ruleEvaluatedSegments) {
       const decision = evaluatePermissionRuleSet({
         workDir,
         permissionName: "bash",
@@ -880,6 +886,18 @@ function normalizeBashSegment(tokens: BashToken[]): string {
   return collectBashCommandWords(tokens).join(" ");
 }
 
+/**
+ * A segment consisting only of environment assignments runs no program: it
+ * cannot write, read, or reach the network, so no allow/deny/ask rule can
+ * meaningfully apply to it. Kept as a distinct predicate (rather than folded
+ * into the normalizer) so the evaluator can skip rule matching for it while
+ * still serializing it into the audit target.
+ */
+function bashSegmentIsPureAssignment(tokens: BashToken[]): boolean {
+  if (tokens.length === 0) return false;
+  return tokens.every((token) => token.kind === "word" && ENV_ASSIGNMENT_RE.test(token.text));
+}
+
 function normalizeSupportedHeredocPrefix(tokens: BashToken[]): string | null {
   let commandTokens: string[];
   try {
@@ -906,6 +924,15 @@ function collectBashCommandWords(tokens: BashToken[]): string[] {
   let index = 0;
   while (index < tokens.length && tokens[index].kind === "word" && ENV_ASSIGNMENT_RE.test(tokens[index].text)) {
     index += 1;
+  }
+  // A segment made only of environment assignments (`D=/path`) is a legal POSIX
+  // command: it runs nothing and exits 0. Reporting it as "no executable word"
+  // rejected correct agent commands and made turns retry until they never
+  // converged, so the assignments are returned as the segment's own words
+  // instead of raising. Genuinely malformed input (an empty segment between
+  // operators) still throws below.
+  if (index >= tokens.length) {
+    return tokens.map((token) => token.text);
   }
   const commandTokens: string[] = [];
   while (index < tokens.length) {

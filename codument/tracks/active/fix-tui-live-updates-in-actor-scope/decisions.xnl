@@ -1,0 +1,64 @@
+<decision #track.fix_tui_live_updates_in_actor_scope.strategy apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = ["design.md" "track.xnl"] durable_candidate = true } (
+  <question ?01M2PZ0000000000000000000A>
+  actor 作用域视图的实时冻结，修复应落在哪一层：在 TUI 层把「丢弃事件」改为「按 actor 过滤」，还是给后端 `actor.messages` 增加真正的游标/增量端口？
+  </?01M2PZ0000000000000000000A>
+  <recommendation ?01M2PZ0000000000000000000B>
+  选 A：在 TUI 层按 actor 身份过滤。事件类型本身已带 `agentKey` / `agentActorId`，转发链未剥离它们，且工具路径已在用 `event.agentActorId` 建键——过滤所需信息已存在，不需要新增读端口，也不触碰单写者边界。
+  </?01M2PZ0000000000000000000B>
+  <options {  } [
+    <option { key = "A" recommended = true } (
+      <title ?01M2PZ0000000000000000000C>
+      TUI 层按 actor 身份过滤实时事件
+      </?01M2PZ0000000000000000000C>
+      <description ?01M2PZ0000000000000000000D>
+        把 `historySource().actor` 引发的无条件丢弃改为「仅当事件不属于当前 actor 时丢弃」。身份取自既有事件字段；session 作用域保持无条件接纳。
+      </?01M2PZ0000000000000000000D>
+      <tradeoff ?01M2PZ0000000000000000000E>
+        依赖事件侧 actor 身份确实可读；若 `message.updated` 路径未带出该身份，需在发射处补一个语义明确的字段。
+      </?01M2PZ0000000000000000000E>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?01M2PZ0000000000000000000F>
+      给后端 actor 读端口增加游标/增量
+      </?01M2PZ0000000000000000000F>
+      <description ?01M2PZ0000000000000000000G>
+        为 `actor.messages` 实现真正的增量游标，替代现有有界 100 条快照。
+      </?01M2PZ0000000000000000000G>
+      <tradeoff ?01M2PZ0000000000000000000H>
+        更彻底，但要改 `TerminalRuntime` 的 actor 读端口与其契约，改动面与回归面显著更大；且事件里已有身份信息，属于重复投入。
+      </?01M2PZ0000000000000000000H>
+    )>
+    <option { key = "C" recommended = false } (
+      <title ?01M2PZ0000000000000000000J>
+      让 actor 视图轮询快照
+      </?01M2PZ0000000000000000000J>
+      <description ?01M2PZ0000000000000000000K>
+        不改事件过滤，改为定时重拉 actor 快照。
+      </?01M2PZ0000000000000000000K>
+      <tradeoff ?01M2PZ0000000000000000000L>
+        引入无谓轮询与抖动，且与既有事件驱动架构不一致；无法保证增量顺序与幂等。
+      </?01M2PZ0000000000000000000L>
+    )>
+  ]>
+  <answer {  }
+  (
+    <raw-answer ?01M2PZ0000000000000000000M>
+      用户 2026-09-17 指示「同意新建track，然后落地实现」，并明确约束：切换查看不同 actor 的既有功能不得回退，且切换后的视图也应享受同一修复。
+    </?01M2PZ0000000000000000000M>
+    <decision-text ?01M2PZ0000000000000000000N>
+      选 A：TUI 层按 actor 身份过滤实时事件；过滤按「当前作用域」求值，使切换 actor 后同样生效；session 作用域保持既有无条件接纳。
+    </?01M2PZ0000000000000000000N>
+    <rationale ?01M2PZ0000000000000000000P>
+      「丢弃事件」与「没有替代刷新源」两半缺一不可，因此修法必须让 actor 视图真正获得增量；而身份信息已在事件中，按身份过滤既恢复实时性又不串台，是唯一同时满足两个约束的最小改动。
+    </?01M2PZ0000000000000000000P>
+    <evidence ?01M2PZ0000000000000000000Q>
+      `MessageHistoryEvent` 定义含 `agentKey` / `agentActorId`；`TerminalRuntime.ts:1318` 的 `emitHistoryEvent` 原样转发；`TuiRuntimeClient.ts:2025`、`:2059` 的 `key = ${event.agentActorId}:${payload.toolCallId}` 证明工具路径已在使用该身份；`view.tsx:1201`/`:1210` 的 `|| historySource().actor` 为无条件丢弃；`history-source-adapter.ts:8` 注释承认 actor API 只有有界 100 条快照而非游标。
+    </?01M2PZ0000000000000000000Q>
+  )>
+  <confidence ?>
+  0.85
+  </?>
+  <reversibility ?>
+  easy
+  </?>
+)>

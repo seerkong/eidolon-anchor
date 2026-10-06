@@ -1,0 +1,171 @@
+<decision #track.fix_frozen_session_history.strategy apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = ["design.md" "track.xnl"] durable_candidate = true } (
+  <question ?01M2NSBAMY57HSFVXA8WYVWA4S>
+  「会话跑一段后停住、cancel 后发继续也不动、TUI 看不到新消息」这一组现象，本 track 采用什么总体修复策略？
+  </?01M2NSBAMY57HSFVXA8WYVWA4S>
+  <recommendation ?01M2NSBAMY57HSFVXA8WYVWA4X>
+  按已证实的三层证据分层修：先消除让 turn 不收敛的确定性缺陷（bash 权限解析器误判合法赋值段），再修「turn 结束时已完成进度被搁置」的落盘出口，最后补可观测性；TUI 虚拟列表作为已排除项记录，不改。
+  </?01M2NSBAMY57HSFVXA8WYVWA4X>
+  <options {  } [
+    <option { key = "A" recommended = true } (
+      <title ?01M2NSBAMY57HSFVXA8WYVWA4Y>
+      分层修：解析器 + 落盘出口 + 可观测性
+      </?01M2NSBAMY57HSFVXA8WYVWA4Y>
+      <description ?01M2NSBAMY57HSFVXA8WYVWA4Z>
+        三层各自独立成 P1/P2/P3，各有行为契约与测试。
+      </?01M2NSBAMY57HSFVXA8WYVWA4Z>
+      <tradeoff ?01M2NSBAMY57HSFVXA8WYVWA50>
+        范围大于单点修复；P2 触碰 conversation 单写者，需与并行 settle 契约变更协调。
+      </?01M2NSBAMY57HSFVXA8WYVWA50>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?01M2NSBAMY57HSFVXA8WYVWA51>
+      只做最小解：修解析器
+      </?01M2NSBAMY57HSFVXA8WYVWA51>
+      <description ?01M2NSBAMY57HSFVXA8WYVWA52>
+        仅让 turn 能收敛，不改进落盘出口。
+      </?01M2NSBAMY57HSFVXA8WYVWA52>
+      <tradeoff ?01M2NSBAMY57HSFVXA8WYVWA53>
+        任何其它不收敛原因仍会让用户输入与已完成进度消失。
+      </?01M2NSBAMY57HSFVXA8WYVWA53>
+    )>
+  ]>
+  <answer {  }
+  (
+    <raw-answer ?01M2NSBAMY57HSFVXA8WYVWA54>
+      用户 2026-09-16 指示「这些都做。请创建track，然后依次执行」。
+    </?01M2NSBAMY57HSFVXA8WYVWA54>
+    <decision-text ?01M2NSBAMY57HSFVXA8WYVWA55>
+      选 A：分层修，依次执行 P1 → P2 → P3。
+    </?01M2NSBAMY57HSFVXA8WYVWA55>
+    <rationale ?01M2NSBAMY57HSFVXA8WYVWA56>
+      现象横跨三层且每层都有独立证据；只修任一层都会留下已观测到的另一半。TUI 虚拟列表已被逐个模块排除，不应再改。
+    </?01M2NSBAMY57HSFVXA8WYVWA56>
+    <evidence ?01M2NSBAMY57HSFVXA8WYVWA57>
+      解析器误判真机复现：`A=1 && echo hi` / `cd /tmp/x && D=/tmp/y && tar -xzf "$D/a.tgz"` 均抛 `Bash segment does not contain an executable command`（`LocalPermissionEvaluator.ts:906-952`）；同批 effects 中该命令重复 5 次、bash 失败 16 次。落盘搁置：末次 `runtime_conversation_flush` 20:28:44 后有 159 条 `runtime_conversation_history_buffered` 未落盘，`messageCount` 4362 对 `history.xnl` 4203 条。TUI 侧：`perf/` 四模块逐个检查，无吞行路径。
+    </?01M2NSBAMY57HSFVXA8WYVWA57>
+  )>
+  <confidence ?>
+  0.85
+  </?>
+  <reversibility ?>
+  moderate
+  </?>
+) [
+  <decision #track.fix_frozen_session_history.scope_layering apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P1" blocks = [] durable_candidate = false } (
+  <question ?01M2NSBAMY57HSFVXA8WYVWA4R>
+  这次要修的是「会话跑一段后停住、cancel 后发继续也不动、TUI 看不到新消息」。现象横跨三层：TUI 读取/虚拟列表、conversation 单写者的落盘时机、以及让 turn 不收敛的 bash 权限解析缺陷。修复应落在哪一层？
+  </?01M2NSBAMY57HSFVXA8WYVWA4R>
+  <recommendation ?01M2NSBAMZV1Q8NC3TX5E9YH4K>
+  按证据分层修，不合并成一个「加兜底」的补丁。已排除 TUI 虚拟列表（四个 perf 模块逐个查过，只做窗口/排序，不吞行）。主因是第二层：turn 结束时未落盘进度被搁置（159 条 buffered 未 flush，记忆消失）。诱因是第三层：`A=1` 形状的合法赋值段被解析器判死，导致工具反复失败、turn 永不收敛。
+  </?01M2NSBAMZV1Q8NC3TX5E9YH4K>
+  <options {  } [
+    <option { key = "A" recommended = true } (
+      <title ?01M2NSBAMZV1Q8NC3TX5E9YH5M>
+      分层修：解析器缺陷 + 未落盘进度搁置，两层各自独立
+      </?01M2NSBAMZV1Q8NC3TX5E9YH5M>
+      <description ?01M2NSBAMZV1Q8NC3TX5E9YH5N>
+        P1 修 `LocalPermissionEvaluator` 的纯赋值段误判（可复现、边界清晰、与任何并行工作零重叠）；P2 修 turn 结束路径上已完成进度的 flush 出口（让 safepoint 不再是唯一出口）；P3 让搁置可观测。两层各自有独立行为契约与测试，任一层单独落地都能减少伤害。
+      </?01M2NSBAMZV1Q8NC3TX5E9YH5N>
+      <tradeoff ?01M2NSBAMZV1Q8NC3TX5E9YH5P>
+        P2 触碰 conversation 单写者与 turn 裁决路径，冲突面大于 P1，且必须与并行的 settle 契约变更协调。
+      </?01M2NSBAMZV1Q8NC3TX5E9YH5P>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?01M2NSBAMZV1Q8NC3TX5E9YH5Q>
+      只修诱因（解析器），不改落盘出口
+      </?01M2NSBAMZV1Q8NC3TX5E9YH5Q>
+      <description ?01M2NSBAMZV1Q8NC3TX5E9YH5R>
+        仅修 `A=1` 误判，让 turn 能收敛。改动最小、风险最低。
+      </?01M2NSBAMZV1Q8NC3TX5E9YH5R>
+      <tradeoff ?01M2NSBAMZV1Q8NC3TX5E9YH5S>
+        不解决类问题：任何其它原因（网络、provider 挂起、用户 cancel）导致 turn 不收敛时，已完成的进度仍会被搁置、用户消息仍会消失。本次观察到的「发继续没反应」在 cancel 后出现，说明该出口与诱因无关。
+      </?01M2NSBAMZV1Q8NC3TX5E9YH5S>
+    )>
+    <option { key = "C" recommended = false } (
+      <title ?01M2NSBAMZV1Q8NC3TX5E9YH5T>
+      只修落盘出口，不管解析器
+      </?01M2NSBAMZV1Q8NC3TX5E9YH5T>
+      <description ?01M2NSBAMZV1Q8NC3TX5E9YH5V>
+        让未落盘进度不再搁置，忽略 `A=1` 误判。
+      </?01M2NSBAMZV1Q8NC3TX5E9YH5V>
+      <tradeoff ?01M2NSBAMZV1Q8NC3TX5E9YH5W>
+        工具仍会被合法命令反复拒绝，turn 仍会空转到 deadline；落盘出口只是让「空转到死」的中间进度可见，不消除空转本身。
+      </?01M2NSBAMZV1Q8NC3TX5E9YH5W>
+    )>
+  ]>
+  <answer {  }
+  (
+    <raw-answer ?01M2NSBAMZV1Q8NC3TX5E9YH5X>
+      用户 2026-09-16 指示「这些都做。请创建track，然后依次执行」。
+    </?01M2NSBAMZV1Q8NC3TX5E9YH5X>
+    <decision-text ?01M2NSBAMZV1Q8NC3TX5E9YH5Y>
+      选 A：分层修。P1 解析器缺陷、P2 未落盘进度搁置与可观测、P3 验证。TUI 虚拟列表仅记录排除结论，不改。
+    </?01M2NSBAMZV1Q8NC3TX5E9YH5Y>
+    <rationale ?01M2NSBAMZV1Q8NC3TX5E9YH5Z>
+      证据支持分层：TUI 侧已排除；`runtime_conversation_flush` 停在 20:28:44 而 `runtime_conversation_history_buffered` 有 573 条（其中 159 条在其后），`messageCount` 4362 对持久化 4203；解析器误判在真机复现（`A=1 && echo hi` 抛 `Bash segment does not contain an executable command`）。只修任一层都会留下已观测到的另一半。
+    </?01M2NSBAMZV1Q8NC3TX5E9YH5Z>
+    <evidence ?01M2NSBAMZV1Q8NC3TX5E9YH6B>
+      会话 `.eidolon/sessions/20260916195258__01M2NJ5J13HCNR63X950KTPJXS`：`history.xnl` mtime 20:41:58、4203 条；diagnostics `runtime_conversation_flush` 32 次末次 20:28:44、`runtime_conversation_history_buffered` 573 次、末次 flush 后 159 条、末条 20:44:57；`runtime_checkpoint_save_skipped status=skipped_non_safepoint` at 20:28:52；fibers `main%3Aactor-...` status=suspended / waitingReason=idle_external；orchestration 末条 20:28:52 `pendingMailboxes=["humanInput"]`、inflight `llm:...:338`。TUI 侧 `terminal/packages/tui/src/app/tui_a1/perf/{history-source-adapter,composite-history-source,history-row-estimate,scroll-history}.ts` 逐个检查无吞行。解析器复现：`cell/packages/ai-organ-logic/src/permissions/LocalPermissionEvaluator.ts:906-952` 的 `collectBashCommandWords` 对 `A=1 && echo hi` 抛错。
+    </?01M2NSBAMZV1Q8NC3TX5E9YH6B>
+  )>
+  <confidence ?>
+  0.85
+  </?>
+  <reversibility ?>
+  moderate
+  </?>
+)>
+  <decision #track.fix_frozen_session_history.parallel_settle_coordination apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = false } (
+  <question ?01M2NSBAMZV1Q8NC3TX5E9YH60>
+  另一个会话（「修复eidolon 1000ms切片的问题」）正在同一工作树里做 `harden-turn-settle-budget-contract`，改的就是 P2 要碰的 `driverRuntime.ts` 与 `AiAgentRuntimeCoordinator.ts`。本 track 的 P2 如何避免互相覆盖？
+  </?01M2NSBAMZV1Q8NC3TX5E9YH60>
+  <recommendation ?01M2NSBAMZV1Q8NC3TX5E9YH61>
+  本 track 的 P2 不与它抢同一批文件。先做零重叠的 P1 并落地；到 P2 之前重新核对并行会话是否已提交（其非目标已把「谁让 fiber 在量子内保持 running」划出，正是本 track 的互补面），若已提交则基于其新基线继续，若仍在改则等它收口。
+  </?01M2NSBAMZV1Q8NC3TX5E9YH61>
+  <options {  } [
+    <option { key = "A" recommended = true } (
+      <title ?01M2NSBAMZV1Q8NC3TX5E9YH62>
+      先做 P1，P2 前重新核对并行会话状态
+      </?01M2NSBAMZV1Q8NC3TX5E9YH62>
+      <description ?01M2NSBAMZV1Q8NC3TX5E9YH63>
+        P1 只碰 `LocalPermissionEvaluator.ts` 与其测试，与并行工作零重叠，可立即落地。P2 开工前先看并行会话是否已把 settle 契约提交，再决定基线。
+      </?01M2NSBAMZV1Q8NC3TX5E9YH63>
+      <tradeoff ?01M2NSBAMZV1Q8NC3TX5E9YH64>
+        P2 的开工时间取决于另一个会话，本 track 不能完全自主控制节奏。
+      </?01M2NSBAMZV1Q8NC3TX5E9YH64>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?01M2NSBAMZV1Q8NC3TX5E9YH65>
+      立即并行改同一批文件
+      </?01M2NSBAMZV1Q8NC3TX5E9YH65>
+      <description ?01M2NSBAMZV1Q8NC3TX5E9YH66>
+        两边同时改 `driverRuntime.ts` / `AiAgentRuntimeCoordinator.ts`。
+      </?01M2NSBAMZV1Q8NC3TX5E9YH66>
+      <tradeoff ?01M2NSBAMZV1Q8NC3TX5E9YH67>
+        无版本控制隔离，两边的编辑会互相覆盖，且共享状态里已有未提交改动（`OrchestratorDriver.ts` 已改为返回 `TickDrainOutcome`），基线不确定。
+      </?01M2NSBAMZV1Q8NC3TX5E9YH67>
+    )>
+  ]>
+  <answer {  }
+  (
+    <raw-answer ?01M2NSBAMZV1Q8NC3TX5E9YH68>
+      按证据与工作树状态自行选择保守项（question_severity=auto）。
+    </?01M2NSBAMZV1Q8NC3TX5E9YH68>
+    <decision-text ?01M2NSBAMZV1Q8NC3TX5E9YH69>
+      选 A：P1 立即落地（零重叠）；P2 前重新核对并行会话。
+    </?01M2NSBAMZV1Q8NC3TX5E9YH69>
+    <rationale ?01M2NSBAMZV1Q8NC3TX5E9YH6A>
+      `git status` 显示并行会话的 5 个已改文件与本 track P2 目标重合，其中 `OrchestratorDriver.ts` 的 `TickDrainOutcome` 已是未提交状态；在其收口前改同批文件无法保证基线一致。
+    </?01M2NSBAMZV1Q8NC3TX5E9YH6A>
+    <evidence ?01M2NSBAMZV1Q8NC3TX5E9YH6C>
+      `git status --short` 于 21:56 显示已改：`cell/packages/ai-organ-logic/src/{OrchestratorDriver.ts,orchestratorCapsule/internals/driverRuntime.ts,runtime/AiAgentRuntimeCoordinator.ts,llm/OpenAICompletionsNodejsFetchAdapter.ts,composer/AIAgent/tools/ActorAssign/Logic.ts}`，新增三个 settle 相关测试；`codument/tracks/pending/harden-turn-settle-budget-contract/` 的 `track.xnl` 非目标明写「不追查『谁让 fiber 在量子内保持 running』这第二类缺口……应另立 track」；目标文件 mtime 21:42–21:44（该会话仍在活动）。
+    </?01M2NSBAMZV1Q8NC3TX5E9YH6C>
+  )>
+  <confidence ?>
+  0.9
+  </?>
+  <reversibility ?>
+  easy
+  </?>
+)>
+]>

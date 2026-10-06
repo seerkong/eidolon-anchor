@@ -13,6 +13,7 @@ import { runActorIdleBeforeLifecycleHook } from "../hooks/RuntimeHookProducer";
 import { evaluateAiAgentRuntimeSnapshotSafepoint } from "@cell/ai-runtime-control-logic";
 import { tickAiAgentRuntimeBackground } from "./tickAiAgentRuntimeBackground";
 import { createSessionDiagnosticsXnlLog } from "./SessionRuntimeXnlLogs";
+import { getConversationActorRawStateFromVm } from "../conversation/ConversationDomainRuntime";
 
 export type RuntimeMemberInboxPayload = {
   from: string;
@@ -167,6 +168,54 @@ export function createAiAgentRuntimeCoordinator(params: {
     }
   };
 
+  /**
+   * Non-fatal observability for the stranding shape: the turn ended, the
+   * snapshot was refused because the lane was not at a safepoint, and the
+   * completed conversation progress could not be flushed. Before this warning
+   * existed the only symptom was silence — the user's accepted input and the
+   * assistant's finished replies stayed in memory while both the durable
+   * history and the TUI (which reads that history for its durable pages) showed
+   * nothing new, with no diagnostic naming the cause.
+   *
+   * Best-effort by construction: a diagnostics failure must never turn an
+   * already-degraded turn end into a hard error, and this must never become a
+   * second writer — it only reports the in-memory vs persisted counts.
+   */
+  const reportStrandedConversationProgress = async (): Promise<void> => {
+    if (!sessionId) return;
+    try {
+      const actorRawStates = Object.values(params.vm.actors)
+        .map((actor) => getConversationActorRawStateFromVm({
+          vm: params.vm,
+          actorKey: actor.key,
+          sessionId,
+        }))
+        .filter((rawState): rawState is NonNullable<typeof rawState> => !!rawState);
+      const bufferedMessageCount = actorRawStates.reduce(
+        (total, actorRawState) =>
+          total + actorRawState.visibleHistoryGenerations.reduce(
+            (actorTotal, generation) => actorTotal + generation.messages.length,
+            0,
+          ),
+        0,
+      );
+      checkpointDiagnostics.appendRuntimePersistenceEvent({
+        eventType: "runtime_conversation_progress_stranded",
+        sessionId,
+        status: "skipped",
+        reason: "snapshot_refused_non_safepoint",
+        messageCount: bufferedMessageCount,
+        historyGenerationCount: actorRawStates.reduce(
+          (total, actorRawState) => total + actorRawState.visibleHistoryGenerations.length,
+          0,
+        ),
+      });
+      await checkpointDiagnostics.flush().catch(() => {});
+    } catch {
+      // Never let the warning itself break the turn-end path.
+    }
+  };
+
   const flushDeferredMemberResumes = () => {
     const runtimeContext = ensureVmRuntimeContext(params.vm);
     const queued = [...runtimeContext.deferredMemberResumes];
@@ -222,11 +271,15 @@ export function createAiAgentRuntimeCoordinator(params: {
         inspected: params.driver.inspectRuntime(),
       });
       if (safepoint.safe) return;
+      // Best-effort: this is a pre-snapshot nudge, not the turn's decision
+      // loop. A slice that ends with work still running simply means this
+      // attempt made no progress; the next attempt re-evaluates, and a snapshot
+      // that stays unsafe is still reported as unsafe by the caller.
       await params.driver.tickUntilForegroundSettled({
         now: Date.now(),
         maxTicks: 20,
         maxWallMs: 250,
-      }).catch(() => {});
+      });
     }
   };
 
@@ -258,6 +311,14 @@ export function createAiAgentRuntimeCoordinator(params: {
         reason: safepoint.blockers.map((blocker) => blocker.reason).join(","),
       });
       await checkpointDiagnostics.flush().catch(() => {});
+      // A non-safepoint turn still completes conversation work (user inputs the
+      // runtime accepted, assistant replies that closed, paired tool results).
+      // Skipping the VM snapshot is correct — in-flight tool execution must not
+      // be snapshotted — but leaving the completed progress un-flushed strands
+      // it: the fiber is no longer running, so no later turn will ever commit
+      // it. Seal only that completed progress.
+      await sealCompletedProgress().catch(() => {});
+      await reportStrandedConversationProgress();
       return;
     }
     try {
@@ -271,6 +332,10 @@ export function createAiAgentRuntimeCoordinator(params: {
           safepointSafe: snapshotStatus !== "skipped_non_safepoint",
           reason: readSnapshotPendingEffectReason(result),
         });
+        // Same reasoning as the pre-check above: the snapshot was refused, so
+        // the completed conversation progress must still reach disk.
+        await sealCompletedProgress().catch(() => {});
+        await reportStrandedConversationProgress();
         return;
       }
       checkpointDiagnostics.appendRuntimeCheckpointEvent({
@@ -391,6 +456,13 @@ export function createAiAgentRuntimeCoordinator(params: {
           inspected,
         });
         let humanWait: HumanWaitBoundary | undefined;
+        // Whether the last pump slice ended with foreground work still running.
+        // A safepoint verdict alone cannot answer this: it classifies cooperative
+        // exec state, and a fiber actor mid-step can look settled there.
+        let stillRunning = false;
+        // Set when the unsettled branch below already flushed this turn's
+        // completed progress, so the single turn-end seal does not repeat it.
+        let sealedOnUnsettled = false;
         while (true) {
           const now = Date.now();
           const remainingMs = deadlineMs - now;
@@ -401,12 +473,19 @@ export function createAiAgentRuntimeCoordinator(params: {
             params.driver.resumeFiber(turnParams.mainFiberId, now);
             resumedMain = true;
           }
-          await params.driver.tickUntilForegroundSettled({
+          // The slice budget exists so this loop can re-evaluate the control
+          // plane (human waits, safepoint, remaining deadline) while provider and
+          // tool work is in flight. Exhausting a slice is therefore a normal
+          // outcome of pumping, NOT a turn failure: the turn's own deadline below
+          // is the only thing that can fail it. A long tool that outlives a slice
+          // must keep the turn alive.
+          const drain = await params.driver.tickUntilForegroundSettled({
             now,
             maxWallMs: Number.isFinite(deadlineMs)
               ? Math.max(1, Math.min(remainingMs, 1000))
               : undefined,
           });
+          stillRunning = drain.status === "budget_exhausted" && drain.stillRunning;
           inspected = params.driver.inspectRuntime();
           safepoint = evaluateAiAgentRuntimeSnapshotSafepoint({
             vm: params.vm,
@@ -414,7 +493,10 @@ export function createAiAgentRuntimeCoordinator(params: {
           });
           humanWait = findInteractiveHumanWaitBoundary(inspected, turnParams.mainFiberId);
           if (humanWait) break;
-          if (safepoint.safe) break;
+          // The turn is only over once the foreground lane has actually stopped
+          // running; a spent slice that still reports running work keeps pumping
+          // (the deadline above bounds the loop).
+          if (safepoint.safe && !stillRunning) break;
         }
         if (humanWait) {
           result = {
@@ -423,21 +505,24 @@ export function createAiAgentRuntimeCoordinator(params: {
             fiberId: humanWait.fiberId,
             reason: humanWait.reason,
           };
-        } else if (!safepoint.safe) {
-          const reason = safepoint.blockers.map((blocker) => blocker.reason).join(",");
-          result = {
-            status: "timeout_unsettled",
-            safepointSafe: false,
-            reason,
-          };
+        } else if (stillRunning || !safepoint.safe) {
           // P3 (requirement `timed-out-turn-progress-persisted`): a turn that
-          // timed out in mandatory_continuation may have completed tool pairs
-          // already committed into the conversation domain. Seal ONLY that
-          // completed progress so a later continuation relays from it instead of
-          // restarting bare. This deliberately does NOT take a VM snapshot — the
-          // in-flight (unsafe) tool execution stays un-snapshotted, preserving
-          // the "don't snapshot unsafe tool-execution" invariant. Best-effort:
-          // a flush failure must never turn a timeout into a hard error.
+          // ended unsettled may have completed tool pairs already committed into
+          // the conversation domain. Seal ONLY that completed progress so a later
+          // continuation relays from it instead of restarting bare. This
+          // deliberately does NOT take a VM snapshot — the in-flight (unsafe) tool
+          // execution stays un-snapshotted, preserving the "don't snapshot unsafe
+          // tool-execution" invariant. Best-effort: a flush failure must never
+          // turn a timeout into a hard error.
+          //
+          // Two shapes reach here: the turn deadline ran out with foreground work
+          // still running, or the lane stopped running but sits in a
+          // non-safepoint (mandatory_continuation) state.
+          const reason = stillRunning && safepoint.safe
+            ? "foreground_still_running"
+            : safepoint.blockers.map((blocker) => blocker.reason).join(",");
+          result = { status: "timeout_unsettled", safepointSafe: false, reason };
+          sealedOnUnsettled = true;
           await flushPersistenceWriteBehind().catch(() => {});
           await sealCompletedProgress().catch(() => {});
           checkpointDiagnostics.appendRuntimeCheckpointEvent({
@@ -448,6 +533,24 @@ export function createAiAgentRuntimeCoordinator(params: {
             reason,
           });
           await checkpointDiagnostics.flush().catch(() => {});
+        } else {
+          // A turn that reaches here ended without settling-timeout: it either
+          // settled normally or stopped for the user. Its conversation progress
+          // is just as real as an unsettled turn's — the user's accepted input
+          // and the assistant's closed replies are already committed into the
+          // domain — so it must reach disk too. Without this the progress stays
+          // in memory: the fiber is no longer running, so no later turn will
+          // ever commit it, and the durable history (which the TUI reads for its
+          // durable pages) simply never shows it.
+          result = { status: "settled", safepointSafe: true };
+        }
+        // One seal exit for every turn-end shape, still inside the enqueue body
+        // so it also covers the `blocked_on_human` early break. In-flight work is
+        // untouched: the seal flushes only what the conversation domain already
+        // completed, never a VM snapshot of unsafe tool execution.
+        if (!sealedOnUnsettled) {
+          await flushPersistenceWriteBehind().catch(() => {});
+          await sealCompletedProgress().catch(() => {});
         }
       });
     } finally {

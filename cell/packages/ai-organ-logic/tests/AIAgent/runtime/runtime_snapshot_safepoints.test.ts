@@ -1343,8 +1343,10 @@ describe("runtime snapshot safepoints", () => {
     }
     const driver = {
       resumeFiber: () => {},
+      // The fiber is suspended on human input, so the slice settles normally.
       async tickUntilForegroundSettled() {
         tickCount += 1
+        return { status: "settled" as const }
       },
       inspectRuntime() {
         return {
@@ -1423,7 +1425,11 @@ describe("runtime snapshot safepoints", () => {
         tickCount += 1
         if (tickCount >= 2) {
           execState = { phase: "idle" }
+          return { status: "settled" as const }
         }
+        // First slice: foreground work is still outstanding. This is a spent
+        // pump budget (it used to throw), so the coordinator must keep pumping.
+        return { status: "budget_exhausted" as const, budget: "wall" as const, wallMs: 250, stillRunning: true }
       },
       inspectRuntime() {
         return {

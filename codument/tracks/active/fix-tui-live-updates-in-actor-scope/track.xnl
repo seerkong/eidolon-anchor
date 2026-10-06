@@ -1,0 +1,100 @@
+<Track #fix-tui-live-updates-in-actor-scope apiVersion="codument.tech/v1alpha1" version="1" { status = "in_progress" goal = "让 actor 作用域视图恢复实时增量（按 actor 身份过滤而非无条件丢弃事件），同时保住切换查看不同 actor 的既有功能，且切换后同样获得实时增量" description = "TUI 层事件准入修正：actor 作用域按 agentActorId 过滤 + id 空间对齐验证 + 切换 actor 不回归；session 作用域语义不变" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-17T09:20:00.000Z" updated_at = "2026-09-17T07:45:31.918Z" modeling_base_commit = "72cf1326a38bd6086d03e61c50db19ce2d35c767" engineering_base_commit = "72cf1326a38bd6086d03e61c50db19ce2d35c767" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #tui_view { role = "input" name = "tui-view" domain = "code" path = "vfs://@/terminal/packages/tui/src/app/tui_a1/" }>
+    <MaterialBundle #tui_client { role = "input" name = "tui-client" domain = "code" path = "vfs://@/terminal/packages/tui/src/runtime/client/" }>
+    <MaterialBundle #tui_tests { role = "input" name = "tui-tests" domain = "test" path = "vfs://@/terminal/packages/tui/tests/" }>
+  ]>
+  <TaskSpace #space_fix-tui-live-updates-in-actor-scope { name = "fix-tui-live-updates-in-actor-scope" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "确认事件侧 actor 身份与 id 空间" status = "DONE" priority = "P0" order = 0 } (
+        <Description ?01M2PZ0000000000000000000R>
+        用代码事实确认 `message.updated` / `message.part.updated` 路径能否读出 canonical actor 身份，以及 actor 投影与 session 投影的 message id 是否同源。这一步决定实现是否需要补字段。
+        </?01M2PZ0000000000000000000R>
+        <SubNodes [
+          <Task #P1-T1 { name = "确认事件属性上的 actor 身份可获得性" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M2PZ0000000000000000000S>
+              已用代码事实确认 `message.updated` / `message.part.updated` 的 `properties` 是否能读出 canonical actor id（与 `ActorRuntimeLaneData.actorId` 同空间），并记录结论。
+              </?01M2PZ0000000000000000000S>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M2PZ0000000000000000000T>
+              若不可读，已确定要在发射处补充的字段名（语义明确表示 actor 身份，不复用语义模糊的 `agent`）。
+              </?01M2PZ0000000000000000000T>
+            ]>
+          )>
+          <Task #P1-T2 { name = "确认两侧 message id 同源" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M2PZ0000000000000000000V>
+              已确认 actor 投影（`actor.messages`）与 session 投影对同一逻辑消息派生出相同 id（`buildHistorySessionMessage` 的 `actorIdentity` 取值一致），或已定位差异及修正点。
+              </?01M2PZ0000000000000000000V>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M2PZ0000000000000000000W>
+              该结论有可执行的断言方式（供 P3 测试使用），而非仅靠阅读推断。
+              </?01M2PZ0000000000000000000W>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "实现按 actor 作用域的实时准入" status = "DONE" priority = "P0" order = 1 } (
+        <Description ?01M2PZ0000000000000000000X>
+        把 actor 作用域的无条件丢弃改为按当前作用域 actor 身份过滤；session 作用域保持既有无条件接纳。
+        </?01M2PZ0000000000000000000X>
+        <SubNodes [
+          <Task #P2-T1 { name = "写失败测试：actor 作用域实时到达且不串台" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M2PZ0000000000000000000Y>
+              存在测试：actor 作用域视图下，该 actor 的新消息无需用户操作即出现。
+              </?01M2PZ0000000000000000000Y>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M2PZ0000000000000000000Z>
+              存在测试：actor A 视图下 actor B 的消息不出现，且 A 自己的增量继续进入。
+              </?01M2PZ0000000000000000000Z>
+              <Criterion #P2-T1-AC3 { checked = true } ?01M2PZ0000000000000000010>
+              存在测试：切换 actor 后历史正确加载，且后续增量继续进入该视图。
+              </?01M2PZ0000000000000000010>
+            ]>
+          )>
+          <Task #P2-T2 { name = "实现过滤与准入" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M2PZ0000000000000000011>
+              `historySource().actor` 存在时按当前作用域 actor 身份过滤，而非一律丢弃；过滤按「当前作用域」求值，切换后随即生效。
+              </?01M2PZ0000000000000000011>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M2PZ0000000000000000012>
+              `historySource().actor` 为空（session 作用域）时保持既有无条件接纳语义。
+              </?01M2PZ0000000000000000012>
+              <Criterion #P2-T2-AC3 { checked = true } ?01M2PZ0000000000000000013>
+              未新增 conversation 写者，未触碰单写者边界与后端 actor 读端口契约。
+              </?01M2PZ0000000000000000013>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "回归与全量验证" status = "DONE" priority = "P0" order = 2 } (
+        <Description ?01M2PZ0000000000000000014>
+        跑通 TUI 测试面并确认无回归。
+        </?01M2PZ0000000000000000014>
+        <SubNodes [
+          <Task #P3-T1 { name = "跑通 TUI 测试面" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M2PZ0000000000000000015>
+              `terminal/packages/tui` 全量测试通过，既有 actor 切换/中断/流诊断测试无回归。
+              </?01M2PZ0000000000000000015>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M2PZ0000000000000000016>
+              仓库类型检查通过，未写入 `dist/`。
+              </?01M2PZ0000000000000000016>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_fix-tui-live-updates-in-actor-scope" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

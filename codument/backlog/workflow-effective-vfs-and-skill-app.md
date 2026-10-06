@@ -30,7 +30,7 @@
 
 ## 用户补充的后续演进边界
 
-用户计划在上述 E2E 初步修正后，借鉴 depa-codument 的 `codument-cli-skill-app-refactor` mission，将 Eidolon 进一步拆分为 Halfcode CLI Skill App。前置验证已完成；本轮不启动整库迁移。
+用户计划在上述 E2E 初步修正后，借鉴 depa-codument 的 `codument-cli-skill-app-refactor` mission，将 Eidolon 进一步拆分为 Halfcode CLI Skill App。前置验证已完成；本页记录边界，实际承接见下节。
 
 - 复用版本化的 `halfcode-cli-lite-*` 公共包；通用宿主能力由 Halfcode 持有，Eidolon 保留领域逻辑和必要产品封装，不跨仓引用私有源码。
 - 将变化快的 AI 确定性操作与文本协议变为可动态发现、加载的资源；现有动态 AIAgentDefinition 是可延续的基础。具体包拆分与操作映射留待后续设计。
@@ -39,3 +39,11 @@
 - 动态加载不改变资源 authority、工具授权、CAS、工作流实例冻结及恢复责任；知识加载和真实业务执行仍需分别验收。
 
 参考背景是 depa-codument 的同名重构 mission 与 Halfcode CLI Lite 公共 Host 设计。此处只保留适用于 Eidolon 的约束，不把外部项目的实施状态当作 Eidolon 已实现事实。
+
+## 承接：adopt-halfcode-cli-skill-app-runtime
+
+完整拆分已立项为 [mission adopt-halfcode-cli-skill-app-runtime](../missions/pending/adopt-halfcode-cli-skill-app-runtime/mission.xnl)，期望态与约束见其 [design.md](../missions/pending/adopt-halfcode-cli-skill-app-runtime/design.md)。
+
+该 mission 的关键判断：**Halfcode 公共包当前的资源访问止于只读 `ResourceEffect` 与面向操作系统的 `WorkspacePort`，因此动态加载的 Skill App 无法触及 Eidolon 的 Effective VFS**——这正是本页「公共宿主需支持可替换资源后端」这一要求的落地缺口。因此 mission 的第一步在 Halfcode 侧新增公共资源后端协议（读取 / 草稿编辑 / 发布准入三层）并用独立第三方 consumer 证伪，之后才改 Eidolon 接线。首个垂直切片选 Workflow authoring/run 操作族，因为其三端口已有真实 E2E 证据。
+
+注意：depa-codument 与本 mission 都尚未把公共包发布到 npm（当前经本地内容寻址制品消费），因此「已打包可安装」不等于「已发布」。

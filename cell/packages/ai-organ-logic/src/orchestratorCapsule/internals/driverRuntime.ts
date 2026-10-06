@@ -1609,7 +1609,12 @@ export function createAiAgentOrchestratorDriver(params: {
 
       while (tickCount < max) {
         if (Date.now() - start > wall) {
-          break;
+          return {
+            status: "budget_exhausted",
+            budget: "wall",
+            wallMs: wall,
+            stillRunning: hasRunningFibers(runtime.state),
+          };
         }
 
         const next = selectNextFiberId(runtime.state);
@@ -1639,6 +1644,14 @@ export function createAiAgentOrchestratorDriver(params: {
             });
             await flushMicrotasks();
             await new Promise<void>((r) => setTimeout(r, 5));
+            if (Date.now() - start > wall) {
+              return {
+                status: "budget_exhausted",
+                budget: "wall",
+                wallMs: wall,
+                stillRunning: hasRunningFibers(runtime.state),
+              };
+            }
             continue;
           }
 
@@ -1656,12 +1669,23 @@ export function createAiAgentOrchestratorDriver(params: {
         });
 
         if (Number.isFinite(deadlineMs) && Date.now() > deadlineMs && hasRunningFibers(runtime.state)) {
-          throw new Error(`Timeout after ${Math.floor(wall)}ms`);
+          // Slice budget is spent while lane work is still running. That is the
+          // caller's pump quantum ending, not a failure: report it so the caller
+          // can re-evaluate its control plane and keep pumping.
+          return { status: "budget_exhausted", budget: "wall", wallMs: wall, stillRunning: true };
         }
 
         // Ensure any resulting fiber_result messages are applied.
         await flushMicrotasks();
       }
+
+      // Tick allowance exhausted. Reaching here with lane work still outstanding
+      // is the same declared outcome as a spent wall budget, not a failure.
+      const stillRunning = hasRunningFibers(runtime.state);
+      if (stillRunning || hasInflightAsync(runtime)) {
+        return { status: "budget_exhausted", budget: "ticks", wallMs: wall, stillRunning };
+      }
+      return { status: "settled" };
     },
 
     tickUntilForegroundSettled: async ({ now, maxTicks, maxWallMs }) => {
@@ -1676,7 +1700,12 @@ export function createAiAgentOrchestratorDriver(params: {
 
       while (tickCount < max) {
         if (Date.now() - start > wall) {
-          break;
+          return {
+            status: "budget_exhausted",
+            budget: "wall",
+            wallMs: wall,
+            stillRunning: hasRunningFibersWhere(runtime.state, isFg),
+          };
         }
 
         const nextFg = selectNextForegroundFiberId(runtime.state);
@@ -1692,7 +1721,7 @@ export function createAiAgentOrchestratorDriver(params: {
           // questionnaire_pending control marker describes the wait; it is not
           // runnable mailbox work and must not keep the foreground pump alive.
           if (hasPauseAllHumanWaitInForeground(runtime.state)) {
-            break;
+            return { status: "settled" };
           }
 
           // Only wait on foreground inflight/running/pending resumes.
@@ -1712,10 +1741,18 @@ export function createAiAgentOrchestratorDriver(params: {
             });
             await flushMicrotasks();
             await new Promise<void>((r) => setTimeout(r, 5));
+            if (Date.now() - start > wall) {
+              return {
+                status: "budget_exhausted",
+                budget: "wall",
+                wallMs: wall,
+                stillRunning: hasRunningFibersWhere(runtime.state, isFg),
+              };
+            }
             continue;
           }
 
-          break;
+          return { status: "settled" };
         }
 
         actorRuntime.sendFrom("client", orchestratorId, "tick", { now, scope: "foreground" });
@@ -1729,11 +1766,22 @@ export function createAiAgentOrchestratorDriver(params: {
         });
 
         if (Number.isFinite(deadlineMs) && Date.now() > deadlineMs && hasRunningFibersWhere(runtime.state, isFg)) {
-          throw new Error(`Timeout after ${Math.floor(wall)}ms`);
+          // Slice budget is spent while foreground work is still running. That is
+          // the caller's pump quantum ending, not a failure: report it so the
+          // caller can re-evaluate human waits / safepoints and keep pumping.
+          return { status: "budget_exhausted", budget: "wall", wallMs: wall, stillRunning: true };
         }
 
         await flushMicrotasks();
       }
+
+      // Tick allowance exhausted. Reaching here with foreground work still
+      // outstanding is the same declared outcome as a spent wall budget.
+      const stillRunning = hasRunningFibersWhere(runtime.state, isFg);
+      if (stillRunning || hasInflightAsyncWhere(runtime, isFg)) {
+        return { status: "budget_exhausted", budget: "ticks", wallMs: wall, stillRunning };
+      }
+      return { status: "settled" };
     },
 
     tickUntilBackgroundSettled: async ({ now, maxTicks, maxWallMs }) => {
@@ -1749,7 +1797,12 @@ export function createAiAgentOrchestratorDriver(params: {
 
       while (tickCount < max) {
         if (Date.now() - start > wall) {
-          break;
+          return {
+            status: "budget_exhausted",
+            budget: "wall",
+            wallMs: wall,
+            stillRunning: hasRunningFibersWhere(runtime.state, isBackground),
+          };
         }
 
         const nextBackground = selectNextBackgroundFiberId(runtime.state);
@@ -1779,10 +1832,18 @@ export function createAiAgentOrchestratorDriver(params: {
             await waitForBackgroundTasks(runtime, start + wall);
             await flushMicrotasks();
             await new Promise<void>((r) => setTimeout(r, 5));
+            if (Date.now() - start > wall) {
+              return {
+                status: "budget_exhausted",
+                budget: "wall",
+                wallMs: wall,
+                stillRunning: hasRunningFibersWhere(runtime.state, isBackground),
+              };
+            }
             continue;
           }
 
-          break;
+          return { status: "settled" };
         }
 
         actorRuntime.sendFrom("client", orchestratorId, "tick", {
@@ -1803,11 +1864,21 @@ export function createAiAgentOrchestratorDriver(params: {
           Date.now() > deadlineMs &&
           hasRunningFibersWhere(runtime.state, isBackground)
         ) {
-          throw new Error(`Timeout after ${Math.floor(wall)}ms`);
+          // Slice budget spent while background work is still running: a declared
+          // outcome, not a failure. See TickDrainOutcome.
+          return { status: "budget_exhausted", budget: "wall", wallMs: wall, stillRunning: true };
         }
 
         await flushMicrotasks();
       }
+
+      // Tick allowance exhausted. Reaching here with background work still
+      // outstanding is the same declared outcome as a spent wall budget.
+      const stillRunning = hasRunningFibersWhere(runtime.state, isBackground);
+      if (stillRunning || hasInflightAsyncWhere(runtime, isBackground)) {
+        return { status: "budget_exhausted", budget: "ticks", wallMs: wall, stillRunning };
+      }
+      return { status: "settled" };
     },
     waitForSignal: async <K extends keyof WaiterStoreResultMap>({
       vm,

@@ -1397,8 +1397,8 @@ async function createRuntimeBridge(
       for (const fiberId of fiberIds) {
         driver.resumeFiber(fiberId, now)
       }
-      await driver.tickUntilForegroundSettled({ now, maxTicks: 200 }).catch(() => {})
-      await driver.tickUntilBackgroundSettled({ now: Date.now(), maxTicks: 200 }).catch(() => {})
+      await driver.tickUntilForegroundSettled({ now, maxTicks: 200 })
+      await driver.tickUntilBackgroundSettled({ now: Date.now(), maxTicks: 200 })
     }).catch(() => {})
   }
 
@@ -1863,7 +1863,7 @@ async function createRuntimeBridge(
       })
       driver.resumeFiber(childFiberId, now)
     }
-    await driver.tickUntilBlocked({ now, maxTicks: 20, maxWallMs: 250 }).catch(() => {})
+    await driver.tickUntilBlocked({ now, maxTicks: 20, maxWallMs: 250 })
     await persistSnapshot()
   }
 
@@ -2033,7 +2033,7 @@ async function createRuntimeBridge(
     const actorLane = projection.actorLanes.find((lane) => lane.actorId === request.actorId)
     if (actorLane) {
       const now = Date.now()
-      await driver.tickUntilBlocked({ now, maxTicks: 80, maxWallMs: 2_000 }).catch(() => {})
+      await driver.tickUntilBlocked({ now, maxTicks: 80, maxWallMs: 2_000 })
       await persistSnapshot()
     }
     return projection

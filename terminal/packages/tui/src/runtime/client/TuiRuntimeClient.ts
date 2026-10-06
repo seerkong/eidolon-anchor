@@ -72,6 +72,28 @@ type RuntimeBridgeFactory = (
 
 let runtimeBridgeFactoryOverride: null | RuntimeBridgeFactory = null
 
+/**
+ * Stable id for a message projected out of persisted conversation history.
+ *
+ * Most persisted messages carry no `messageId` (4061 of 4291 in the observed
+ * session), so the id is derived from the actor identity plus position. All
+ * projection paths — session stream, session paging, and the actor view — MUST
+ * pass the same identity for the same message, otherwise the same logical
+ * message yields two ids and a live update addressed to one of them never
+ * reaches the row built under the other. The session paths use the canonical
+ * actor KEY, so the actor view must too.
+ */
+export function deriveHistoryMessageID(params: {
+  domainMessageID?: unknown
+  actorIdentity?: string
+  messageIndex: number
+  role: string
+}): string {
+  const domainMessageID = String(params.domainMessageID ?? "").trim()
+  if (domainMessageID) return domainMessageID
+  return `history:${params.actorIdentity ?? "actor"}:${params.messageIndex}:${params.role}`
+}
+
 export function __setRuntimeBridgeFactoryForTest(factory: null | RuntimeBridgeFactory) {
   runtimeBridgeFactoryOverride = factory
 }
@@ -1154,8 +1176,12 @@ export function createTuiRuntimeClient(options?: {
   }): { info: Message; parts: Part[] } {
     const role = params.message.role
     const createdAt = params.message.startAt ?? params.message.endAt ?? params.messageIndex
-    const domainMessageID = String(params.message.messageId ?? "").trim()
-    const stableBaseID = domainMessageID || `history:${params.actorIdentity ?? "actor"}:${params.messageIndex}:${role}`
+    const stableBaseID = deriveHistoryMessageID({
+      domainMessageID: params.message.messageId,
+      actorIdentity: params.actorIdentity,
+      messageIndex: params.messageIndex,
+      role,
+    })
     const historyModel = params.model ?? catalog.defaultModel
     const messageContent = params.message.content
     const rawContent = typeof messageContent === "string" ? messageContent : ""
@@ -1605,10 +1631,19 @@ export function createTuiRuntimeClient(options?: {
       Object.values(state.parts).flat().map((part) => [part.id, part] as const),
     )
     const runtimeState = await loadRuntimeConversationState(runtime)
+    // Identity for derived message ids MUST match what the session-scoped paths
+    // use (`activeActorKey`, see the calls below) — otherwise the same logical
+    // message gets two different ids depending on whether it was read through
+    // the actor view or the session view. Most persisted messages carry no
+    // `messageId` (4061/4291 in the observed session), so the id is derived
+    // purely from this identity, and a mismatch shows up as "the live event was
+    // accepted but the row never updates". `loaded.actorKey` is the canonical
+    // key; `target.actorId` is only a fallback for a projection that reports no
+    // key at all.
     const historical = buildHistorySessionMessages({
       sessionID: state.info.id,
       messages: loaded.messages,
-      actorIdentity: target?.actorId ?? loaded.actorKey ?? undefined,
+      actorIdentity: loaded.actorKey ?? target?.actorId ?? undefined,
       model: runtimeState?.model,
     }).map((entry) => {
       entry.parts = entry.parts.map((part) => {
@@ -1881,6 +1916,29 @@ export function createTuiRuntimeClient(options?: {
     let streamTimer: ReturnType<typeof setTimeout> | undefined
     let streamDrainResolvers: Array<() => void> = []
 
+    /**
+     * Canonical actor identity for this turn's live messages.
+     *
+     * Live `message.updated` / `message.part.updated` events are filtered by the
+     * TUI against the currently viewed actor scope (see
+     * `app/tui_a1/perf/actor-scope-admission`). Text/tool messages produced by a
+     * turn must therefore carry the canonical actor id and key, otherwise an
+     * actor-scoped view cannot attribute them and their output would be dropped
+     * — the frozen-view bug. `params.agent` is an agent NAME, not an actor id,
+     * so the id is resolved from the session's actor bindings.
+     */
+    const turnActorIdentity = (): { agentActorId?: string; agentKey?: string } => {
+      const session = params.state.session as
+        | { activeActorKey?: string; actorBindings?: Record<string, { actorId?: string }> }
+        | undefined
+      // The session names its own active actor; do not guess among bindings,
+      // which would mis-attribute output on a multi-actor session.
+      const actorKey = session?.activeActorKey
+        ?? (session?.actorBindings ? Object.keys(session.actorBindings)[0] : undefined)
+      const actorId = actorKey ? session?.actorBindings?.[actorKey]?.actorId : undefined
+      return { agentActorId: actorId, agentKey: actorKey }
+    }
+
     const createAssistantState = async (mode = "assist") => {
       activeCategory = mode
       if (!shouldDisplayAssistantCategory(mode)) {
@@ -1912,7 +1970,7 @@ export function createTuiRuntimeClient(options?: {
         ignored: false,
       }
       addSessionMessage(params.state, assistantMessage, [assistantPart])
-      await emitEvent({ type: "message.updated", properties: { info: assistantMessage } } as Event)
+      await emitEvent({ type: "message.updated", properties: { info: assistantMessage, ...turnActorIdentity() } } as Event)
       currentState = { message: assistantMessage, part: assistantPart }
     }
 
@@ -1926,7 +1984,7 @@ export function createTuiRuntimeClient(options?: {
       pendingStreamPart = undefined
       pendingStreamBufferChars = 0
       lastStreamPartUpdateAt = Date.now()
-      await emitEvent({ type: "message.part.updated", properties: { part } } as Event)
+      await emitEvent({ type: "message.part.updated", properties: { part, ...turnActorIdentity() } } as Event)
     }
     const flushStreamPartUpdate = async (): Promise<void> => {
       if (streamTimer) {
@@ -1975,8 +2033,8 @@ export function createTuiRuntimeClient(options?: {
       const part = { ...stateToFinalize.part }
       addSessionMessage(params.state, message, [part])
       finalizedStates.push({ message, part })
-      await emitEvent({ type: "message.updated", properties: { info: message } } as Event)
-      await emitEvent({ type: "message.part.updated", properties: { part } } as Event)
+      await emitEvent({ type: "message.updated", properties: { info: message, ...turnActorIdentity() } } as Event)
+      await emitEvent({ type: "message.part.updated", properties: { part, ...turnActorIdentity() } } as Event)
       if (currentState === stateToFinalize) currentState = undefined
     }
     const appendChunk = async (chunk: string): Promise<boolean> => {
@@ -2050,8 +2108,8 @@ export function createTuiRuntimeClient(options?: {
       }
       addSessionMessage(params.state, message, [part])
       toolPartsByCallID.set(key, { message, part })
-      await emitEvent({ type: "message.updated", properties: { info: message } } as Event)
-      await emitEvent({ type: "message.part.updated", properties: { part } } as Event)
+      await emitEvent({ type: "message.updated", properties: { info: message, agentActorId: event.agentActorId, agentKey: event.agentKey } } as Event)
+      await emitEvent({ type: "message.part.updated", properties: { part, agentActorId: event.agentActorId, agentKey: event.agentKey } } as Event)
     }
     const emitToolPartResult = async (event: RuntimeBridgeHistoryEvent) => {
       const payload = parseToolResultPayload(event)
@@ -2083,8 +2141,8 @@ export function createTuiRuntimeClient(options?: {
       }
       addSessionMessage(params.state, message, [part])
       toolPartsByCallID.set(key, { message, part })
-      await emitEvent({ type: "message.updated", properties: { info: message } } as Event)
-      await emitEvent({ type: "message.part.updated", properties: { part } } as Event)
+      await emitEvent({ type: "message.updated", properties: { info: message, agentActorId: event.agentActorId, agentKey: event.agentKey } } as Event)
+      await emitEvent({ type: "message.part.updated", properties: { part, agentActorId: event.agentActorId, agentKey: event.agentKey } } as Event)
     }
     const handleHistoryEvent = async (event: RuntimeBridgeHistoryEvent) => {
       traceRuntimeHistoryEvent(params.state.info.id, event)

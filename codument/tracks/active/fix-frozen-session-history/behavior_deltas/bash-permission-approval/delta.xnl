@@ -1,0 +1,56 @@
+<BehaviorPatch #track.fix-frozen-session-history.behavior_patch.bash-permission-approval apiVersion="codument.tech/v1alpha1" version="1" { capability = "bash-permission-approval" } (
+  <Mutations [
+    <Upsert { selector = "behavior://bash-permission-approval/requirements/environment-assignment-segment-is-legal" } (
+      <Requirement #environment-assignment-segment-is-legal (
+        <Statement ?>当 bash 命令中某一段只由环境变量赋值构成（例如 `D=/path/to/dir`，形如 `A=1`、`D=$DIR`），该段在 POSIX shell 中是合法的、退出码为 0 的赋值命令。系统 SHALL 把这种段判定为「无副作用、无需审批」的合法段，SHALL NOT 以「段内不含可执行命令」为由抛出解析错误并拒绝整条命令。既有的守卫语义（受保护的权限配置文件路径不得经通用 bash 修改、危险命令仍须 ask/deny）SHALL 保持不变。</?>
+        <Suites [
+          <Suite #env-assignment-segment { name = "Environment assignment segment is legal" } (
+            <Cases [
+              <Case #leading-assignment-followed-by-command [
+                <Given ?>一条 bash 命令的某个 `&&` 段是纯环境变量赋值，且整条命令还包含其他段</?>
+                <When ?>runtime 对该命令求值本地权限</?>
+                <Then ?>该赋值段 SHALL 被视为合法段，SHALL NOT 产生「段内不含可执行命令」的解析失败</?>
+                <Then ?>整条命令的其余段 SHALL 按既有规则各自独立求值</?>
+              ]>
+              <Case #assignment-with-reference-to-prior-assignment [
+                <Given ?>后一个段的命令引用了前一个段刚赋值的变量（例如 `D=/x` 后接 `tar -xzf "$D/a.tgz"`）</?>
+                <When ?>runtime 解析并求值该命令</?>
+                <Then ?>解析 SHALL 成功，引用方段按其可执行命令（如 `tar`）参与既有规则求值</?>
+                <Then ?>SHALL NOT 因引用展开后的字面量含路径而误判为受保护配置修改，除非该路径确实是受保护配置</?>
+              ]>
+              <Case #assignment-only-command-remains-harmless [
+                <Given ?>整条命令只包含环境变量赋值段</?>
+                <When ?>runtime 对该命令求值本地权限</?>
+                <Then ?>求值 SHALL 成功并得出「无副作用」的结论</?>
+                <Then ?>SHALL NOT 执行任何被赋值的字符串</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://bash-permission-approval/requirements/segment-parse-failure-is-observable-and-narrow" } (
+      <Requirement #segment-parse-failure-is-observable-and-narrow (
+        <Statement ?>当 bash 段解析确实无法归一化时，系统 SHALL 只对该段按既有的 unsupported-syntax risk 分类路径处理（低风险只读可放行、危险保持 ask/deny），SHALL NOT 用一个与真实原因无关的通用错误（如「不含可执行命令」）掩盖解析器的判断依据。解析器内部的不变量违规 SHALL NOT 被当成用户命令的权限结论。</?>
+        <Suites [
+          <Suite #parse-failure-narrowness { name = "Parse failure stays narrow and truthful" } (
+            <Cases [
+              <Case #unsupported-syntax-uses-risk-classification [
+                <Given ?>某段含解析器不支持的 shell 语法</?>
+                <When ?>runtime 对该段求值</?>
+                <Then ?>该段 SHALL 走既有的 unsupported-syntax 风险分类（只读→放行、危险→ask/deny）</?>
+                <Then ?>SHALL NOT 因分类路径本身返回空而抛出误导性的「不含可执行命令」</?>
+              ]>
+              <Case #legal-command-not-reported-as-unsupported [
+                <Given ?>某段是合法且被 shell 支持的语法（含纯赋值段）</?>
+                <When ?>runtime 对该段求值</?>
+                <Then ?>SHALL NOT 被归入 unsupported-syntax 路径</?>
+                <Then ?>SHALL NOT 产生任何以解析失败为名的拒绝</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

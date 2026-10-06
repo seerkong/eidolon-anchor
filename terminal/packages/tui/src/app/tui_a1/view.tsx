@@ -30,6 +30,7 @@ import { useKeybind } from "../../providers/keybind"
 import { MessageCard, frameLine } from "./features/message/cards"
 import { createMessagePresentationStore, MessagePresentationContext } from "./features/message/model/presentation"
 import { createHistoryRowAdapter, mergeHistoryMessages, pageHistorySnapshot, type HistoryMessageGroup } from "./perf/history-source-adapter"
+import { shouldAdmitLiveMessage, type HistoryViewScope, type LiveMessageActor } from "./perf/actor-scope-admission"
 import { loadCompositeHistoryPage } from "./perf/composite-history-source"
 import { sessionContext } from "./features/message/model/session-context"
 import { BottomBar } from "./bottom-bar"
@@ -1132,6 +1133,37 @@ export function TuiA1View(props: TuiA1ViewProps) {
     )
   }
 
+  /**
+   * Which actor the visible history view is scoped to right now. Evaluated per
+   * event (not captured when the view opened) so switching actors immediately
+   * re-targets live admission: the switched-to actor's output starts arriving
+   * without a reload, which is the fix for the frozen-view bug.
+   */
+  const currentHistoryViewScope = (): HistoryViewScope => {
+    const source = historySource()
+    if (!source.actor) return { kind: "session" }
+    const lane = source.actor.actorID
+      ? actorSurface()?.actorLanes.find((item) => item.actorId === source.actor!.actorID)
+      : undefined
+    return { kind: "actor", actorId: source.actor.actorID, actorKey: lane?.actorKey }
+  }
+
+  /**
+   * Actor attribution for a live event. The runtime attaches the canonical
+   * actor id/key to the event properties; the message's own `agent` field is
+   * NOT usable here (it carries an agent name or actor key, not the canonical
+   * id), so it is only consulted for the key form.
+   */
+  const liveActorOf = (event: Event, message: { agent?: unknown }): LiveMessageActor => {
+    const properties = event.properties as
+      | { agentActorId?: unknown; agentKey?: unknown }
+      | undefined
+    const actorId = typeof properties?.agentActorId === "string" ? properties.agentActorId : undefined
+    const eventKey = typeof properties?.agentKey === "string" ? properties.agentKey : undefined
+    const fallbackKey = typeof message.agent === "string" ? message.agent : undefined
+    return { actorId, actorKey: eventKey ?? fallbackKey }
+  }
+
   type ActorListTarget = {
     laneID?: string
     actorID?: string
@@ -1221,7 +1253,8 @@ export function TuiA1View(props: TuiA1ViewProps) {
         }
         case "message.updated": {
           const info = event.properties?.info as Message | undefined
-          if (!info || info.sessionID !== sessionID() || historySource().actor) return
+          if (!info || info.sessionID !== sessionID()) return
+          if (!shouldAdmitLiveMessage(currentHistoryViewScope(), liveActorOf(event, info))) return
           liveMessageIDs.add(info.id)
           while (liveMessageIDs.size > 200) liveMessageIDs.delete(liveMessageIDs.values().next().value!)
           stateGraph.applyRuntimeMessageUpdated(info)
@@ -1230,7 +1263,8 @@ export function TuiA1View(props: TuiA1ViewProps) {
         }
         case "message.part.updated": {
           const part = event.properties?.part as Part | undefined
-          if (!part || part.sessionID !== sessionID() || historySource().actor) return
+          if (!part || part.sessionID !== sessionID()) return
+          if (!shouldAdmitLiveMessage(currentHistoryViewScope(), liveActorOf(event, part))) return
           liveMessageIDs.add(part.messageID)
           while (liveMessageIDs.size > 200) liveMessageIDs.delete(liveMessageIDs.values().next().value!)
           stateGraph.applyRuntimePartUpdated(part)

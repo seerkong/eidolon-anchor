@@ -1,0 +1,55 @@
+<BehaviorPatch #track.harden-turn-settle-budget-contract.behavior_patch.aiagent-fiber-orchestration apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-fiber-orchestration" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-fiber-orchestration/requirements/settle-budget-is-not-turn-failure" } (
+      <Requirement #settle-budget-is-not-turn-failure (
+        <Statement ?>系统 SHALL 把 foreground / background / all-lane settle 调用的 wall 预算当作「本次泵送量的预算」，而非 turn 失败判据。预算耗尽且仍有未 settled 的前台工作时，settle 调用 SHALL 返回一个声明的「预算耗尽且未 settled」结果，SHALL NOT 以异常终止调用方；只有调用方自己声明的 turn deadline 耗尽才构成 turn 未收口。</?>
+        <Suites [
+          <Suite #settle-budget-outcome { name = "Settle budget outcome" } (
+            <Cases [
+              <Case #budget-exhausted-returns-declared-outcome [
+                <Given ?>一个前台 fiber 在 settle 预算内没有 settled（仍 `running`，或仍有 inflight async work）</?>
+                <When ?>settle 调用的 wall 预算耗尽</?>
+                <Then ?>该调用 SHALL 正常返回「预算耗尽且未 settled」的声明结果</?>
+                <Then ?>该调用 SHALL NOT 抛出以预算毫秒数命名的失败</?>
+              ]>
+              <Case #long-tool-does-not-abort-turn [
+                <Given ?>一个前台 fiber 正在执行长时工具调用（单次执行超过一个泵送量子）</?>
+                <When ?>turn 主泵以固定量子边界反复 settle，并在量子边界评估 human wait 与 safepoint</?>
+                <Then ?>主泵 SHALL 继续推进该 turn，直到工具完成并收口</?>
+                <Then ?>该 turn SHALL NOT 因为「量子耗尽时仍有 running fiber」而终止</?>
+              ]>
+              <Case #unbounded-budget-unchanged [
+                <Given ?>调用方未声明 wall 预算（无限预算）</?>
+                <When ?>前台工作收敛</?>
+                <Then ?>settle SHALL 保持既有语义：收敛后返回，且不产生预算耗尽结果</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://aiagent-fiber-orchestration/requirements/turn-deadline-alone-fails-turn" } (
+      <Requirement #turn-deadline-alone-fails-turn (
+        <Statement ?>只有 turn 自己声明的 deadline 耗尽才 SHALL 把 turn 判为超时未收口。此时运行时 SHALL 返回既有的 `timeout_unsettled` 裁决并走该裁决既有的已完成后进度 seal 路径；settle 预算耗尽 SHALL NOT 被当作该判决的替代或旁路，也 SHALL NOT 被静默吞掉——它 SHALL 作为「继续观察」的输入交回主泵。</?>
+        <Suites [
+          <Suite #deadline-exhaustion { name = "Deadline exhaustion" } (
+            <Cases [
+              <Case #deadline-exhaustion-yields-timeout-unsettled [
+                <Given ?>turn 声明了 deadline，且到期时前台工作仍未 settled</?>
+                <When ?>主泵评估该 turn 的结局</?>
+                <Then ?>该 turn SHALL 返回 `timeout_unsettled` 裁决</?>
+                <Then ?>运行时 SHALL 只 seal 已完成的 conversation 进度，SHALL NOT 快照 in-flight 工具执行中状态</?>
+              ]>
+              <Case #quantum-boundary-keeps-control-plane-observable [
+                <Given ?>一个 turn 的 provider 调用或工具执行仍在 inflight</?>
+                <When ?>主泵以量子边界驱动 settle</?>
+                <Then ?>主泵 SHALL 在每个量子边界重新评估 human wait 与 snapshot safepoint</?>
+                <Then ?>人机等待 SHALL 在 quantum 边界被观察到，SHALL NOT 被长时 inflight 工作阻塞到该工作结束之后</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

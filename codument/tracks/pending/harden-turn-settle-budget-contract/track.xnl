@@ -1,0 +1,118 @@
+<Track #harden-turn-settle-budget-contract apiVersion="codument.tech/v1alpha1" version="1" { status = "in_progress" goal = "让 settle 的 wall 预算耗尽成为可继续的声明结果，使长时工具的 turn 不再被误判失败" description = "driver settle 家族契约变更 + turn 主泵按结果决策 + 测试迁移" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-16T18:28:21.886Z" updated_at = "2026-09-16T19:50:09.401Z" modeling_base_commit = "72cf1326a38bd6086d03e61c50db19ce2d35c767" engineering_base_commit = "72cf1326a38bd6086d03e61c50db19ce2d35c767" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #runtime_code { role = "input" name = "runtime-code" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/" }>
+    <MaterialBundle #runtime_tests { role = "input" name = "runtime-tests" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/" }>
+  ]>
+  <TaskSpace #space_harden-turn-settle-budget-contract { name = "harden-turn-settle-budget-contract" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "driver settle 契约：预算耗尽返回声明结果" status = "DONE" priority = "P0" order = 0 } (
+        <Description ?01M2NR9AK8Y0PS190XMEJ24ENW>
+        让三个 settle API 不再以异常表达「本次预算内未收口」，并把循环头与 tick 后的两条出口合并为同一语义。
+        </?01M2NR9AK8Y0PS190XMEJ24ENW>
+        <SubNodes [
+          <Task #P1-T1 { name = "写失败测试：预算耗尽时 settle 不抛异常且前台仍 running" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M2NR9AK92BGQCV232HWY9N5G>
+              存在一条测试：前台 fiber 在预算内保持 `running` 时，`tickUntilForegroundSettled` 正常返回「预算耗尽且未 settled」结果，且不抛出以预算毫秒数命名的异常。
+              </?01M2NR9AK92BGQCV232HWY9N5G>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M2NR9AK92BGQCV232HWY9N5H>
+              存在一条测试：未声明 wall 预算时，settle 收敛后返回「已收敛」结果。
+              </?01M2NR9AK92BGQCV232HWY9N5H>
+              <Criterion #P1-T1-AC3 { checked = true } ?01M2NR9AK92BGQCV232HWY9N5J>
+              `tickUntilBlocked` / `tickUntilBackgroundSettled` 有同形断言（同族语义一致）。
+              </?01M2NR9AK92BGQCV232HWY9N5J>
+            ]>
+          )>
+          <Task #P1-T2 { name = "实现 settle 声明结果与统一出口" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M2NR9AK92BGQCV232HWY9N5K>
+              `AiAgentOrchestratorDriver` 的三个 settle API 返回声明结果类型，编译期强制调用方处理。
+              </?01M2NR9AK92BGQCV232HWY9N5K>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M2NR9AK92BGQCV232HWY9N5M>
+              `driverRuntime.ts` 中三处 `Timeout after ${...}ms` throw 已移除；循环头 break 与 tick 后出口语义一致。
+              </?01M2NR9AK92BGQCV232HWY9N5M>
+              <Criterion #P1-T2-AC3 { checked = true } ?01M2NR9AK92BGQCV232HWY9N5N>
+              `tickUntilBlocked` 既有的「`maxTicks` 不限制等 async IO 轮次」行为未改变。
+              </?01M2NR9AK92BGQCV232HWY9N5N>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "turn 主泵按结果决策" status = "DONE" priority = "P0" order = 1 } (
+        <Description ?01M2NR9AK92BGQCV232HWY9N5P>
+        主泵据 settle 结果继续推进；只有 turn deadline 耗尽才判超时未收口。
+        </?01M2NR9AK92BGQCV232HWY9N5P>
+        <SubNodes [
+          <Task #P2-T1 { name = "写失败测试：长工具不中止 turn，deadline 耗时才超时" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M2NR9AK92BGQCV232HWY9N5Q>
+              存在一条测试：前台 fiber 跨越多个量子仍 running 时，`runInteractiveTurn` 不中止；工具完成后 turn 收口为 `settled`。
+              </?01M2NR9AK92BGQCV232HWY9N5Q>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M2NR9AK92BGQCV232HWY9N5R>
+              存在一条测试：turn deadline 耗尽且仍未 settled 时返回 `timeout_unsettled`，且仍走既有 seal 路径（只 seal 已完成 conversation 进度，不快照 in-flight）。
+              </?01M2NR9AK92BGQCV232HWY9N5R>
+              <Criterion #P2-T1-AC3 { checked = true } ?01M2NR9AK92BGQCV232HWY9N5S>
+              存在一条测试：量子边界仍可观察到 human wait（长时 inflight 不阻塞 `blocked_on_human`）。
+              </?01M2NR9AK92BGQCV232HWY9N5S>
+            ]>
+          )>
+          <Task #P2-T2 { name = "实现主泵按结果继续与同族调用点对齐" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M2NR9AK92BGQCV232HWY9N5T>
+              `runInteractiveTurn` 主泵按 settle 结果决策并继续；主泵路径上不存在对 settle 结果的 `.catch` 吞并。
+              </?01M2NR9AK92BGQCV232HWY9N5T>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M2NR9AK92BGQCV232HWY9N5V>
+              `progressBeforeSnapshot`、background pump、`deliverMemberInbox` 三个同族调用点按新契约收尾，语义与既有 best-effort 行为一致。
+              </?01M2NR9AK92BGQCV232HWY9N5V>
+              <Criterion #P2-T2-AC3 { checked = true } ?01M2NR9AK92BGQCV232HWY9N5W>
+              `timeout_unsettled` + `sealCompletedProgress` 路径行为不变；TerminalRuntime 的 typed 结果翻译未退化。
+              </?01M2NR9AK92BGQCV232HWY9N5W>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "测试迁移与全量回归" status = "DONE" priority = "P0" order = 2 } (
+        <Description ?01M2NR9AK92BGQCV232HWY9N5X>
+        把依赖「未 settled 即 throw」的既有测试改为检查 fiber / execState，并跑通相关测试面。
+        </?01M2NR9AK92BGQCV232HWY9N5X>
+        <SubNodes [
+          <Task #P3-T1 { name = "迁移既有 settle 断言" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M2NR9AK92BGQCV232HWY9N5Y>
+              `cell/packages/ai-organ-logic/tests/` 中把 `maxWallMs` 当 throw 信号的测试已改为断言 fiber 状态或 execState phase。
+              </?01M2NR9AK92BGQCV232HWY9N5Y>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M2NR9AK92BGQCV232HWY9N5Z>
+              `terminal/packages/organ/tests/` 中受影响的调用点已按新契约更新或确认不受影响。
+              </?01M2NR9AK92BGQCV232HWY9N5Z>
+            ]>
+          )>
+          <Task #P3-T2 { name = "跑通相关测试面" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M2NR9AK92BGQCV232HWY9N60>
+              settle 契约相关测试面（settle 契约、主泵、safepoint、timed-out progress、driver settle 家族）全部通过。
+              </?01M2NR9AK92BGQCV232HWY9N60>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M2NR9AK92BGQCV232HWY9N61>
+              相对改动前基线零回归：`cell/packages/ai-organ-logic` 与 `terminal/packages/organ` 的失败集合与基线逐条一致（改动前已存在的失败不计入本 track）。
+              </?01M2NR9AK92BGQCV232HWY9N61>
+              <Criterion #P3-T2-AC3 { checked = true } ?01M2NR9AK92BGQCV232HWY9N62>
+              仓库类型检查通过，无 `dist/` 写入（未授权构建不执行）。
+              </?01M2NR9AK92BGQCV232HWY9N62>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_harden-turn-settle-budget-contract" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

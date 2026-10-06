@@ -1,0 +1,120 @@
+<Track #fix-frozen-session-history apiVersion="codument.tech/v1alpha1" version="1" { status = "in_progress" goal = "消除「turn 不收敛时已完成进度被搁置、用户输入与 AI 回复在 history 与 TUI 中双双消失」的两层根因：bash 权限解析器误判合法赋值段，以及 turn 结束路径缺少已落盘进度的 flush 出口" description = "解析器纯赋值段合法化 + turn 结束路径落盘出口 + 搁置可观测性；TUI 虚拟列表为已排除项，不改" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-16T18:56:49.687Z" updated_at = "2026-09-17T03:38:50.107Z" modeling_base_commit = "72cf1326a38bd6086d03e61c50db19ce2d35c767" engineering_base_commit = "72cf1326a38bd6086d03e61c50db19ce2d35c767" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #permission_code { role = "input" name = "permission-code" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/permissions/" }>
+    <MaterialBundle #runtime_code { role = "input" name = "runtime-code" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/runtime/" }>
+    <MaterialBundle #runtime_tests { role = "input" name = "runtime-tests" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/" }>
+    <MaterialBundle #tui_perf { role = "input" name = "tui-perf" domain = "code" path = "vfs://@/terminal/packages/tui/src/app/tui_a1/perf/" }>
+  ]>
+  <TaskSpace #space_fix-frozen-session-history { name = "fix-frozen-session-history" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "bash 段解析：纯赋值段合法化" status = "DONE" priority = "P0" order = 0 } (
+        <Description ?01M2NT0A0G0000000000000001>
+        让「段内只有环境变量赋值」（如 `D=/path`）成为一类明确的合法段，而不是解析失败；保留全部既有守卫语义。
+        </?01M2NT0A0G0000000000000001>
+        <SubNodes [
+          <Task #P1-T1 { name = "写失败测试：纯赋值段不再抛错" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M2NT0A0G0000000000000002>
+              存在测试：`A=1 && echo hi` 与 `cd /tmp/x && D=/tmp/y && tar -xzf "$D/a.tgz"` 解析成功且不抛异常。
+              </?01M2NT0A0G0000000000000002>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M2NT0A0G0000000000000003>
+              存在测试：整条仅赋值（`A=1`）求值为无副作用，不需要审批。
+              </?01M2NT0A0G0000000000000003>
+              <Criterion #P1-T1-AC3 { checked = true } ?01M2NT0A0G0000000000000004>
+              存在反例测试：受保护权限配置路径写入仍被拒绝；危险命令仍 ask/deny；真畸形输入（如 `echo hi && && echo bye`）仍解析失败。
+              </?01M2NT0A0G0000000000000004>
+            ]>
+          )>
+          <Task #P1-T2 { name = "实现纯赋值段合法分类" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M2NT0A0G0000000000000005>
+              `collectBashCommandWords` 的「空即失败」只对真空段成立；纯赋值段归一化为自身并被标记为 no-op。
+              </?01M2NT0A0G0000000000000005>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M2NT0A0G0000000000000006>
+              `bashSegmentModifiesProtectedPermissionConfig` 与 `bashRawCommandReferencesProtectedPermissionConfig` 的判定时机与行为未变。
+              </?01M2NT0A0G0000000000000006>
+              <Criterion #P1-T2-AC3 { checked = true } ?01M2NT0A0G0000000000000007>
+              `bashSegmentIsWorkspaceSafe` 的只读安全判定未因本次改动而放宽。
+              </?01M2NT0A0G0000000000000007>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "turn 结束路径的落盘出口与搁置可观测" status = "DONE" priority = "P0" order = 1 } (
+        <Description ?01M2NT0A0G0000000000000008>
+        让已完成但未落盘的 conversation 进度在 turn 结束时不再被搁置；区分已完成与 in-flight，后者不快照、不写完成态。
+        </?01M2NT0A0G0000000000000008>
+        <SubNodes [
+          <Task #P2-T1 { name = "核对外部基线与出口挂点" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M2NT0A0G0000000000000009>
+              已确认并行 track `harden-turn-settle-budget-contract` 的 settle 契约变更是否已提交，并据此确定本 track 的基线。
+              </?01M2NT0A0G0000000000000009>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M2NT0A0G000000000000000A>
+              已确定 flush 出口的挂点是既有 turn 收口点（含 `sealCompletedProgress`），而不是新增独立旁路或第二写者。
+              </?01M2NT0A0G000000000000000A>
+            ]>
+          )>
+          <Task #P2-T2 { name = "写失败测试：非 safepoint 结局下已完成进度不搁置" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M2NT0A0G000000000000000B>
+              存在测试：turn 以非 safepoint 结局结束后，已完成的 conversation 进度被 flush（内存消息数与持久化消息数差额收敛）。
+              </?01M2NT0A0G000000000000000B>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M2NT0A0G000000000000000C>
+              存在测试：in-flight / 未完成消息不被写为完成态，且未对不安全工具执行中状态取 VM 快照。
+              </?01M2NT0A0G000000000000000C>
+              <Criterion #P2-T2-AC3 { checked = true } ?01M2NT0A0G000000000000000D>
+              存在测试：用户已送达并被 runtime 接纳的输入，在后续恢复的 model-visible history 中出现。
+              </?01M2NT0A0G000000000000000D>
+            ]>
+          )>
+          <Task #P2-T3 { name = "实现落盘出口与搁置告警" status = "DONE" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P2-T3-AC1 { checked = true } ?01M2NT0A0G000000000000000E>
+              turn 结束路径对已完成进度执行 flush；仍无在途提交者的搁置状态不再出现。
+              </?01M2NT0A0G000000000000000E>
+              <Criterion #P2-T3-AC2 { checked = true } ?01M2NT0A0G000000000000000F>
+              未 flush 成功时产生非致命结构化告警（会话标识、缓冲数、持久化数、结局），不抛错、不中断、不新增写者。
+              </?01M2NT0A0G000000000000000F>
+              <Criterion #P2-T3-AC3 { checked = true } ?01M2NT0A0G000000000000000G>
+              `timed-out-turn-progress-persisted` 的既有 seal 语义未变；conversation 单写者未被削弱。
+              </?01M2NT0A0G000000000000000G>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "测试迁移与全量回归" status = "DONE" priority = "P0" order = 2 } (
+        <Description ?01M2NT0A0G000000000000000H>
+        跑通权限与持久化相关测试面，并确认无未授权构建。
+        </?01M2NT0A0G000000000000000H>
+        <SubNodes [
+          <Task #P3-T1 { name = "跑通相关测试面" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M2NT0A0G000000000000000J>
+              `cell/packages/ai-organ-logic` 权限相关测试通过，且既有 deny/ask 规则测试无回归。
+              </?01M2NT0A0G000000000000000J>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M2NT0A0G000000000000000K>
+              持久化 / conversation 单写者相关测试通过。
+              </?01M2NT0A0G000000000000000K>
+              <Criterion #P3-T1-AC3 { checked = true } ?01M2NT0A0G000000000000000M>
+              仓库类型检查通过，未写入 `dist/`。
+              </?01M2NT0A0G000000000000000M>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_fix-frozen-session-history" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

@@ -2,6 +2,10 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
+function isFilesystemRoot(dir: string): boolean {
+  return path.dirname(dir) === dir
+}
+
 export function findNearestProjectRoot(
   startDir: string,
   marker = ".eidolon",
@@ -13,10 +17,10 @@ export function findNearestProjectRoot(
 
   while (true) {
     if (fs.existsSync(path.join(current, marker))) {
-      if (marker === ".eidolon" && current === homeDir) {
-        return resolvedStart
-      }
-      return current
+      if (marker === ".eidolon" && current === homeDir) return resolvedStart
+      // A marker on the drive/filesystem root is not a project. Adopting it
+      // steals every launch under that drive.
+      if (!(marker === ".eidolon" && isFilesystemRoot(current))) return current
     }
 
     const parent = path.dirname(current)

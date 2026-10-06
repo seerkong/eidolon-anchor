@@ -119,6 +119,7 @@ import {
   readRuntimeControlEffectEvidence,
   readRuntimeControlEffectEvidenceThroughSequence,
   readRuntimeControlSessionUpgradeFile,
+  admitMigratedRuntimeSnapshotCheckpoint,
 } from "@cell/ai-file-store-logic"
 import type { AiRuntimeEffectLifecycleEvent } from "@cell/ai-runtime-control-contract"
 // P2 seam (track refactor-persistent-session-backplane): the pure-I/O
@@ -374,22 +375,29 @@ async function readRuntimeControlRecoveryGate(sessionDir: string): Promise<Runti
     throw new Error("dirty_runtime_control_recovery:upgrade_checkpoint_mismatch")
   }
   const heads = await readRealSessionDurableHeads(sessionDir)
-  const inferredEffectEvidenceSequence = typeof checkpoint.effectEvidenceSequence === "number"
-    ? checkpoint.effectEvidenceSequence
-    : await inferRuntimeControlCheckpointEffectEvidenceSequence({ sessionDir, checkpoint })
+  const checkpointForRecovery = await admitMigratedRuntimeSnapshotCheckpoint({
+    sessionDir,
+    checkpoint,
+    upgrade,
+    actualSnapshotVersion: heads.runtime_snapshot?.committedSequence,
+    admittedSchemaVersion: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
+  })
+  const inferredEffectEvidenceSequence = typeof checkpointForRecovery.effectEvidenceSequence === "number"
+    ? checkpointForRecovery.effectEvidenceSequence
+    : await inferRuntimeControlCheckpointEffectEvidenceSequence({ sessionDir, checkpoint: checkpointForRecovery })
   const effectEvidence = typeof inferredEffectEvidenceSequence === "number"
     ? await readRuntimeControlEffectEvidenceThroughSequence({ sessionDir, sequence: inferredEffectEvidenceSequence })
     : []
   const effects = rebuildEffectsFromLifecycleEvidence(effectEvidence)
   const result = classifyRealSessionRecovery({
     heads: heads as any,
-    commitMarkers: { checkpoint },
+    commitMarkers: { checkpoint: checkpointForRecovery },
     effects,
   })
   if (result.classification === "dirty" || result.classification === "orphaned") {
     throw new Error(`dirty_runtime_control_recovery:${result.classification}`)
   }
-  return { checkpoint, effects, result }
+  return { checkpoint: checkpointForRecovery, effects, result }
 }
 
 function assertPendingEffectsBelongToRecoveredInflight(params: {

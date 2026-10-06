@@ -1658,6 +1658,39 @@ export async function readRuntimeControlSessionUpgradeFile(params: {
   )
 }
 
+/** A v3 checkpoint left behind after an admitted v4 snapshot migration is not dirty. */
+export async function admitMigratedRuntimeSnapshotCheckpoint(params: {
+  sessionDir: string
+  checkpoint: RuntimeControlCohortCommitFile
+  upgrade: RuntimeControlSessionUpgradeFile | null
+  actualSnapshotVersion: number | undefined
+  admittedSchemaVersion: number
+}): Promise<RuntimeControlCohortCommitFile> {
+  if (params.checkpoint.headSequences.runtime_snapshot !== 3) return params.checkpoint
+  if (params.actualSnapshotVersion !== params.admittedSchemaVersion) return params.checkpoint
+  const headSequences = {
+    ...params.checkpoint.headSequences,
+    runtime_snapshot: params.actualSnapshotVersion,
+  }
+  const checkpoint = await writeRuntimeControlCohortCommitFile({
+    sessionDir: params.sessionDir,
+    cohortId: params.checkpoint.cohortId,
+    headSequences,
+    effectEvidenceSequence: params.checkpoint.effectEvidenceSequence,
+  })
+  if (params.upgrade) {
+    await writeRuntimeControlSessionUpgradeFile({
+      sessionDir: params.sessionDir,
+      checkpointCohortId: checkpoint.cohortId,
+      checkpointMarker: checkpoint.marker,
+      headSequences,
+      effectEvidenceSequence: params.upgrade.effectEvidenceSequence,
+      previousCheckpointMarker: params.upgrade.checkpointMarker,
+    })
+  }
+  return checkpoint
+}
+
 async function fileExists(filePath: string): Promise<boolean> {
   try {
     await readFile(filePath)

@@ -1,5 +1,6 @@
 import path from "node:path"
 import { link, mkdir, open, readFile, readdir, unlink } from "node:fs/promises"
+import { fsyncDirectory } from "@cell/ai-support/runtime/durableDirectoryFsync"
 
 import type {
   AIDataControlCapability,
@@ -799,8 +800,7 @@ async function writeImmutablePreparationJson(file: string, value: unknown): Prom
   try { await handle.writeFile(bytes, "utf8"); await handle.sync() } finally { await handle.close() }
   try {
     await link(temporary, file)
-    const directory = await open(path.dirname(file), "r")
-    try { await directory.sync() } finally { await directory.close() }
+    await fsyncDirectory(path.dirname(file))
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
     if (await readFile(file, "utf8") !== bytes) throw new Error("AI_DATA_AGENT_PREPARATION_IMMUTABLE_CONFLICT")

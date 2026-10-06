@@ -15,6 +15,7 @@ import {
   sanitizeProviderRequestBodyOptions,
 } from "../ProviderOptions";
 import { prepareProviderToolSchemaProjection } from "../tool-schema/ProviderRequestAdmission";
+import { opencodeSessionHeaders } from "../OpencodeSessionHeader";
 
 function effectBundleFor(params: ProviderDriverRequestParams) {
   const selected = params.chatCompletionsEffectBundle;
@@ -89,19 +90,26 @@ export function buildDeepSeekProviderDriver(): ProviderDriverDefinition {
     prepareRequest: prepareDeepSeekRequest,
     async createStream(params: ProviderDriverStreamParams) {
       const effectBundle = effectBundleFor(params);
+      const baseUrl =
+        getString(params.connectionOptions, "base_url", "baseurl") ||
+        "https://api.deepseek.com";
+      const sessionKey =
+        params.sessionKey ||
+        (params.runtime?.sessionId || params.runtime?.actorId
+          ? `${params.runtime?.sessionId ?? ""}/${params.runtime?.actorId ?? ""}`
+          : undefined);
       const transport = new OpenAICompletionsAdmittedFetchTransport({
         apiKey: getString(params.connectionOptions, "api_key", "apikey"),
         effectBundle,
-        baseUrl:
-          getString(params.connectionOptions, "base_url", "baseurl") ||
-          "https://api.deepseek.com",
+        baseUrl,
         providerOptions: {
           apiKey: getString(params.connectionOptions, "api_key", "apikey"),
-          baseURL:
-            getString(params.connectionOptions, "base_url", "baseurl") ||
-            "https://api.deepseek.com",
-          headers: params.connectionOptions.default_headers as
-            Record<string, string> | undefined,
+          baseURL: baseUrl,
+          headers: opencodeSessionHeaders(
+            baseUrl,
+            sessionKey,
+            params.connectionOptions.default_headers as Record<string, string> | undefined,
+          ),
         },
         requestObserver: params.transportRequestObserver,
       });

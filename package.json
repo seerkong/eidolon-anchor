@@ -69,32 +69,13 @@
     "desktop",
     "frontend/packages/*",
     "terminal",
-    "terminal/packages/*",
-    ".tmp/g8-candidates/packages/depa-cozo",
-    ".tmp/g8-candidates/packages/depa-datalog",
-    ".tmp/g8-candidates/packages/depa-inference-capsule",
-    ".tmp/g8-candidates/packages/depa-inference-contract",
-    ".tmp/g8-candidates/packages/depa-inference-cozo-support",
-    ".tmp/g8-candidates/packages/depa-inference-logic",
-    ".tmp/g8-candidates/packages/holarchy-core-contract",
-    ".tmp/g8-candidates/packages/holarchy-core-logic",
-    ".tmp/g8-candidates/packages/holarchy-file-xnl-capsule",
-    ".tmp/g8-candidates/packages/holarchy-file-xnl-contract",
-    ".tmp/g8-candidates/packages/holarchy-file-xnl-logic",
-    ".tmp/g8-candidates/packages/holarchy-file-xnl-support",
-    ".tmp/g8-candidates/packages/holarchy-test-support",
-    ".tmp/g8-candidates/packages/xnl-collab-core",
-    ".tmp/g8-candidates/packages/xnl-core",
-    ".tmp/g8-candidates/packages/xnl-vcs",
-    ".tmp/g8-candidates/packages/xnl-vfs",
-    ".tmp/candidates/packages/halfcode-compiler.xnl"
+    "terminal/packages/*"
   ],
   "dependencies": {
     "@opencode-ai/sdk": "1.1.25",
     "eslint": "^9.39.2"
   },
   "overrides": {
-    "halfcode-compiler.xnl": "workspace:*",
     "ai-workflow-contract": "0.2.1",
     "ai-workflow-logic": "0.2.1",
     "node-gyp": "10.0.1",

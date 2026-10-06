@@ -20,6 +20,7 @@ import {
 } from "@cell/ai-core-logic/runtime/snapshot";
 import { normalizeActorDurableMaterialIndex } from "@cell/ai-core-logic/runtime/ActorDurableMaterial";
 import { normalizeActorRuntimeFacetIndex } from "@cell/ai-core-logic/runtime/ActorRuntimeFacet";
+import { fsyncDirectory } from "./durableDirectoryFsync";
 import {
   parseQuestionnaireRowsXnl,
   serializeQuestionnaireRowsXnl,
@@ -135,16 +136,9 @@ function stableJson(value: unknown): string {
 }
 
 async function fsyncFile(filePath: string): Promise<void> {
-  const handle = await open(filePath, "r");
-  try {
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-}
-
-async function fsyncDirectory(directoryPath: string): Promise<void> {
-  const handle = await open(directoryPath, "r");
+  // Windows rejects fsync on a read-only handle (EPERM). r+ keeps the bytes
+  // unchanged and is the mode that can actually flush file data.
+  const handle = await open(filePath, "r+");
   try {
     await handle.sync();
   } finally {

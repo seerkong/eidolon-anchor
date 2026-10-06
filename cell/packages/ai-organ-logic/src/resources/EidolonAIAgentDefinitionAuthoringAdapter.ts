@@ -32,6 +32,7 @@ import {
   type ResourceNode,
 } from "halfcode-compiler.xnl/resource-core"
 import { safePathLexicalIssue } from "halfcode-compiler.xnl/resource-mapping"
+import { fsyncDirectory } from "@cell/ai-support/runtime/durableDirectoryFsync"
 import type {
   EffectiveEidolonVfsCandidate,
   EffectiveEidolonVfsMaterializationResult,
@@ -729,8 +730,7 @@ async function replaceWorkspaceFile(target: string, before: WorkspaceBefore, tex
 }
 
 async function syncDirectory(directory: string): Promise<void> {
-  const handle = await open(directory, "r")
-  try { await handle.sync() } finally { await handle.close() }
+  await fsyncDirectory(directory)
 }
 
 async function writeFileNoReplace(target: string, content: string, onReplaced?: () => void): Promise<void> {

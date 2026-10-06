@@ -14,6 +14,8 @@ import {
   unlink,
 } from "node:fs/promises";
 
+import { fsyncDirectory } from "../../runtime/durableDirectoryFsync";
+
 import type {
   ActorHistoryGenerationData,
   ActorPromptGenerationData,
@@ -276,15 +278,6 @@ async function assertRealDirectoryOrMissing(directoryPath: string): Promise<void
     }
   } catch (error: any) {
     if (error?.code !== "ENOENT") throw error;
-  }
-}
-
-async function fsyncDirectory(directoryPath: string): Promise<void> {
-  const handle = await open(directoryPath, "r");
-  try {
-    await handle.sync();
-  } finally {
-    await handle.close();
   }
 }
 

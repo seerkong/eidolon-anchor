@@ -16,6 +16,7 @@ import {
   parseHolonEffectiveSnapshotBytes,
   parseHolonEffectiveSnapshotIssuanceReceiptBytes,
 } from "holarchy-core-contract"
+import { fsyncDirectory } from "@cell/ai-support/runtime/durableDirectoryFsync"
 import {
   canonicalHolonDeploymentDefinitionBytes,
   canonicalHolonExecutionBindingBytes,
@@ -256,12 +257,7 @@ async function writeDurableFile(target: string, bytes: Uint8Array): Promise<void
 }
 
 async function syncDirectory(directory: string): Promise<void> {
-  const handle = await open(directory, "r")
-  try {
-    await handle.sync()
-  } finally {
-    await handle.close()
-  }
+  await fsyncDirectory(directory)
 }
 
 async function writeCandidate(

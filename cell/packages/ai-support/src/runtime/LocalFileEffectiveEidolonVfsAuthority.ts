@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite"
 import { createHash, randomUUID } from "node:crypto"
 import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, rmdirSync, unlinkSync, writeFileSync } from "node:fs"
+import { fsyncDirectorySync } from "./durableDirectoryFsync"
 import path from "node:path"
 import { areXnlSnapshotsStructurallyEqual, VirtualFileSystem, type RevisionedVfsAuthority, type RevisionedVfsCompareAndSwapResult, type RevisionedVfsFlushInput, type RevisionedVfsSnapshot } from "xnl-vfs"
 import type { DataElementNode } from "xnl-core"
@@ -229,10 +230,7 @@ export class LocalFileEffectiveEidolonVfsAuthority implements EffectiveEidolonVf
       directory = path.posix.dirname(directory)
     }
     const surviving = path.join(this.workspaceRoot, directory.slice("/.eidolon/".length))
-    if (existsSync(surviving)) {
-      const fd = openSync(surviving, "r")
-      try { fsyncSync(fd) } finally { closeSync(fd) }
-    }
+    if (existsSync(surviving)) fsyncDirectorySync(surviving)
   }
 }
 
@@ -305,8 +303,7 @@ function atomicWrite(target: string, bytes: Uint8Array): void {
   try { writeFileSync(fd, bytes); fsyncSync(fd) } finally { closeSync(fd) }
   try {
     renameSync(temporary, target)
-    const directory = openSync(path.dirname(target), "r")
-    try { fsyncSync(directory) } finally { closeSync(directory) }
+    fsyncDirectorySync(path.dirname(target))
   } finally { try { unlinkSync(temporary) } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error } }
 }
 function publicationIdentity(context: EidolonVfsPublicationContext): string {

@@ -8,6 +8,7 @@ import type {
   AiRuntimeEffectLifecycleEvent,
 } from "@cell/ai-runtime-control-contract"
 import { AI_RUNTIME_REAL_SESSION_HEADS } from "@cell/ai-runtime-control-contract"
+import { RUNTIME_SNAPSHOT_SCHEMA_VERSION } from "@cell/ai-core-contract/runtime/RuntimeSnapshotTypes"
 import {
   FILE_STORE_RUNTIME_CONCRETE_CHECKPOINT_HANDLER_KEY,
   createFileStoreConcreteCheckpointEffectHandlers,
@@ -31,6 +32,7 @@ import {
   readRuntimeControlEffectEvidenceSequence,
   readRuntimeControlEffectEvidenceThroughSequence,
   readRuntimeControlSessionUpgradeFile,
+  admitMigratedRuntimeSnapshotCheckpoint,
   writeRuntimeControlCohortCommitFile,
   writeRuntimeControlSessionUpgradeFile,
   type RuntimeControlCohortCommitFile,
@@ -506,11 +508,20 @@ export async function upgradeFileStoreAiRuntimeSessionToOwnedCheckpoint(input: {
 }): Promise<FileStoreAiRuntimeSessionUpgradeResult> {
   await assertSessionIsNotTranscriptOnly(input.sessionDir)
   const cohortId = input.cohortId ?? FILE_STORE_RUNTIME_CHECKPOINT_COHORT_ID
-  const previousCheckpoint = await readRuntimeControlCohortCommitFile({
+  let previousCheckpoint = await readRuntimeControlCohortCommitFile({
     sessionDir: input.sessionDir,
     cohortId,
   })
   if (previousCheckpoint) {
+    const heads = await readRealSessionDurableHeads(input.sessionDir)
+    const upgrade = await readRuntimeControlSessionUpgradeFile({ sessionDir: input.sessionDir })
+    previousCheckpoint = await admitMigratedRuntimeSnapshotCheckpoint({
+      sessionDir: input.sessionDir,
+      checkpoint: previousCheckpoint,
+      upgrade,
+      actualSnapshotVersion: heads.runtime_snapshot?.committedSequence,
+      admittedSchemaVersion: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
+    })
     const current = await classifyFileStoreCheckpointPrefix({
       sessionDir: input.sessionDir,
       cohortId,

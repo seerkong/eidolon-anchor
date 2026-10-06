@@ -11,6 +11,7 @@ import {
   sanitizeProviderExtraBody,
   sanitizeProviderRequestBodyOptions,
 } from "../ProviderOptions";
+import { opencodeSessionHeaders } from "../OpencodeSessionHeader";
 import { prepareProviderToolSchemaProjection } from "../tool-schema/ProviderRequestAdmission";
 
 function prepareOpenAIChatRequest(params: ProviderDriverRequestParams) {
@@ -64,15 +65,24 @@ export function buildOpenAIChatProviderDriver(): ProviderDriverDefinition {
     },
     prepareRequest: prepareOpenAIChatRequest,
     async createStream(params: ProviderDriverStreamParams) {
+      const baseUrl = getString(params.connectionOptions, "base_url", "baseurl");
+      const sessionKey =
+        params.sessionKey ||
+        (params.runtime?.sessionId || params.runtime?.actorId
+          ? `${params.runtime?.sessionId ?? ""}/${params.runtime?.actorId ?? ""}`
+          : undefined);
       const transport = new OpenAICompletionsAdmittedFetchTransport({
         apiKey: getString(params.connectionOptions, "api_key", "apikey"),
-        baseUrl: getString(params.connectionOptions, "base_url", "baseurl"),
+        baseUrl,
         effectBundle: openAIOfficialChatEffectBundle,
         providerOptions: {
           apiKey: getString(params.connectionOptions, "api_key", "apikey"),
-          baseURL: getString(params.connectionOptions, "base_url", "baseurl"),
-          headers: params.connectionOptions.default_headers as
-            Record<string, string> | undefined,
+          baseURL: baseUrl,
+          headers: opencodeSessionHeaders(
+            baseUrl,
+            sessionKey,
+            params.connectionOptions.default_headers as Record<string, string> | undefined,
+          ),
         },
         requestObserver: params.transportRequestObserver,
       });

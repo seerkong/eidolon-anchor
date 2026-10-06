@@ -590,6 +590,64 @@ describe("runtime recovery bootstrap", () => {
     }
   })
 
+  it("admits a schema-v3 checkpoint after the snapshot manifest has migrated to v4", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-recovery-admitted-snapshot-schema"
+    const adapter = makeMockAdapter()
+    const actor = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      messages: [{ role: "user", content: "hello" }] as any[],
+    })
+    const vm = createVM({ controlActorKey: actor.key, actors: { [actor.key]: actor } })
+    const fiberId = `${actor.key}:${actor.id}`
+    const driver = createAiAgentOrchestratorDriverWithCooperative({
+      fibers: [{ fiberId, vm, actor, messages: actor.messages, basePriority: 1 }],
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+
+    try {
+      await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+      await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+      const heads = await readRealSessionDurableHeads(sessionDir)
+      expect(heads.runtime_snapshot?.committedSequence).toBe(4)
+      const current = await readRuntimeControlCohortCommitFile({ sessionDir, cohortId: "checkpoint" })
+      expect(current?.headSequences.runtime_snapshot).toBe(4)
+      const staleHeads = { ...current!.headSequences, runtime_snapshot: 3 }
+      const stale = await writeRuntimeControlCohortCommitFile({
+        sessionDir,
+        cohortId: "checkpoint",
+        headSequences: staleHeads,
+        effectEvidenceSequence: current!.effectEvidenceSequence,
+      })
+      await writeRuntimeControlSessionUpgradeFile({
+        sessionDir,
+        checkpointCohortId: stale.cohortId,
+        checkpointMarker: stale.marker,
+        headSequences: staleHeads,
+        effectEvidenceSequence: stale.effectEvidenceSequence,
+        previousCheckpointMarker: stale.marker,
+      })
+
+      const recovered = await recoverAiAgentRuntime({
+        sessionDir,
+        sessionId,
+        llmClient: adapter,
+        registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+        actorCallbacks: {
+          buildToolset: () => [],
+          processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued" })),
+        },
+      })
+      expect(recovered).toBeTruthy()
+      const repaired = await readRuntimeControlCohortCommitFile({ sessionDir, cohortId: "checkpoint" })
+      expect(repaired?.headSequences.runtime_snapshot).toBe(4)
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
   it("revives a failed fiber that still has recovered mailbox work", async () => {
     const sessionDir = makeTempSessionDir()
     const sessionId = "session-recovery-failed-human-input"

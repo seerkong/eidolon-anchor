@@ -2,6 +2,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+function isFilesystemRoot(dir: string): boolean {
+  return path.dirname(dir) === dir;
+}
+
 export function findNearestProjectRoot(
   startDir: string,
   marker = ".eidolon",
@@ -12,10 +16,8 @@ export function findNearestProjectRoot(
   let current = resolvedStart;
   while (true) {
     if (fs.existsSync(path.join(current, marker))) {
-      if (marker === ".eidolon" && current === homeDir) {
-        return resolvedStart;
-      }
-      return current;
+      if (marker === ".eidolon" && current === homeDir) return resolvedStart;
+      if (!(marker === ".eidolon" && isFilesystemRoot(current))) return current;
     }
     const parent = path.dirname(current);
     if (parent === current) {

@@ -5,6 +5,7 @@ import path from "node:path"
 import yargs from "yargs/yargs"
 
 import { findNearestProjectRoot } from "@cell/platform-support"
+import { findNearestProjectRoot as findTuiProjectRoot } from "../src/support/util/project"
 import { buildTuiThreadRuntimeMetadata, thread } from "../src/entry/thread"
 
 let tempRoot: string | null = null
@@ -46,6 +47,20 @@ describe("tui thread project root resolution", () => {
     fs.mkdirSync(startDir, { recursive: true })
 
     expect(findNearestProjectRoot(startDir, ".eidolon", { homeDir })).toBe(startDir)
+  })
+
+  it("does not treat a filesystem-root .eidolon as the project", () => {
+    const driveRoot = path.parse(process.cwd()).root
+    const startDir = path.join(driveRoot, "workbench", "web-site-finder")
+    const marker = path.join(driveRoot, ".eidolon")
+    const created = !fs.existsSync(marker)
+    if (created) fs.mkdirSync(marker)
+    try {
+      expect(findNearestProjectRoot(startDir)).toBe(path.resolve(startDir))
+      expect(findTuiProjectRoot(startDir)).toBe(path.resolve(startDir))
+    } finally {
+      if (created) fs.rmSync(marker, { recursive: true, force: true })
+    }
   })
 
   it("accepts the hidden print-logs flag under strict option parsing", async () => {

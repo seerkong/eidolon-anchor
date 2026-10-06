@@ -76,6 +76,14 @@ export async function tuiA1Tui(input: TuiA1Input) {
     restoreTuiTerminalModes()
     resolveDestroyed?.()
   })
+  let shutdownRequested = false
+  const requestShutdown = () => {
+    if (shutdownRequested) process.exit(0)
+    shutdownRequested = true
+    void cleanupAfterDestroy().finally(() => process.exit(0))
+  }
+  process.once("SIGINT", requestShutdown)
+  process.once("SIGBREAK", requestShutdown)
 
   function TuiA1RuntimeRoot() {
     const runtime = useRuntimeClient()

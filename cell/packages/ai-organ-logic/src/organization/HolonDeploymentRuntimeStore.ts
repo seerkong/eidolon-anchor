@@ -22,6 +22,7 @@ import {
 
 import { loadHolonDeploymentDefinition } from "./HolonDeploymentDefinition"
 import type { MaterializedHolonDeploymentDefinition } from "./HolonDeploymentDefinition"
+import { fsyncDirectory } from "@cell/ai-support/runtime/durableDirectoryFsync"
 
 export { normalizeHolonDeploymentRuntimeSnapshot } from "holarchy-eidolon-adapter"
 
@@ -318,7 +319,7 @@ async function physicalDirectory(directory: string, parentRoot: string, create: 
   if (create) {
     try {
       await mkdir(directory)
-      await syncDirectory(parentRoot)
+      await fsyncDirectory(parentRoot)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
     }
@@ -335,15 +336,6 @@ async function physicalDirectory(directory: string, parentRoot: string, create: 
     return fail("EIDOLON_HOLON_DEPLOYMENT_RUNTIME_BOUNDARY_INVALID", `Runtime directory '${directory}' escapes its deployment.`)
   }
   return canonical
-}
-
-async function syncDirectory(directory: string): Promise<void> {
-  const handle = await open(directory, "r")
-  try {
-    await handle.sync()
-  } finally {
-    await handle.close()
-  }
 }
 
 async function runtimePaths(definitionDir: string, create: boolean): Promise<RuntimePaths> {
@@ -407,14 +399,14 @@ async function writeImmutable(directory: string, target: string, bytes: Uint8Arr
       if (error.code !== "ENOENT") throw error
     })
   }
-  await syncDirectory(directory)
+  await fsyncDirectory(directory)
 }
 
 async function writeHead(paths: RuntimePaths, head: RuntimeHead): Promise<void> {
   const candidate = path.join(paths.root, `.head-candidate-${randomUUID()}`)
   await writeFileSynced(candidate, canonicalBytes(head))
   await rename(candidate, paths.head)
-  await syncDirectory(paths.root)
+  await fsyncDirectory(paths.root)
 }
 
 function materialPath(directory: string, value: Digest): string {
@@ -761,7 +753,7 @@ export class FileHolonDeploymentRuntimeStore {
           await handle.writeFile(canonicalBytes(owner))
           await handle.sync()
           const facts = await handle.stat()
-          await syncDirectory(paths.root)
+          await fsyncDirectory(paths.root)
           return Object.freeze({ ...owner, file: paths.lock, device: facts.dev, inode: facts.ino, handle })
         } catch (error) {
           await handle.close()
@@ -787,7 +779,7 @@ export class FileHolonDeploymentRuntimeStore {
           if (lockFacts.dev !== claimFacts.dev || lockFacts.ino !== claimFacts.ino) continue
           if (!sameBytes(await readPhysicalFile(paths.root, claim), currentBytes)) continue
           await unlink(paths.lock)
-          await syncDirectory(paths.root)
+          await fsyncDirectory(paths.root)
         } catch (error) {
           if (!new Set(["ENOENT", "EEXIST"]).has((error as NodeJS.ErrnoException).code ?? "")) throw error
         } finally {
@@ -812,6 +804,6 @@ export class FileHolonDeploymentRuntimeStore {
     const owner = parseJsonBytes(await readPhysicalFile(paths.root, lock.file), normalizeLock, "runtime.lock")
     if (owner.token !== lock.token) return
     await unlink(lock.file)
-    await syncDirectory(paths.root)
+    await fsyncDirectory(paths.root)
   }
 }

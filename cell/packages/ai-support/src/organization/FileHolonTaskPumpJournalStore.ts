@@ -16,6 +16,7 @@ import {
   type HolonTaskPumpJournalCollection,
   type HolonTaskPumpJournalStorePort,
 } from "@cell/ai-organ-contract/organization/HolonTaskPumpJournal"
+import { fsyncDirectory } from "../runtime/durableDirectoryFsync"
 
 const fail = (code: string, message: string): never => {
   throw new HolonTaskPumpJournalError(code, message)
@@ -42,12 +43,7 @@ async function writeImmutable(directory: string, target: string, bytes: Uint8Arr
   }
   try {
     await link(candidate, target)
-    const directoryHandle = await open(directory, "r")
-    try {
-      await directoryHandle.sync()
-    } finally {
-      await directoryHandle.close()
-    }
+    await fsyncDirectory(directory)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
     if (!sameBytes(await readFile(target), bytes)) {

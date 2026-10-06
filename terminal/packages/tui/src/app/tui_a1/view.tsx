@@ -964,8 +964,24 @@ export function TuiA1View(props: TuiA1ViewProps) {
       observedBytes: page?.observedBytes }
   }
 
-  const loadHistoryPage = (request: PageRequest, signal: AbortSignal) => loadCompositeHistoryPage(request, signal,
-    { readDurable: readDurableHistoryPage, readLive: () => rowAdapter.rows(liveProjection()) })
+  const loadHistoryPage = async (request: PageRequest, signal: AbortSignal) => {
+    const ports = { readDurable: readDurableHistoryPage, readLive: () => rowAdapter.rows(liveProjection()) }
+    // Latest reads have no cursor to preserve. A turn that commits between the
+    // durable reads must refresh, not leave the pane on a stale error.
+    const attempts = request.direction === "latest" ? 4 : 1
+    let last: unknown
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      try {
+        return await loadCompositeHistoryPage(request, signal, ports)
+      } catch (error) {
+        last = error
+        const code = error && typeof error === "object" && "code" in error ? String((error as { code?: unknown }).code) : ""
+        if (signal.aborted || code !== "stale_cursor" || attempt + 1 >= attempts) throw error
+        await Bun.sleep(40)
+      }
+    }
+    throw last
+  }
 
   createEffect(() => {
     const controller = historyRuntime()
@@ -1184,7 +1200,14 @@ export function TuiA1View(props: TuiA1ViewProps) {
             showRuntimeRunningStatus()
           }
           stateGraph.setBusy(nextBusy)
-          if (!nextBusy) finishRoundTimer()
+          if (!nextBusy) {
+            finishRoundTimer()
+            // A follow-up commits history while the latest page is being read.
+            // The read fails closed; refresh once the turn has stopped writing.
+            if (historyRuntime()?.state().error?.code === "stale_cursor") {
+              historyRuntime()?.dispatch({ type: "retry" })
+            }
+          }
           // Runtime bootstrap emits several idle status facts while provider
           // and MCP capabilities settle. Refreshing the actor surface for every
           // bootstrap idle creates a feedback refresh during session restore and

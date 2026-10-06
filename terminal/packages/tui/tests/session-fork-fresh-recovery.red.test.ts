@@ -8,6 +8,7 @@ import {
   chatMessagesToCommittedHistoryRefs,
   LocalFileConversationPersistenceRepositoryFactory,
   loadConversationRuntimeMessages,
+  installBundledSystemSkills,
 } from "@cell/ai-support";
 import {
   createProviderEpochReceiptV2,
@@ -24,9 +25,12 @@ import {
   getTuiRuntimeBridge,
 } from "../src/runtime/bridge/TuiRuntime";
 
-function configureForkRuntime(workDir: string) {
+async function configureForkRuntime(workDir: string) {
+  const globalRoot = path.join(workDir, "isolated-authority");
+  await installBundledSystemSkills({ globalRoot });
   configureTuiRuntime({
     workDir,
+    globalRoot,
     adapter: "openai",
     model: "gpt-4o-mini",
     debug: false,
@@ -236,7 +240,7 @@ describe("Conversation-native current-head fork RED", () => {
     const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "eidolon-fork-red-"));
     try {
       const sourceSessionId = "source-current-head";
-      configureForkRuntime(workDir);
+      await configureForkRuntime(workDir);
       await seedForkableParent(workDir, sourceSessionId);
       const creatingClient = createTuiRuntimeClient({ mode: "local-runtime", directory: workDir });
       const forked = await creatingClient.client.session.fork({ sessionID: sourceSessionId });
@@ -258,7 +262,7 @@ describe("Conversation-native current-head fork RED", () => {
     const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "eidolon-fork-provider-red-"));
     try {
       const sourceSessionId = "source-provider-context";
-      configureForkRuntime(workDir);
+      await configureForkRuntime(workDir);
       const { actorKey } = await seedForkableParent(workDir, sourceSessionId);
       const creatingClient = createTuiRuntimeClient({ mode: "local-runtime", directory: workDir });
       const forked = await creatingClient.client.session.fork({ sessionID: sourceSessionId });
@@ -282,7 +286,7 @@ describe("Conversation-native current-head fork RED", () => {
     const sourceSessionId = "source-headless";
     const targetSessionId = "child-headless";
     try {
-      configureForkRuntime(workDir);
+      await configureForkRuntime(workDir);
       await seedForkableParent(workDir, sourceSessionId);
       const result = await runHeadlessConversationFork({
         workDir,
@@ -315,7 +319,7 @@ describe("Conversation-native current-head fork RED", () => {
     const sourceSessionId = "source-first-wire";
     let childSessionId: string | null = null;
     try {
-      configureForkRuntime(workDir);
+      await configureForkRuntime(workDir);
       const { actorKey } = await seedForkableParent(workDir, sourceSessionId);
       const creatingClient = createTuiRuntimeClient({ mode: "local-runtime", directory: workDir });
       const forked = await creatingClient.client.session.fork({ sessionID: sourceSessionId });
@@ -381,7 +385,7 @@ describe("Conversation-native current-head fork RED", () => {
     const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "eidolon-message-fork-"));
     const sourceSessionId = "source-message-cutoff";
     try {
-      configureForkRuntime(workDir);
+      await configureForkRuntime(workDir);
       await seedForkableParent(workDir, sourceSessionId);
       const client = createTuiRuntimeClient({ mode: "local-runtime", directory: workDir });
       const forked = await client.client.session.fork({ sessionID: sourceSessionId, messageID: "parent-user" });
@@ -401,7 +405,7 @@ describe("Conversation-native current-head fork RED", () => {
     const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "eidolon-message-fork-reject-"));
     const sourceSessionId = "source-message-reject";
     try {
-      configureForkRuntime(workDir);
+      await configureForkRuntime(workDir);
       await seedForkableParent(workDir, sourceSessionId);
       const sessionsDir = path.join(workDir, ".eidolon", "sessions");
       const before = fs.readdirSync(sessionsDir).sort();
@@ -417,7 +421,8 @@ describe("Conversation-native current-head fork RED", () => {
       expect(toastMessages).toEqual([
         expect.stringContaining("Fork failed [MESSAGE_NOT_FOUND]"),
       ]);
-      expect(fs.readdirSync(sessionsDir).sort()).toEqual(before);
+      expect(fs.readdirSync(sessionsDir).filter((entry) => !entry.startsWith(".")).sort())
+        .toEqual(before.filter((entry) => !entry.startsWith(".")));
       expect((await client.client.session.list({})).data?.map((session) => session.id)).toEqual([sourceSessionId]);
     } finally {
       __setLlmAdapterFactoryForTest(null);
@@ -433,7 +438,7 @@ describe("Conversation-native same-session rewind", () => {
     const sessionId = "source-rewind";
     let captured: Record<string, unknown> | null = null;
     try {
-      configureForkRuntime(workDir);
+      await configureForkRuntime(workDir);
       await seedForkableParent(workDir, sessionId);
       __setLlmAdapterFactoryForTest(async () => ({
         type: "openai" as const,
@@ -485,7 +490,7 @@ describe("Conversation-native same-session rewind", () => {
     const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "eidolon-rewind-reject-"));
     const sessionId = "source-rewind-reject";
     try {
-      configureForkRuntime(workDir);
+      await configureForkRuntime(workDir);
       await seedForkableParent(workDir, sessionId);
       const client = createTuiRuntimeClient({ mode: "local-runtime", directory: workDir });
       const before = textParts(await client.client.session.messages({ sessionID: sessionId }));
@@ -503,7 +508,7 @@ describe("Conversation-native same-session rewind", () => {
     const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "eidolon-unrevert-reject-"));
     const sessionId = "source-unrevert-reject";
     try {
-      configureForkRuntime(workDir);
+      await configureForkRuntime(workDir);
       await seedForkableParent(workDir, sessionId);
       const client = createTuiRuntimeClient({ mode: "local-runtime", directory: workDir });
       const rewound = await client.client.session.revert({ sessionID: sessionId, messageID: "parent-user" });

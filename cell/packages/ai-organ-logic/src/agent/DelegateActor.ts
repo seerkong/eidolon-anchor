@@ -195,6 +195,7 @@ export async function spawnChildExecutionActor(
     },
   })
   params.validateBeforeRegistration?.(actor)
+  vm.effects.actorRegistration?.beforeRegister({ actorId: actor.id, actorKey: actor.key, actorType: actor.type, identity: actor.identity })
   vm.actors[actor.key] = actor
   if (!vm.actorRuntime.has(actor.key)) {
     vm.actorRuntime.register(actor.key, actor)
@@ -206,7 +207,8 @@ export async function spawnChildExecutionActor(
   seedConversationDomainFromActorSeedMessages({ vm, actor, seedMessages: actor.messages })
   let cleanupMode: "immediate" | "orchestrator_managed" | "retain" = params.retainActor ? "retain" : "immediate"
   try {
-    const orch = ensureVmRuntimeContext(vm).currentOrchestrator
+    const context = ensureVmRuntimeContext(vm)
+    const orch = context.actorOrchestrators[parentActor.id] ?? context.currentOrchestrator
 
     // If an orchestrator is active for this VM, spawn a child execution actor/fiber
     // and let the parent fiber decide whether to wait.

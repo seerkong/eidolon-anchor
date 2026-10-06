@@ -221,24 +221,42 @@ function isHumanWaitReason(reason: unknown): boolean {
   return reason === "human_clarification" || reason === "human_approval" || reason === "human_answer";
 }
 
-function hasPauseAllHumanWaitInForeground(state: OrchestratorState<AiAgentOrchestrationSchema>): boolean {
-  return Object.values(state.fibers).some((fiber: any) => {
+function independentRoot(runtime: AiAgentOrchestratorRuntime, fiberId: string): string | undefined {
+  let current = runtime.state.fibers[fiberId];
+  const seen = new Set<string>();
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id);
+    if (runtime.fiberIndex.get(current.id)?.actor.type === "interactive") return current.id;
+    current = current.parentId ? runtime.state.fibers[current.parentId] : undefined as any;
+  }
+  return undefined;
+}
+
+function hasPauseAllHumanWaitInForeground(runtime: AiAgentOrchestratorRuntime): boolean {
+  return Object.values(runtime.state.fibers).some((fiber: any) => {
     return (
       fiber.status === "suspended" &&
       isHumanWaitReason(fiber.waitingReason) &&
       fiber.suspendPolicy === "pause_all" &&
-      isForegroundAiAgentLane(fiber.lane)
+      isForegroundAiAgentLane(fiber.lane) &&
+      !independentRoot(runtime, fiber.id)
     );
   });
 }
 
-function selectNextForegroundFiberId(state: OrchestratorState<AiAgentOrchestrationSchema>): string | undefined {
-  if (hasPauseAllHumanWaitInForeground(state)) {
+function selectNextForegroundFiberId(runtime: AiAgentOrchestratorRuntime): string | undefined {
+  const state = runtime.state;
+  if (hasPauseAllHumanWaitInForeground(runtime)) {
     return undefined;
   }
 
+  const pausedRoots = new Set(Object.values(state.fibers)
+    .filter((fiber: any) => fiber.status === "suspended" && isHumanWaitReason(fiber.waitingReason) && fiber.suspendPolicy === "pause_all")
+    .map((fiber) => independentRoot(runtime, fiber.id))
+    .filter((root): root is string => !!root));
   const candidates = Object.values(state.fibers).filter((fiber: any) => {
-    return fiber.status === "ready" && isForegroundAiAgentLane(fiber.lane);
+    const root = independentRoot(runtime, fiber.id);
+    return fiber.status === "ready" && isForegroundAiAgentLane(fiber.lane) && (!root || !pausedRoots.has(root));
   }) as any[];
 
   if (candidates.length === 0) {
@@ -281,14 +299,15 @@ function selectNextBackgroundFiberId(state: OrchestratorState<AiAgentOrchestrati
 }
 
 function scheduleOneForeground(
-  state: OrchestratorState<AiAgentOrchestrationSchema>,
+  runtime: AiAgentOrchestratorRuntime,
   now: number,
 ): {
   state: OrchestratorState<AiAgentOrchestrationSchema>;
   effects: any[];
   selectedFiberId?: string;
 } {
-  const selectedFiberId = selectNextForegroundFiberId(state);
+  const state = runtime.state;
+  const selectedFiberId = selectNextForegroundFiberId(runtime);
   if (!selectedFiberId) {
     return { state, effects: [] };
   }
@@ -656,11 +675,16 @@ function createOrchestratorActor(): ActorDef<AiAgentOrchestratorRuntime, AiAgent
         runtime.state = ticked.state;
 
         if (scope === AI_AGENT_ORCHESTRATOR_TICK_SCOPES.foreground) {
-          const scheduled = scheduleOneForeground(runtime.state, t);
+          const scheduled = scheduleOneForeground(runtime, t);
           runtime.state = scheduled.state;
           dispatchEffects(runtime.actorRuntime, scheduled.effects as any, runtime.state.options.senderId);
         } else if (scope === AI_AGENT_ORCHESTRATOR_TICK_SCOPES.background) {
           const scheduled = scheduleOneBackground(runtime.state, t);
+          runtime.state = scheduled.state;
+          dispatchEffects(runtime.actorRuntime, scheduled.effects as any, runtime.state.options.senderId);
+        } else if (Object.values(runtime.fiberIndex.snapshot()).some((ctx) => ctx.actor.type === "interactive")) {
+          const foreground = scheduleOneForeground(runtime, t);
+          const scheduled = foreground.selectedFiberId ? foreground : scheduleOneBackground(runtime.state, t);
           runtime.state = scheduled.state;
           dispatchEffects(runtime.actorRuntime, scheduled.effects as any, runtime.state.options.senderId);
         } else {
@@ -748,6 +772,30 @@ function createOrchestratorActor(): ActorDef<AiAgentOrchestratorRuntime, AiAgent
   };
 }
 
+function bindActorOrchestratorContext(runtime: AiAgentOrchestratorRuntime, ctx: FiberContext): void {
+  const fiberId = ctx.fiberId;
+  ensureVmRuntimeContext(ctx.vm).actorOrchestrators[ctx.actor.id] = {
+    parentFiberId: fiberId,
+    spawnFiber: runtime.spawnFiber,
+    registerBackgroundTask: (task: Promise<unknown>) => {
+      runtime.backgroundTasks.add(task);
+      void task.then(() => runtime.backgroundTasks.delete(task), () => runtime.backgroundTasks.delete(task));
+    },
+    registerForegroundTask: (task: Promise<unknown>) => {
+      const owned = runtime.foregroundTasksByFiber.get(fiberId) ?? new Set<Promise<unknown>>();
+      owned.add(task);
+      runtime.foregroundTasksByFiber.set(fiberId, owned);
+      runtime.backgroundTasks.add(task);
+      const settle = () => {
+        owned.delete(task);
+        if (!owned.size) runtime.foregroundTasksByFiber.delete(fiberId);
+        runtime.backgroundTasks.delete(task);
+      };
+      void task.then(settle, settle);
+    },
+  };
+}
+
 function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime, AiAgentOrchestrationSchema, void> {
   return {
     initialState: undefined,
@@ -768,25 +816,34 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
         });
         return;
       }
+      if (ctx.actor.execution?.status === "interrupted") {
+        self.send(runtime.orchestratorId, "fiber_result", {
+          fiberId, now: Date.now(), kind: AI_AGENT_FIBER_RESULT_KINDS.suspend,
+          reason: "idle_external" as any, suspendPolicy: "continue_others",
+        });
+        return;
+      }
 
       const runtimeContext = ensureVmRuntimeContext(ctx.vm);
-      const prevOrch = runtimeContext.currentOrchestrator;
-      runtimeContext.currentOrchestrator = {
-        parentFiberId: fiberId,
-        spawnFiber: runtime.spawnFiber,
-        registerBackgroundTask: (task: Promise<unknown>) => {
-          runtime.backgroundTasks.add(task);
-          task.finally(() => runtime.backgroundTasks.delete(task));
-        },
-      } as any;
+      bindActorOrchestratorContext(runtime, ctx);
 
       try {
-        const result = await runtime.runStep(ctx, {
-          resume: (id) => {
-            self.send(runtime.orchestratorId, "resume_fiber", { fiberId: id, now: Date.now() });
-          },
-          emitFiberSignal: runtime.emitFiberSignal,
-        });
+        // Legacy synchronous adapters can discover their current context during
+        // invocation. Never retain this compatibility slot across an await.
+        const previous = runtimeContext.currentOrchestrator;
+        runtimeContext.currentOrchestrator = runtimeContext.actorOrchestrators[ctx.actor.id]!;
+        let step: ReturnType<RunStep>;
+        try {
+          step = runtime.runStep(ctx, {
+            resume: (id) => {
+              self.send(runtime.orchestratorId, "resume_fiber", { fiberId: id, now: Date.now() });
+            },
+            emitFiberSignal: runtime.emitFiberSignal,
+          });
+        } finally {
+          ensureVmRuntimeContext(ctx.vm).currentOrchestrator = previous;
+        }
+        const result = await step;
 
         const isChildExecution = isDelegateFiberKind(ctx.kind) || isChildExecutionActor(ctx.actor);
         const isTransientDelegateExecution = isDelegateFiberKind(ctx.kind) || isDelegateActorType(ctx.actor);
@@ -1327,8 +1384,6 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
           kind: AI_AGENT_FIBER_RESULT_KINDS.fail,
           error,
         });
-      } finally {
-        ensureVmRuntimeContext(ctx.vm).currentOrchestrator = prevOrch ?? null;
       }
     },
   };
@@ -1375,9 +1430,12 @@ export function createAiAgentOrchestratorDriver(params: {
   const emitFiberSignal = (input: EmitFiberSignalParams): DurableControlSignalData | null => {
     const ctx = runtime.fiberIndex.get(input.fiberId);
     if (!ctx) return null;
+    if (ctx.actor.execution?.status === "interrupted") return null;
     const now = input.createdAt ?? Date.now();
     const emitted = emitDurableControlSignal(ctx.vm.sessionState.controlSignals, {
       ...input,
+      executionOrigin: input.executionOrigin ?? ctx.actor.execution?.origin,
+      originSchemaVersion: input.executionOrigin || ctx.actor.execution?.origin ? 1 : undefined,
       actorKey: ctx.actor.key,
       actorId: ctx.actor.id,
       fiberId: input.fiberId,
@@ -1446,6 +1504,10 @@ export function createAiAgentOrchestratorDriver(params: {
     if (runtime.fiberIndex.has(input.fiberId)) {
       return;
     }
+    const executionParent = runtime.fiberIndex.get(input.parentFiberId ?? input.onDone?.parentFiberId ?? "");
+    if (executionParent?.actor.execution) {
+      input.actor.execution = structuredClone(executionParent.actor.execution);
+    }
     runtime.fiberIndex.set(input.fiberId, {
       fiberId: input.fiberId,
       vm: input.vm,
@@ -1475,6 +1537,7 @@ export function createAiAgentOrchestratorDriver(params: {
       }
     }
 
+    bindActorOrchestratorContext(runtime, runtime.fiberIndex.get(input.fiberId)!);
     runtime.actorRuntime.register(input.fiberId, createFiberActor(input.fiberId));
     runtime.state = reduceOrchestrator(runtime.state, {
       type: "spawn",
@@ -1502,6 +1565,7 @@ export function createAiAgentOrchestratorDriver(params: {
     fiberIndex: actorRuntime.ensureFacet("cell.orchestrator.fiberIndex", () => createRuntimeIndexHook(fibers)),
     pendingResumes: new Set(params.restore?.pendingResumes ?? []),
     backgroundTasks: new Set(),
+    foregroundTasksByFiber: new Map(),
     childDoneMap: createCompletionBindingRegistry(params.restore?.childDoneMap ?? {}),
     spawnFiber,
     emitFiberSignal,
@@ -1511,6 +1575,7 @@ export function createAiAgentOrchestratorDriver(params: {
   // Register orchestrator + fibers.
   actorRuntime.register(orchestratorId, createOrchestratorActor());
   for (const f of params.fibers) {
+    bindActorOrchestratorContext(runtime, runtime.fiberIndex.get(f.fiberId)!);
     actorRuntime.register(f.fiberId, createFiberActor(f.fiberId));
     if (!params.restore?.state) {
       runtime.state = reduceOrchestrator(runtime.state, {
@@ -1531,10 +1596,16 @@ export function createAiAgentOrchestratorDriver(params: {
     orchestratorId,
     actorRuntime,
     getState: () => runtime.state,
+    awaitOwnedTasks: async () => {
+      while (runtime.backgroundTasks.size > 0) {
+        await Promise.allSettled([...runtime.backgroundTasks]);
+      }
+    },
     inspectRuntime: () => ({
       state: runtime.state,
       fibers: runtime.fiberIndex.snapshot(),
       pendingResumes: Array.from(runtime.pendingResumes),
+      pendingForegroundTasks: Array.from(runtime.foregroundTasksByFiber.keys()),
       childDoneMap: runtime.childDoneMap.snapshot(),
     }),
     tick: (now) => {
@@ -1708,11 +1779,11 @@ export function createAiAgentOrchestratorDriver(params: {
           };
         }
 
-        const nextFg = selectNextForegroundFiberId(runtime.state);
+        const nextFg = selectNextForegroundFiberId(runtime);
         if (!nextFg) {
           await flushMicrotasks();
 
-          const nextAfterDrain = selectNextForegroundFiberId(runtime.state);
+          const nextAfterDrain = selectNextForegroundFiberId(runtime);
           if (nextAfterDrain) {
             continue;
           }
@@ -1720,13 +1791,14 @@ export function createAiAgentOrchestratorDriver(params: {
           // A pause_all human wait is an external interaction boundary. Its
           // questionnaire_pending control marker describes the wait; it is not
           // runnable mailbox work and must not keep the foreground pump alive.
-          if (hasPauseAllHumanWaitInForeground(runtime.state)) {
+          if (hasPauseAllHumanWaitInForeground(runtime)) {
             return { status: "settled" };
           }
 
           // Only wait on foreground inflight/running/pending resumes.
           if (
             hasInflightAsyncWhere(runtime, isFg)
+            || [...runtime.foregroundTasksByFiber.keys()].some(isFg)
             || hasPendingResumesWhere(runtime, isFg)
             || hasRunningFibersWhere(runtime.state, isFg)
             || hasPendingWakeMailboxWhere(runtime, isFg)

@@ -13,6 +13,7 @@ import type { GrepOuterConfig, GrepOuterInput, GrepOuterOutput } from "./OuterTy
 
 export function buildGrepToolDef(): ToolDef<GrepOuterInput, GrepOuterOutput, GrepOuterConfig> {
   return {
+    resourceEffect: "read_only",
     schema: {
       type: "function" as const,
       function: {

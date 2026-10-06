@@ -67,6 +67,8 @@ import type {
   ConversationPromptDomainEvent,
   ConversationPromptRuntimeState,
   ConversationSessionDomainEvent,
+  ConversationReadCapture,
+  ConversationReadLease,
 } from "../../conversation/ConversationDomainRuntimeTypes";
 import {
   MAX_CONVERSATION_DOMAIN_EVENTS_PER_STREAM,
@@ -99,24 +101,57 @@ type ValueSignal<T> = {
   get: () => T;
   set: (next: T) => void;
   subscribe: (listener: (value: T) => void) => { unsubscribe: () => void };
+  captureAndSubscribe: (listener: (capture: ConversationReadCapture<T>) => void, onError: (error: unknown) => void) => ConversationReadLease<T>;
 };
 
 type DomainListener<TEvent> = (event: TEvent) => void;
 
 function createValueSignal<T>(initial: T): ValueSignal<T> {
   let current = initial;
+  let revision = 0;
+  let publishing = false;
+  type Reader = { after: number; listener: (capture: ConversationReadCapture<T>) => void; onError: (error: unknown) => void };
+  const readers = new Set<Reader>();
+  const publications: ConversationReadCapture<T>[] = [];
   const listeners = new Set<(value: T) => void>();
   return {
     get: () => current,
     set: (next) => {
       current = next;
-      for (const listener of [...listeners]) listener(current);
+      revision += 1;
+      publications.push({ revision, value: next });
+      try {
+        for (const listener of [...listeners]) listener(current);
+      } finally {
+        if (!publishing) {
+          publishing = true;
+          try {
+            while (publications.length) {
+              const capture = publications.shift()!;
+              for (const reader of [...readers]) {
+                if (!readers.has(reader) || capture.revision <= reader.after) continue;
+                reader.after = capture.revision;
+                try { reader.listener(capture); }
+                catch (error) {
+                  readers.delete(reader);
+                  try { reader.onError(error); } catch { /* Observer failures cannot roll back an owner write. */ }
+                }
+              }
+            }
+          } finally { publishing = false; }
+        }
+      }
     },
     subscribe: (listener) => {
       listeners.add(listener);
       return {
         unsubscribe: () => listeners.delete(listener),
       };
+    },
+    captureAndSubscribe: (listener, onError) => {
+      const reader: Reader = { after: revision, listener, onError };
+      readers.add(reader);
+      return { snapshot: { revision, value: current }, unsubscribe: () => readers.delete(reader) };
     },
   };
 }
@@ -209,6 +244,14 @@ export function subscribeConversationHistory(
   return {
     unsubscribe: () => runtime.historyListeners.delete(listener),
   };
+}
+
+export function captureAndSubscribeConversationHistory(
+  runtime: ConversationDomainRuntime,
+  listener: (capture: ConversationReadCapture<Readonly<Record<string, ConversationHistoryRuntimeState>>>) => void,
+  onError: (error: unknown) => void,
+): ConversationReadLease<Readonly<Record<string, ConversationHistoryRuntimeState>>> {
+  return runtime.historyStateSignal.captureAndSubscribe(listener, onError);
 }
 
 export function subscribeConversationPrompt(

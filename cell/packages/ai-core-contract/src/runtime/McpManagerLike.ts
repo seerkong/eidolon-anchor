@@ -10,4 +10,5 @@ export type McpToolSchemaLike = {
 export type McpManagerLike = {
   getOpenaiTools: () => McpToolSchemaLike[];
   callTool: (name: string, args: unknown, options?: { timeoutMs?: number; signal?: AbortSignal }) => Promise<string> | string;
+  callToolOutcome?: (name: string, args: unknown, options?: { timeoutMs?: number; signal?: AbortSignal }) => Promise<{ output: string; completion: "settled" | "unknown" }>;
 };

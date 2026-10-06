@@ -32,6 +32,7 @@ export function buildWebsearchToolDef(): ToolDef<WebsearchOuterInput, WebsearchO
   }
 
   return {
+    resourceEffect: "read_only",
     schema,
     briefPromptXnl: readPromptFromDir("websearch", "Tool.brief.xnl"),
     detailPromptXnl: readPromptFromDir("websearch", "Tool.detail.xnl"),

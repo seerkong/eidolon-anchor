@@ -59,6 +59,47 @@ export function upsertPendingQuestionnaireRow(params: {
   return row;
 }
 
+/** Publish through the canonical questionnaire owner after optional synchronous host admission. */
+export function publishPendingQuestionnaireRow(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  request: QuestionnaireRequestPayload;
+  replaceQuestionnaireId?: string;
+}): QuestionnaireRow {
+  const { vm, actor } = params;
+  const request: QuestionnaireRequestPayload = vm.effects?.questionnaires
+    ? { ...params.request, suspendPolicy: "continue_others" }
+    : params.request;
+  const questionnaireId = request.questionnaireId;
+  const lease = vm.effects?.questionnaires?.admit({ actor: { id: actor.id, key: actor.key }, request });
+  try {
+    actor.pendingQuestionnaires[questionnaireId] = request;
+    const row = upsertPendingQuestionnaireRow({ vm, actor, request });
+    actor.send("control", {
+      kind: "questionnaire_pending", toolCallId: request.toolCallId,
+      questionnaireId, suspendPolicy: request.suspendPolicy,
+    });
+    vm.eventBus?.emitQuestionnaireRequest({ key: actor.key, id: actor.id }, request);
+    lease?.publish(row);
+    if (params.replaceQuestionnaireId && params.replaceQuestionnaireId !== questionnaireId) {
+      delete actor.pendingQuestionnaires[params.replaceQuestionnaireId];
+      actor.mailboxes.control = actor.mailboxes.control.filter(entry => entry.kind !== "questionnaire_pending" || entry.questionnaireId !== params.replaceQuestionnaireId);
+    }
+    return row;
+  } catch (error) {
+    if (lease) {
+      try { lease.release(); }
+      finally {
+        delete actor.pendingQuestionnaires[questionnaireId];
+        actor.mailboxes.control = actor.mailboxes.control.filter(entry => entry.kind !== "questionnaire_pending" || entry.questionnaireId !== questionnaireId);
+        const state = ensureVmSessionState(vm);
+        if (state.questionnaires[questionnaireId]?.request === request) delete state.questionnaires[questionnaireId];
+      }
+    }
+    throw error;
+  }
+}
+
 export function answerQuestionnaireRow(params: {
   vm: AiAgentVm;
   questionnaireId: string;
@@ -76,6 +117,26 @@ export function answerQuestionnaireRow(params: {
     updatedAt: now,
   };
   sessionState.questionnaires[params.questionnaireId] = row;
+  params.vm.effects?.questionnaires?.transitioned?.(row);
+  return row;
+}
+
+/** The existing row owner performs cancellation; the optional host only observes its result. */
+export function cancelQuestionnaireRow(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  questionnaireId: string;
+  now?: number;
+}): QuestionnaireRow | null {
+  const state = ensureVmSessionState(params.vm);
+  const existing = state.questionnaires[params.questionnaireId];
+  if (!existing || existing.status !== "pending" || existing.ownerActorId !== params.actor.id || existing.ownerActorKey !== params.actor.key) return null;
+  const row: QuestionnaireRow = { ...existing, status: "cancelled", updatedAt: params.now ?? Date.now() };
+  state.questionnaires[params.questionnaireId] = row;
+  delete params.actor.pendingQuestionnaires[params.questionnaireId];
+  params.actor.mailboxes.control = params.actor.mailboxes.control.filter(entry => entry.kind !== "questionnaire_pending" || entry.questionnaireId !== params.questionnaireId);
+  delete state.actorSurface.pendingQuestionnaires[params.questionnaireId];
+  params.vm.effects?.questionnaires?.transitioned?.(row);
   return row;
 }
 

@@ -259,18 +259,18 @@ export async function processRuntimeIngressStream(params: {
     ingressStreams,
     params.actorMeta ?? { agentKey: "unknown", agentActorId: "unknown" },
   )
-  const chatBundleId = String((params.llmAdapter as any)?.chatCompletionsEffectBundle?.id ?? "")
-  const transactionalAttempt = chatBundleId === "deepseek-chat" || chatBundleId === "openai-official-chat"
   const attemptId = crypto.randomUUID()
+  const messageId = `assistant:${encodeURIComponent(params.actorMeta?.agentActorId ?? "unknown")}:${attemptId}`
   const emitAttemptBoundary = (eventType:
     | "semantic_provider_attempt_started"
     | "semantic_provider_attempt_succeeded"
     | "semantic_provider_attempt_aborted") => {
-    if (!transactionalAttempt) return
     const event: SemanticEvent = {
       ...buildDomainRuntimeSemanticBase(params.actorMeta ?? { agentKey: "unknown", agentActorId: "unknown" }, Date.now()),
       event_type: eventType,
       attempt_id: attemptId,
+      providerAttemptId: attemptId,
+      messageId,
     }
     diagnosticsLog.appendSemanticEvent(event)
     params.eventBus?.emit(event)
@@ -278,8 +278,9 @@ export async function processRuntimeIngressStream(params: {
 
   semanticGraph.onSemanticEvent((event) => {
     if (params.signal?.aborted) return
-    diagnosticsLog.appendSemanticEvent(event)
-    params.eventBus?.emit(event)
+    const identified = { ...event, providerAttemptId: attemptId, messageId }
+    diagnosticsLog.appendSemanticEvent(identified)
+    params.eventBus?.emit(identified)
   })
 
   try {

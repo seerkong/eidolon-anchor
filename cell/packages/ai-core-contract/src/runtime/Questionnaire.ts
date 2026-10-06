@@ -48,7 +48,7 @@ export type QuestionnaireResultPayload = {
   errors?: string[];
 };
 
-export type QuestionnaireRowStatus = "pending" | "answered" | "cancelled" | "expired";
+export type QuestionnaireRowStatus = "pending" | "answered" | "cancelled" | "expired" | "invalidated";
 
 export type QuestionnaireRow = {
   questionnaireId: string;
@@ -64,4 +64,13 @@ export type QuestionnaireRow = {
   createdAt?: number;
   updatedAt?: number;
   metadata?: Record<string, unknown>;
+};
+
+/** Optional host boundary; core owns questionnaire rows and never imports a transport contract. */
+export type QuestionnairePublicationEffects = {
+  admit: (input: { actor: { id: string; key: string }; request: QuestionnaireRequestPayload }) => {
+    publish: (row: QuestionnaireRow) => void;
+    release: () => void;
+  };
+  transitioned?: (row: QuestionnaireRow) => void;
 };

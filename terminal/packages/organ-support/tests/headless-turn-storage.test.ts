@@ -134,4 +134,37 @@ describe("headless turn storage capability flags", () => {
     expect(result).toContain("persistent reply")
     expect(listSessionFiles(activeWorkdir).length).toBeGreaterThan(0)
   })
+
+  it("keeps a memory-only invocation isolated from an existing persistent session", async () => {
+    activeWorkdir = makeTempWorkdir()
+    activeHomeDir = makeTempHomeDir()
+    process.env.HOME = activeHomeDir
+    const sessionKey = "memory-only-existing-session"
+    mockSimpleReply("persisted assistant fact")
+    await runHeadlessTurn({ workDir: activeWorkdir, sessionKey, input: "persisted human fact", mcp: false })
+    const sessionDir = path.join(activeWorkdir, ".eidolon", "sessions", sessionKey)
+    const readSessionFiles = () => Object.fromEntries(listSessionFiles(activeWorkdir!)
+      .filter((file) => file.startsWith(`${sessionKey}/`))
+      .sort()
+      .map((file) => [file, fs.readFileSync(path.join(activeWorkdir!, ".eidolon", "sessions", file), "utf8")]))
+    const before = readSessionFiles()
+    expect(fs.existsSync(path.join(sessionDir, "runtime_state", "manifest.json"))).toBe(true)
+    let providerMessages = ""
+    __setLlmAdapterFactoryForTest(async () => ({
+      type: "openai" as const,
+      async createStream(options: { messages?: unknown[] }) {
+        providerMessages = JSON.stringify(options.messages)
+        return { stream: (async function* () { yield { choices: [{ delta: { content: "isolated reply" } }] } })() }
+      },
+    }))
+    const result = await runHeadlessTurn({
+      workDir: activeWorkdir, sessionKey, input: "memory-only input", mcp: false,
+      storage: { logs: false, files: false },
+    })
+    expect(result).toContain("isolated reply")
+    expect(providerMessages).toContain("memory-only input")
+    expect(providerMessages).not.toContain("persisted human fact")
+    expect(providerMessages).not.toContain("persisted assistant fact")
+    expect(readSessionFiles()).toEqual(before)
+  })
 })

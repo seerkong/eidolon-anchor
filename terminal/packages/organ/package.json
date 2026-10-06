@@ -16,6 +16,8 @@
     "./observability/*": "./src/observability/*.ts"
   },
   "dependencies": {
+    "@cell/ai-runtime-host-capsule": "workspace:*",
+    "@cell/ai-runtime-host-support": "workspace:*",
     "@cell/ai-core-contract": "workspace:*",
     "@cell/ai-core-logic": "workspace:*",
     "@cell/ai-support": "workspace:*",

@@ -37,6 +37,7 @@ export type TickDueHeartbeatSchedulesParams = {
 };
 
 export type HeartbeatSchedulerWorker = {
+  shutdown: () => Promise<void>;
   dispose: () => void;
   isDisposed: () => boolean;
 };
@@ -254,12 +255,13 @@ export function startHeartbeatSchedulerWorker(
 ): HeartbeatSchedulerWorker {
   let disposed = false;
   let ticking = false;
+  let currentTick: Promise<void> = Promise.resolve();
   const intervalMs = Math.max(1, options.intervalMs ?? 1000);
   const resolveNow = options.now ?? (() => Date.now());
   const timer = setInterval(() => {
     if (disposed || ticking) return;
     ticking = true;
-    void tickDueHeartbeatSchedules(vm, { now: resolveNow(), deliver: options.deliver })
+    currentTick = tickDueHeartbeatSchedules(vm, { now: resolveNow(), deliver: options.deliver })
       .then((fired) => options.afterTick?.(fired))
       .catch((error) => {
         vm.effects.log?.("error", "heartbeat scheduler worker tick failed", {
@@ -275,6 +277,11 @@ export function startHeartbeatSchedulerWorker(
     unref.call(timer);
   }
   return {
+    shutdown: async () => {
+      disposed = true;
+      clearInterval(timer);
+      await currentTick;
+    },
     dispose: () => {
       if (disposed) return;
       disposed = true;

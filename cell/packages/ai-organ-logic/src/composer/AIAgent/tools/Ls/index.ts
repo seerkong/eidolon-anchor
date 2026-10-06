@@ -13,6 +13,7 @@ import type { LsOuterConfig, LsOuterInput, LsOuterOutput } from "./OuterTypes"
 
 export function buildLsToolDef(): ToolDef<LsOuterInput, LsOuterOutput, LsOuterConfig> {
   return {
+    resourceEffect: "read_only",
     schema: {
       type: "function" as const,
       function: {

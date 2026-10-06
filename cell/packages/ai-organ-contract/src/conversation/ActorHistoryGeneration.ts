@@ -23,6 +23,9 @@ export type ConversationCommittedMessageData = {
   toolCallId?: string;
   tool_call_id?: string;
   resultMetadata?: Record<string, unknown>;
+  executionOrigin?: Readonly<Record<string, unknown>>;
+  originSchemaVersion?: number;
+  providerAttemptId?: string;
   toolCalls?: ConversationCommittedToolCallData[];
 };
 

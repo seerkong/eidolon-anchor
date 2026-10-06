@@ -4,7 +4,7 @@ export type ActorOrganizationKind = (typeof ACTOR_ORGANIZATION_KINDS)[number]
 export const ACTOR_HOLON_GOVERNANCE_KINDS = ["autonomous", "leader_led"] as const
 export type ActorHolonGovernanceKind = (typeof ACTOR_HOLON_GOVERNANCE_KINDS)[number]
 
-export const ACTOR_EXECUTION_KINDS = ["primary", "delegate", "detached"] as const
+export const ACTOR_EXECUTION_KINDS = ["primary", "interactive", "delegate", "detached"] as const
 export type ActorExecutionKind = (typeof ACTOR_EXECUTION_KINDS)[number]
 
 export const ACTOR_ASSIGN_MODES = ["final", "none", "stream"] as const

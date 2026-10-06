@@ -1,0 +1,9 @@
+{
+  "extends": "../../cell/tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node", "bun-types"],
+    "typeRoots": ["../../backend/node_modules/@types", "../../backend/node_modules"]
+  },
+  "include": ["./**/*.ts"]
+}

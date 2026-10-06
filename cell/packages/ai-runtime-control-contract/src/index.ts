@@ -168,7 +168,10 @@ export const AI_RUNTIME_EFFECT_KINDS = [
 
 export type AiRuntimeEffectKind = (typeof AI_RUNTIME_EFFECT_KINDS)[number]
 
-export type AiRuntimeEffectLifecycleEvent =
+export type AiRuntimeEffectLifecycleEvent = {
+  executionOrigin?: Readonly<Record<string, unknown>>
+  originSchemaVersion?: 1
+} & (
   | {
       kind: "request"
       effectKind: AiRuntimeEffectKind
@@ -203,6 +206,7 @@ export type AiRuntimeEffectLifecycleEvent =
       error: string
       retryable: boolean
     }
+)
 
 export type AiRuntimeEffectRecord = {
   effectId: string

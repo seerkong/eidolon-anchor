@@ -154,10 +154,14 @@ export async function applyConversationCompaction(params: {
   promptGenerations: readonly ActorPromptGenerationData[];
 }> {
   const nowIso = params.occurredAt ?? new Date().toISOString();
-  const sessionId = path.basename(params.sessionDir);
   const historyIndex = await params.repository.loadHistoryIndex();
   const promptIndex = await params.repository.loadPromptIndex();
   const sessionIndex = await params.repository.loadSessionIndex();
+  // Durable identity belongs to the conversation repository, not its landing directory.
+  const sessionId = sessionIndex.sessionId;
+  if (historyIndex.sessionId !== sessionId || promptIndex.sessionId !== sessionId || sessionIndex.session.sessionId !== sessionId) {
+    throw new Error("conversation_compaction_session_identity_mismatch");
+  }
   const artifactRefs = await params.repository.loadArtifactRefs();
   const actorBinding = sessionIndex.session.actorBindings[params.actorKey];
   const previousHistoryGenerationId =

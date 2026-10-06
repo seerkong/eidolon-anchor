@@ -72,6 +72,7 @@ export function buildQuestionnaireToolDef(): ToolDef<QuestionnaireOuterInput, Qu
   }
 
   return {
+    resourceEffect: "orchestration",
     schema,
     briefPromptXnl: readPromptFromDir("Questionnaire", "Tool.brief.xnl"),
     detailPromptXnl: readPromptFromDir("Questionnaire", "Tool.detail.xnl"),

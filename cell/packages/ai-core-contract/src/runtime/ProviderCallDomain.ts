@@ -50,6 +50,7 @@ export type ProviderCallSegmentSet = {
 };
 
 export type ProviderCallRecord = {
+  executionOrigin?: import("./ExecutionOrigin").ExecutionOrigin;
   /** 1:1 with the turn's inflight LLM opId (WaitLlm.opId). */
   providerCallId: string;
   actorKey: string;
@@ -77,6 +78,7 @@ export function isTerminalProviderCallStatus(status: ProviderCallStatus): boolea
 }
 
 export type StartProviderCallInput = {
+  executionOrigin?: import("./ExecutionOrigin").ExecutionOrigin;
   providerCallId: string;
   actorKey: string;
   turnId: number;

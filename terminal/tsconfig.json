@@ -9,6 +9,10 @@
     "typeRoots": ["./packages/tui/node_modules/@types", "../backend/node_modules"],
     "types": ["node", "bun-types"],
     "paths": {
+      "@cell/ai-runtime-host-capsule": ["../cell/packages/ai-runtime-host-capsule/src/index.ts"],
+      "@cell/ai-runtime-host-capsule/*": ["../cell/packages/ai-runtime-host-capsule/src/*"],
+      "@cell/ai-runtime-host-support": ["../cell/packages/ai-runtime-host-support/src/index.ts"],
+      "@cell/ai-runtime-host-support/*": ["../cell/packages/ai-runtime-host-support/src/*"],
       "@cell/core-contract": ["../cell/packages/core-contract/src/index.ts"],
       "@cell/core-contract/*": ["../cell/packages/core-contract/src/*"],
       "@cell/platform-contract": ["../cell/packages/platform-contract/src/index.ts"],

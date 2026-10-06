@@ -196,6 +196,9 @@ export type HistoryProjectionInput =
 export const HISTORY_SEEN_TOOL_CALL_ID_LIMIT = 4_096;
 
 export type PendingAssistantState = {
+  messageId?: string;
+  providerAttemptId?: string;
+  executionOrigin?: import("@cell/ai-core-contract/runtime/ExecutionOrigin").ExecutionOrigin;
   agentKey: string;
   agentActorId: string;
   content: string[];
@@ -229,6 +232,8 @@ export type HistoryProjectionState = {
   contentStartAt?: number;
   contentEndAt?: number;
   pendingAssistant: PendingAssistantState | null;
+  /** Assistant assembly belongs to the emitting actor, independently of the transcript renderer's active block. */
+  pendingAssistants?: Record<string, PendingAssistantState>;
   /** Provisional provider output, isolated by actor until the parser succeeds. */
   providerAttempts: Record<string, { attemptId: string; events: SemanticEvent[] }>;
 };
@@ -257,7 +262,7 @@ export const INITIAL_HISTORY_PROJECTION_STATE: HistoryProjectionState = {
 
 /** Fresh initial state for the pure semantic->committed merge core. */
 export function createInitialHistoryProjectionState(): HistoryProjectionState {
-  return { ...INITIAL_HISTORY_PROJECTION_STATE, providerAttempts: {} };
+  return { ...INITIAL_HISTORY_PROJECTION_STATE, providerAttempts: {}, pendingAssistants: {} };
 }
 
 function parseJsonSafe(value: string): unknown {
@@ -332,6 +337,9 @@ function createCommittedAssistantMessage(pending: PendingAssistantState): ChatMe
 
   const next: ChatMessage = {
     role: "assistant",
+    ...(pending.messageId ? { messageId: pending.messageId } : {}),
+    ...(pending.providerAttemptId ? { providerAttemptId: pending.providerAttemptId } : {}),
+    ...(pending.executionOrigin ? { executionOrigin: pending.executionOrigin, originSchemaVersion: 1 } : {}),
     content,
     ...(typeof pending.startAt === "number" ? { startAt: pending.startAt } : {}),
     ...(typeof pending.endAt === "number" ? { endAt: pending.endAt } : {}),
@@ -536,6 +544,8 @@ export function reduceHistoryProjection(
     }
     return { ...next, lastBatch: historyBatch, lastCommittedBatch: committedBatch, lastAnomalyBatch: anomalyBatch };
   }
+  if (event.providerAttemptId && isProviderAttemptOutput(event)
+    && (!pendingAttempt || pendingAttempt.attemptId !== event.providerAttemptId)) return { ...state, ...emptyBatches };
   if (pendingAttempt && isProviderAttemptOutput(event)) {
     const events = [...pendingAttempt.events];
     const previous = events[events.length - 1];
@@ -578,6 +588,34 @@ function isProviderAttemptOutput(event: SemanticEvent): boolean {
 }
 
 function reduceCommittedHistoryProjection(
+  state: HistoryProjectionState,
+  input: HistoryProjectionInput,
+): HistoryProjectionState {
+  const pendingAssistants = { ...state.pendingAssistants };
+  // Admit old saved/in-memory reducer state without changing its pending work.
+  if (!state.pendingAssistants && state.pendingAssistant) {
+    const pending = state.pendingAssistant;
+    pendingAssistants[JSON.stringify([pending.agentKey, pending.agentActorId])] = pending;
+  }
+  if (input.kind === "complete") {
+    let next = { ...state, pendingAssistant: null } as HistoryProjectionState;
+    const history: MessageHistoryEvent[] = [];
+    const committed: CommittedHistoryMessageEvent[] = [];
+    const anomalies: AnomalyEvent[] = [];
+    for (const pending of [null, ...Object.values(pendingAssistants)]) {
+      next = reduceOneActorCommittedHistoryProjection({ ...next, completed: false, pendingAssistant: pending }, input);
+      history.push(...next.lastBatch); committed.push(...next.lastCommittedBatch); anomalies.push(...next.lastAnomalyBatch);
+    }
+    return { ...next, pendingAssistants: {}, lastBatch: history, lastCommittedBatch: committed, lastAnomalyBatch: anomalies };
+  }
+  const key = JSON.stringify([input.event.actor.actor_name || input.event.actor.actor_id, input.event.actor.actor_id]);
+  const next = reduceOneActorCommittedHistoryProjection({ ...state, pendingAssistant: pendingAssistants[key] ?? null }, input);
+  if (next.pendingAssistant) pendingAssistants[key] = next.pendingAssistant;
+  else delete pendingAssistants[key];
+  return { ...next, pendingAssistants };
+}
+
+function reduceOneActorCommittedHistoryProjection(
   state: HistoryProjectionState,
   input: HistoryProjectionInput,
 ): HistoryProjectionState {
@@ -647,11 +685,16 @@ function reduceCommittedHistoryProjection(
 
   const ensurePendingAssistant = (agentKey: string, agentActorId: string, timestamp: number) => {
     const current = next.pendingAssistant;
-    if (current && (current.agentKey !== agentKey || current.agentActorId !== agentActorId)) {
+    const identity = input.kind === "semantic" ? input.event : undefined;
+    if (current && (current.agentKey !== agentKey || current.agentActorId !== agentActorId
+      || (identity?.messageId && current.messageId && identity.messageId !== current.messageId))) {
       flushCommittedAssistant();
     }
     if (!next.pendingAssistant) {
       next.pendingAssistant = {
+        ...(identity?.messageId ? { messageId: identity.messageId } : {}),
+        ...(identity?.providerAttemptId ? { providerAttemptId: identity.providerAttemptId } : {}),
+        executionOrigin: input.kind === "semantic" ? input.event.executionOrigin : undefined,
         agentKey,
         agentActorId,
         content: [],
@@ -838,6 +881,7 @@ function reduceCommittedHistoryProjection(
         agentActorId,
         message: {
           role: "tool",
+          ...(ev.executionOrigin ? { executionOrigin: ev.executionOrigin, originSchemaVersion: 1 } : {}),
           name: ev.tool_call.tool_name,
           content: ev.output_text,
           toolCallId: ev.tool_call.tool_call_id,
@@ -881,6 +925,7 @@ function reduceCommittedHistoryProjection(
         agentActorId,
         message: {
           role: "user",
+          ...(ev.executionOrigin ? { executionOrigin: ev.executionOrigin, originSchemaVersion: 1 } : {}),
           content: ev.content ?? ev.text,
           startAt: emittedAt,
           endAt: emittedAt,

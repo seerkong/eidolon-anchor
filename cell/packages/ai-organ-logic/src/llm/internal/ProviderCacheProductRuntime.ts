@@ -866,7 +866,7 @@ async function runWorkflowNodeProductScenario(
   const requestObservations: ProviderRequestObservationData[] = []
   const cacheObservations: ProviderCacheCostObservation[] = []
   const originalFetch = globalThis.fetch
-  globalThis.fetch = (async () => sse()) as typeof fetch
+  globalThis.fetch = Object.assign(async () => sse(), { preconnect: () => {} })
   try {
     const adapter = new ProviderRuntimeLlmAdapter({
       providerId: "product-deepseek-compatible",
@@ -1014,7 +1014,7 @@ async function runWorkflowLifecycleProductScenario(
   const originalFetch = globalThis.fetch
   const requestObservations: ProviderRequestObservationData[] = []
   const cacheObservations: ProviderCacheCostObservation[] = []
-  globalThis.fetch = (async () => sse()) as typeof fetch
+  globalThis.fetch = Object.assign(async () => sse(), { preconnect: () => {} })
   try {
     await installBundledSystemSkills({ globalRoot })
     const resourcePackage = await freezeAiWorkflowResourcePackage({ globalRoot })

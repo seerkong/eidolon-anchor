@@ -72,6 +72,8 @@ export type ActorSnapshotBase<TActorType extends string = string> = {
 };
 
 export type FiberSnapshotBase = {
+  executionOrigin?: import("./ExecutionOrigin").ExecutionOrigin;
+  originSchemaVersion?: 1;
   version: number;
   fiberId: string;
   actorKey?: string;
@@ -113,6 +115,7 @@ export type RuntimeSnapshotManifest = RuntimeSnapshotManifestBase & {
 };
 
 export type RuntimeSnapshotVm = RuntimeRootSnapshotBase & {
+  executionOrigins?: { originSchemaVersion: 1; webActorIds: string[] };
   registryIndexRefs?: {
     memberRoster?: string;
     detachedActors?: string;
@@ -153,6 +156,8 @@ export type RuntimeSnapshotActor = ActorSnapshotBase<AiAgentActorContract["type"
   executionContract?: AiAgentActorContract["executionContract"];
   contextPipeline?: AiAgentActorContract["contextPipeline"];
   origin?: AiAgentActorContract["origin"];
+  execution?: AiAgentActorContract["execution"];
+  mailboxExecutionOrigins?: Partial<Record<keyof AiAgentMailboxSchema, import("./ExecutionOrigin").ExecutionOrigin>>;
   /** Optional only for backward-compatible reads of pre-attribution snapshots. */
   modelConfig: ActorModelConfig;
   ctrlOptions: ActorCtrlOptions;

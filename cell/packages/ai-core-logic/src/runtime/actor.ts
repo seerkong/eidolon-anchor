@@ -16,6 +16,7 @@ import type {
   ActorRuntimeFacetIndexInput,
 } from "@cell/ai-core-contract/runtime/ActorRuntimeFacet";
 import type { ActorDurableMaterialIndexInput } from "@cell/ai-core-contract/runtime/ActorDurableMaterial";
+import { isActorExecutionKind } from "@cell/ai-core-contract/coordination";
 import { normalizeActorDurableMaterialIndex } from "./ActorDurableMaterial";
 import type {
   ActorContext,
@@ -161,6 +162,7 @@ export type CreateActorParams = {
   contextPipeline?: AiAgentActor["contextPipeline"];
   contextPipelineExecution?: AiAgentActor["contextPipelineExecution"];
   origin?: AiAgentActor["origin"];
+  execution?: AiAgentActor["execution"];
   modelConfig?: ActorModelConfig;
   llmClient?: object | null;
   stream?: XStream<any> | null;
@@ -226,6 +228,7 @@ function cloneHolonState(holonState: HolonActorState): HolonActorState {
 
 export function createActor(params: CreateActorParams): AiAgentActor {
   const type = params.type ?? params.actorType ?? "primary";
+  if (!isActorExecutionKind(type)) throw new Error("unsupported_actor_kind");
   const id = params.id ?? params.actorId ?? makeActorId();
   const lastMemberResultNotifiedAt = params.lastMemberResultNotifiedAt ?? null;
 
@@ -314,6 +317,7 @@ export function createActor(params: CreateActorParams): AiAgentActor {
       : undefined,
     contextPipelineExecution: params.contextPipelineExecution,
     origin: normalizeActorOrigin(params.origin),
+    execution: params.execution ? structuredClone(params.execution) : undefined,
     modelConfig: params.modelConfig ?? {},
     llmClient: params.llmClient ?? null,
     stream: params.stream ?? null,

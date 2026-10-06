@@ -13,6 +13,7 @@ import type { WriteOuterConfig, WriteOuterInput, WriteOuterOutput } from "./Oute
 
 export function buildWriteToolDef(): ToolDef<WriteOuterInput, WriteOuterOutput, WriteOuterConfig> {
   return {
+    resourceEffect: "workspace_mutation",
     schema: {
       type: "function" as const,
       function: {

@@ -111,6 +111,7 @@ export type TickDrainOutcome =
     };
 
 export type AiAgentOrchestratorDriver = {
+  awaitOwnedTasks: () => Promise<void>;
   orchestratorId: string;
   actorRuntime: ActorRuntime<AiAgentOrchestratorRuntime, AiAgentOrchestrationSchema>;
   getState: () => OrchestratorState<AiAgentOrchestrationSchema>;
@@ -118,6 +119,7 @@ export type AiAgentOrchestratorDriver = {
     state: OrchestratorState<AiAgentOrchestrationSchema>;
     fibers: Record<string, FiberContext>;
     pendingResumes: string[];
+    pendingForegroundTasks?: string[];
     childDoneMap: Record<
       string,
       {
@@ -179,6 +181,7 @@ export type AiAgentOrchestratorRuntime = {
   fiberIndex: RuntimeIndexHook<string, FiberContext>;
   pendingResumes: Set<string>;
   backgroundTasks: Set<Promise<unknown>>;
+  foregroundTasksByFiber: Map<string, Set<Promise<unknown>>>;
   childDoneMap: CompletionBindingRegistry<
     string,
     {

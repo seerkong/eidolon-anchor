@@ -87,14 +87,20 @@ export const runDetachedBashCoreLogic: StdInnerLogic<
     const selection = resolveSandboxBackendSelectionFromRuntime(runtime, cwd, undefined)
     const timeoutMs = resolveTimeoutMs((input as any)?.timeoutSeconds)
 
-    const taskPromise = executeStreamingSandboxedBashCommand({
+    const runProcess = async () => {
+      const lease = await runtime.vm.effects.toolResources?.acquire({ workDir: runtime.vm.outerCtx.workDir, kind: "unclassified" })
+      try {
+        return await executeStreamingSandboxedBashCommand({
       command,
       cwd,
       timeoutMs,
       selection,
       onStdout: (text) => store.appendLog(taskId, { source: "stdout", text }),
       onStderr: (text) => store.appendLog(taskId, { source: "stderr", text }),
-    }).then((result) => {
+        })
+      } finally { lease?.release() }
+    }
+    const taskPromise = runProcess().then((result) => {
       registry.update(taskId, {
         status: result.ok ? DETACHED_ACTOR_STATUSES.completed : DETACHED_ACTOR_STATUSES.failed,
         outputText: result.outputText,
@@ -119,7 +125,8 @@ export const runDetachedBashCoreLogic: StdInnerLogic<
         error: message,
       })
     })
-    const currentOrchestrator = ensureVmRuntimeContext(runtime.vm).currentOrchestrator as any
+    const context = ensureVmRuntimeContext(runtime.vm)
+    const currentOrchestrator = context.actorOrchestrators[runtime.actor.id] ?? context.currentOrchestrator
     if (typeof currentOrchestrator?.registerBackgroundTask === "function") {
       currentOrchestrator.registerBackgroundTask(taskPromise)
     }

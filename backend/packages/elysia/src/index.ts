@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { Elysia } from "elysia";
+import { createHttpHost } from "./httpHost";
 import { ApiResponse, AppConstConfig } from "@shared/composer";
 import { createBackendRuntime } from "@backend/composer";
 import type { GetEndpoint, HandlerContext, PostEndpoint, PutEndpoint, DeleteEndpoint, SseEndpoint, WsEndpoint } from "@backend/composer";
@@ -55,8 +55,8 @@ const corsHeaders = {
 };
 
 async function bootstrap() {
-  const app = new Elysia();
   const runtime = createBackendRuntime(bootstrapConfig);
+  const httpHost = createHttpHost({ port, hostname: "127.0.0.1" }, (app) => {
 
   app.on("request", ({ request, set }) => {
     set.headers = { ...(set.headers ?? {}), ...corsHeaders };
@@ -219,29 +219,23 @@ async function bootstrap() {
     return fallback ?? new Response("NOT_FOUND", { status: 404 });
   });
 
+  });
   console.log(`Starting backend on ${port}...`);
-  let server;
-  try {
-    server = app.listen({ port, hostname: "127.0.0.1", reusePort: true }, ({ port: actualPort }) => {
-      currentPort = actualPort;
-      const ready = `BACKEND_READY ${actualPort}`;
-      console.log(ready);
-      log(ready);
-      if (readyFile) {
-        try {
-          fs.writeFileSync(readyFile, String(actualPort));
-        } catch (err: any) {
-          log(`write-ready-error ${err?.message ?? err}`);
-        }
-      }
-    });
-  } catch (err: any) {
-    console.error("Failed to start backend", err);
-    throw err;
+  await httpHost.start();
+  currentPort = httpHost.app.server!.port;
+  const ready = `BACKEND_READY ${currentPort}`;
+  console.log(ready);
+  log(ready);
+  if (readyFile) {
+    try { fs.writeFileSync(readyFile, String(currentPort)); }
+    catch (err: any) { log(`write-ready-error ${err?.message ?? err}`); }
   }
+  const stop = () => { void httpHost.close().then(() => process.exit(0)); };
+  process.once("SIGINT", stop);
+  process.once("SIGTERM", stop);
 
   log(`backend-started port=${port}`);
-  return server;
+  return httpHost;
 }
 
 bootstrap().catch((err) => {

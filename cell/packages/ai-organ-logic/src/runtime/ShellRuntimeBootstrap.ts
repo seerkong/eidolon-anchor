@@ -33,6 +33,7 @@ import {
   ensureVmConversationDomainRuntime,
   synchronizeConversationDomainSessionFromPersistence,
 } from "../conversationCapsule/coreLogic";
+import { createInMemoryConversationPersistenceAdapter } from "../conversationCapsule/adapters/inMemory";
 
 export type ShellRuntimePaths = {
   WORKDIR: string;
@@ -259,8 +260,10 @@ export async function recoverOrCreateShellRuntime(
   // them through `outerCtx` as EXPLICIT typed fields. The prior implicit
   // `metadata.conversationPersistenceRepositoryFactory` untyped channel is gone.
   const persistenceWritePort: PersistenceWriteBehindPort = createWriteBehindPersistenceWritePort();
-  const conversationPersistenceRepositoryFactory =
-    params.runtimeSupport.persistence.conversationPersistenceRepositoryFactory;
+  const storageFilesEnabled = params.storage?.files !== false;
+  const conversationPersistenceRepositoryFactory = storageFilesEnabled
+    ? params.runtimeSupport.persistence.conversationPersistenceRepositoryFactory
+    : createInMemoryConversationPersistenceAdapter();
   const buildOuterCtx = () => ({
     workDir: params.workDir,
     metadata: {
@@ -273,7 +276,7 @@ export async function recoverOrCreateShellRuntime(
   });
 
   const recovered =
-    (await hasRuntimeSnapshot(params.sessionDir))
+    (storageFilesEnabled && await hasRuntimeSnapshot(params.sessionDir))
       ? await recoverAiAgentRuntime({
           sessionDir: params.sessionDir,
           sessionId: params.sessionKey,

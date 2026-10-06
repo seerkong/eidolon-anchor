@@ -14,6 +14,8 @@ import { evaluateAiAgentRuntimeSnapshotSafepoint } from "@cell/ai-runtime-contro
 import { tickAiAgentRuntimeBackground } from "./tickAiAgentRuntimeBackground";
 import { createSessionDiagnosticsXnlLog } from "./SessionRuntimeXnlLogs";
 import { getConversationActorRawStateFromVm } from "../conversation/ConversationDomainRuntime";
+import { isForegroundAiAgentLane } from "../lane/AiAgentLane";
+import { decodeExecutionOrigin, type ExecutionOrigin } from "@cell/ai-core-contract/runtime/ExecutionOrigin";
 
 export type RuntimeMemberInboxPayload = {
   from: string;
@@ -23,7 +25,9 @@ export type RuntimeMemberInboxPayload = {
 };
 
 export type AiAgentRuntimeInteractiveTurnResult =
-  | { status: "settled"; safepointSafe: true }
+  | { status: "settled"; safepointSafe: boolean }
+  | { status: "cancelled"; safepointSafe: boolean }
+  | { status: "failed"; safepointSafe: boolean; error: string }
   | {
       status: "blocked_on_human";
       safepointSafe: boolean;
@@ -32,12 +36,45 @@ export type AiAgentRuntimeInteractiveTurnResult =
     }
   | { status: "timeout_unsettled"; safepointSafe: false; reason: string };
 
+export type RuntimeInteractiveTurnState = "queued" | "running" | "waiting_input" | "succeeded" | "failed" | "cancelled" | "interrupted";
+export type RuntimeInteractiveTurn = Readonly<{
+  turnId: string;
+  actorId: string;
+  mainFiberId: string;
+  state: RuntimeInteractiveTurnState;
+  cancelRequested: boolean;
+  error?: string;
+  waitingFiberId?: string;
+  waitingReason?: HumanWaitBoundary["reason"];
+}>;
+export type RuntimeInteractiveTurnAdmission = {
+  executionOrigin?: ExecutionOrigin;
+  turnId: string;
+  actorId: string;
+  mainFiberId: string;
+  timeoutMs?: number;
+  deliver?: (signal: AbortSignal) => void | Promise<void>;
+};
+export type RuntimeInteractiveTurnHandle = {
+  turnId: string;
+  settled: Promise<AiAgentRuntimeInteractiveTurnResult>;
+};
+export type RuntimeInteractiveTurnCancelResult = {
+  status: "cancel_requested" | "cancelled_before_delivery" | "already_terminal" | "not_found";
+};
+
 export type AiAgentRuntimeCoordinator = {
   enqueue: <T>(fn: () => Promise<T>) => Promise<T>;
   saveSnapshot: () => Promise<void>;
   startBackgroundPump: () => void;
   stopBackgroundPump: () => void;
   runInteractiveTurn: (params: { mainFiberId: string; timeoutMs?: number }) => Promise<AiAgentRuntimeInteractiveTurnResult>;
+  admitInteractiveTurn: (params: RuntimeInteractiveTurnAdmission) => RuntimeInteractiveTurnHandle;
+  cancelInteractiveTurn: (params: { actorId: string; turnId: string }) => RuntimeInteractiveTurnCancelResult;
+  resumeInteractiveTurn: (params: { actorId: string; turnId: string }) => boolean;
+  readInteractiveTurns: () => readonly RuntimeInteractiveTurn[];
+  forgetInteractiveTurn: (params: { actorId: string; turnId: string }) => boolean;
+  subscribeInteractiveTurns: (listener: (turn: RuntimeInteractiveTurn) => void) => { unsubscribe: () => void };
   deliverMemberInbox: (params: {
     actor: AiAgentActor;
     mainFiberId: string;
@@ -46,6 +83,7 @@ export type AiAgentRuntimeCoordinator = {
     foregroundMaxWallMs?: number;
   }) => Promise<void>;
   dispose: () => void;
+  shutdown: () => Promise<void>;
 };
 
 function noopAsync(): Promise<void> {
@@ -122,6 +160,7 @@ export function createAiAgentRuntimeCoordinator(params: {
   backgroundMaxWallMs?: number;
   hookDefinitions?: readonly RuntimeHookDefinition[];
   hookHandlers?: Readonly<Record<string, RuntimeHookHandlerComponent | undefined>>;
+  interactiveCapacity?: { maxOutstandingTurns?: number; maxQueuedTurnsPerActor?: number; terminalRetention?: number };
 }): AiAgentRuntimeCoordinator {
   const saveSnapshot = params.saveSnapshot ?? noopAsync;
   const sealCompletedProgress = params.sealCompletedProgress ?? noopAsync;
@@ -440,129 +479,352 @@ export function createAiAgentRuntimeCoordinator(params: {
     backgroundPumpQueuedOrRunning = false;
   };
 
-  const runInteractiveTurn = async (turnParams: { mainFiberId: string; timeoutMs?: number }) => {
-    ensureVmRuntimeContext(params.vm).interactiveTurnActive = true;
-    let result: AiAgentRuntimeInteractiveTurnResult = { status: "settled", safepointSafe: true };
-    try {
-      await enqueue(async () => {
-        const startedAt = Date.now();
-        const deadlineMs = typeof turnParams.timeoutMs === "number" && turnParams.timeoutMs > 0
-          ? startedAt + turnParams.timeoutMs
-          : Number.POSITIVE_INFINITY;
-        let resumedMain = false;
-        let inspected = params.driver.inspectRuntime();
-        let safepoint = evaluateAiAgentRuntimeSnapshotSafepoint({
-          vm: params.vm,
-          inspected,
-        });
-        let humanWait: HumanWaitBoundary | undefined;
-        // Whether the last pump slice ended with foreground work still running.
-        // A safepoint verdict alone cannot answer this: it classifies cooperative
-        // exec state, and a fiber actor mid-step can look settled there.
-        let stillRunning = false;
-        // Set when the unsettled branch below already flushed this turn's
-        // completed progress, so the single turn-end seal does not repeat it.
-        let sealedOnUnsettled = false;
-        while (true) {
-          const now = Date.now();
-          const remainingMs = deadlineMs - now;
-          if (Number.isFinite(deadlineMs) && remainingMs <= 0) {
-            break;
-          }
-          if (!resumedMain) {
-            params.driver.resumeFiber(turnParams.mainFiberId, now);
-            resumedMain = true;
-          }
-          // The slice budget exists so this loop can re-evaluate the control
-          // plane (human waits, safepoint, remaining deadline) while provider and
-          // tool work is in flight. Exhausting a slice is therefore a normal
-          // outcome of pumping, NOT a turn failure: the turn's own deadline below
-          // is the only thing that can fail it. A long tool that outlives a slice
-          // must keep the turn alive.
-          const drain = await params.driver.tickUntilForegroundSettled({
-            now,
-            maxWallMs: Number.isFinite(deadlineMs)
-              ? Math.max(1, Math.min(remainingMs, 1000))
-              : undefined,
-          });
-          stillRunning = drain.status === "budget_exhausted" && drain.stillRunning;
-          inspected = params.driver.inspectRuntime();
-          safepoint = evaluateAiAgentRuntimeSnapshotSafepoint({
-            vm: params.vm,
-            inspected,
-          });
-          humanWait = findInteractiveHumanWaitBoundary(inspected, turnParams.mainFiberId);
-          if (humanWait) break;
-          // The turn is only over once the foreground lane has actually stopped
-          // running; a spent slice that still reports running work keeps pumping
-          // (the deadline above bounds the loop).
-          if (safepoint.safe && !stillRunning) break;
+  type TurnEntry = {
+    admission: RuntimeInteractiveTurnAdmission;
+    view: RuntimeInteractiveTurn;
+    controller: AbortController;
+    delivered: boolean;
+    preparing: boolean;
+    deadline: number;
+    compatibility: boolean;
+    timedOut: boolean;
+    resolve: (result: AiAgentRuntimeInteractiveTurnResult) => void;
+    reject: (error: unknown) => void;
+    settled: Promise<AiAgentRuntimeInteractiveTurnResult>;
+  };
+  const turns = new Map<string, TurnEntry>();
+  const capacity = {
+    maxOutstandingTurns: Math.max(1, params.interactiveCapacity?.maxOutstandingTurns ?? 128),
+    maxQueuedTurnsPerActor: Math.max(1, params.interactiveCapacity?.maxQueuedTurnsPerActor ?? 32),
+    terminalRetention: Math.max(0, params.interactiveCapacity?.terminalRetention ?? 256),
+  };
+  const activeByActor = new Map<string, TurnEntry>();
+  const queuedByActor = new Map<string, TurnEntry[]>();
+  const turnListeners = new Set<(turn: RuntimeInteractiveTurn) => void>();
+  let pumpScheduled = false;
+  let disposed = false;
+  let closing = false;
+  let shutdownPromise: Promise<void> | undefined;
+  let compatibilitySequence = 0;
+  const isTerminal = (state: RuntimeInteractiveTurnState) =>
+    state === "succeeded" || state === "failed" || state === "cancelled" || state === "interrupted";
+
+  const publishTurn = (entry: TurnEntry, patch: Partial<RuntimeInteractiveTurn>) => {
+    entry.view = Object.freeze({ ...entry.view, ...patch });
+    for (const listener of turnListeners) {
+      try { listener(entry.view); } catch { /* An observer cannot change execution. */ }
+    }
+  };
+
+  const readScope = (entry: TurnEntry, inspected = params.driver.inspectRuntime()) => {
+    const ids = new Set([entry.admission.mainFiberId]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const [id, record] of Object.entries(inspected.state.fibers)) {
+        const parentId = record.parentId ?? inspected.childDoneMap?.[id]?.parentFiberId;
+        if (!ids.has(id) && parentId && ids.has(parentId) && isForegroundAiAgentLane(record.lane)) {
+          ids.add(id);
+          changed = true;
         }
-        if (humanWait) {
-          result = {
-            status: "blocked_on_human",
-            safepointSafe: safepoint.safe,
-            fiberId: humanWait.fiberId,
-            reason: humanWait.reason,
-          };
-        } else if (stillRunning || !safepoint.safe) {
-          // P3 (requirement `timed-out-turn-progress-persisted`): a turn that
-          // ended unsettled may have completed tool pairs already committed into
-          // the conversation domain. Seal ONLY that completed progress so a later
-          // continuation relays from it instead of restarting bare. This
-          // deliberately does NOT take a VM snapshot — the in-flight (unsafe) tool
-          // execution stays un-snapshotted, preserving the "don't snapshot unsafe
-          // tool-execution" invariant. Best-effort: a flush failure must never
-          // turn a timeout into a hard error.
-          //
-          // Two shapes reach here: the turn deadline ran out with foreground work
-          // still running, or the lane stopped running but sits in a
-          // non-safepoint (mandatory_continuation) state.
-          const reason = stillRunning && safepoint.safe
-            ? "foreground_still_running"
-            : safepoint.blockers.map((blocker) => blocker.reason).join(",");
-          result = { status: "timeout_unsettled", safepointSafe: false, reason };
-          sealedOnUnsettled = true;
-          await flushPersistenceWriteBehind().catch(() => {});
-          await sealCompletedProgress().catch(() => {});
-          checkpointDiagnostics.appendRuntimeCheckpointEvent({
-            eventType: "runtime_interactive_turn_unsettled",
-            sessionId,
-            status: "timeout_unsettled",
-            safepointSafe: false,
-            reason,
-          });
-          await checkpointDiagnostics.flush().catch(() => {});
-        } else {
-          // A turn that reaches here ended without settling-timeout: it either
-          // settled normally or stopped for the user. Its conversation progress
-          // is just as real as an unsettled turn's — the user's accepted input
-          // and the assistant's closed replies are already committed into the
-          // domain — so it must reach disk too. Without this the progress stays
-          // in memory: the fiber is no longer running, so no later turn will
-          // ever commit it, and the durable history (which the TUI reads for its
-          // durable pages) simply never shows it.
-          result = { status: "settled", safepointSafe: true };
-        }
-        // One seal exit for every turn-end shape, still inside the enqueue body
-        // so it also covers the `blocked_on_human` early break. In-flight work is
-        // untouched: the seal flushes only what the conversation domain already
-        // completed, never a VM snapshot of unsafe tool execution.
-        if (!sealedOnUnsettled) {
-          await flushPersistenceWriteBehind().catch(() => {});
-          await sealCompletedProgress().catch(() => {});
-        }
-      });
-    } finally {
-      ensureVmRuntimeContext(params.vm).interactiveTurnActive = false;
-      flushDeferredMemberResumes();
-      if (result.status !== "blocked_on_human" && hasIdleLifecycleHooks()) {
-        await enqueue(async () => {
-          await runIdleLifecycleHooks(turnParams.mainFiberId);
-        }).catch(() => {});
       }
     }
-    return result;
+    const scoped = {
+      ...inspected,
+      state: { ...inspected.state, fibers: Object.fromEntries(Object.entries(inspected.state.fibers).filter(([id]) => ids.has(id))) },
+      fibers: Object.fromEntries(Object.entries(inspected.fibers).filter(([id]) => ids.has(id))),
+      pendingResumes: (inspected.pendingResumes ?? []).filter((id) => ids.has(id)),
+      pendingForegroundTasks: (inspected.pendingForegroundTasks ?? []).filter((id) => ids.has(id)),
+    };
+    const safepoint = evaluateAiAgentRuntimeSnapshotSafepoint({ vm: params.vm, inspected: scoped });
+    const records = Object.values(scoped.state.fibers);
+    const outstanding = records.some((record) => record.status === "ready" || record.status === "running")
+      || scoped.pendingResumes.length > 0 || scoped.pendingForegroundTasks.length > 0;
+    const waiting = Object.entries(scoped.state.fibers).find(([, record]) =>
+      record.status === "suspended" && readHumanWaitReason(record.waitingReason));
+    const human = entry.compatibility
+      ? findInteractiveHumanWaitBoundary(inspected, entry.admission.mainFiberId)
+      : waiting ? { fiberId: waiting[0], reason: readHumanWaitReason(waiting[1].waitingReason)! } : undefined;
+    return { ids, scoped, safepoint, outstanding, human };
+  };
+
+  const syncInteractiveActive = () => {
+    ensureVmRuntimeContext(params.vm).interactiveTurnActive = activeByActor.size > 0;
+  };
+
+  const completed: Array<{ entry: TurnEntry; result: AiAgentRuntimeInteractiveTurnResult }> = [];
+  const finishTurn = (entry: TurnEntry, state: RuntimeInteractiveTurnState, result: AiAgentRuntimeInteractiveTurnResult) => {
+    if (isTerminal(entry.view.state)) return;
+    const actor = params.driver.inspectRuntime().fibers[entry.admission.mainFiberId]?.actor;
+    if (actor?.execution && (entry.compatibility || actor.execution.origin?.turnId === entry.view.turnId)) {
+      // The legacy turn deadline pauses the caller, not the live provider/tool.
+      // Marking it interrupted would drop its eventual durable resume signal.
+      const awaitingContinuation = entry.compatibility
+        && (result.status === "timeout_unsettled" || result.status === "blocked_on_human");
+      actor.execution.status = awaitingContinuation ? "active" : state === "interrupted" ? "interrupted" : "settled";
+    }
+    if (activeByActor.get(entry.view.actorId) === entry) activeByActor.delete(entry.view.actorId);
+    const queue = queuedByActor.get(entry.view.actorId);
+    if (queue) {
+      const remaining = queue.filter((item) => item !== entry);
+      if (remaining.length) queuedByActor.set(entry.view.actorId, remaining);
+      else queuedByActor.delete(entry.view.actorId);
+    }
+    publishTurn(entry, { state, waitingFiberId: undefined, waitingReason: undefined,
+      ...(result.status === "failed" ? { error: result.error } : {}) });
+    completed.push({ entry, result });
+    syncInteractiveActive();
+  };
+
+  const interruptTurn = (entry: TurnEntry) => {
+    entry.controller.abort();
+    if (!entry.delivered) return;
+    for (const fiberId of readScope(entry).ids) {
+      const record = params.driver.inspectRuntime().state.fibers[fiberId];
+      if (!record || record.status === "completed" || record.status === "failed" || record.status === "cancelled") continue;
+      params.driver.emitFiberSignal({
+        fiberId,
+        signalKind: "interrupt_requested",
+        mailbox: { kind: "control", payload: { kind: "cancel_requested" } },
+        idempotencyKey: `interactive-turn:${entry.view.turnId}:cancel:${fiberId}`,
+        createdAt: Date.now(),
+      });
+    }
+  };
+
+  const settleCompleted = async () => {
+    if (!completed.length) return;
+    const batch = completed.splice(0);
+    try {
+      await flushPersistenceWriteBehind();
+      await sealCompletedProgress();
+      // Snapshot persistence is a whole-VM boundary, never a per-turn verdict.
+      // Do not drive another actor's work as a side effect of completing this turn.
+      const safe = evaluateAiAgentRuntimeSnapshotSafepoint({ vm: params.vm, inspected: params.driver.inspectRuntime() });
+      if (safe.safe && activeByActor.size === 0) await saveSnapshotAfterProgress();
+      if (activeByActor.size === 0) {
+        flushDeferredMemberResumes();
+        if (!closing && !batch.some(({ result }) => result.status === "blocked_on_human") && hasIdleLifecycleHooks()) {
+          await runIdleLifecycleHooks();
+        }
+      }
+      for (const { entry, result } of batch) entry.resolve(result);
+    } catch (error) {
+      for (const { entry } of batch) entry.reject(error);
+    }
+    // Retain bounded terminal diagnostics; host command retention is a separate port.
+    const terminal = [...turns.values()].filter((entry) => isTerminal(entry.view.state));
+    for (const entry of terminal.slice(0, Math.max(0, terminal.length - capacity.terminalRetention))) turns.delete(entry.view.turnId);
+  };
+
+  const startQueued = () => {
+    for (const [actorId, queue] of queuedByActor) {
+      if (activeByActor.has(actorId)) continue;
+      const entry = queue.shift();
+      if (!queue.length) queuedByActor.delete(actorId);
+      if (!entry) continue;
+      activeByActor.set(actorId, entry);
+      const actor = params.driver.inspectRuntime().fibers[entry.admission.mainFiberId]!.actor;
+      const origin = entry.admission.executionOrigin;
+      const continuingLocalTurn = entry.compatibility && actor.execution?.status === "active"
+        && actor.execution.origin?.source !== "web";
+      actor.execution = continuingLocalTurn ? actor.execution : {
+        originSchemaVersion: 1,
+        origin: origin ?? { source: "tui", sessionId: String((params.vm.outerCtx?.metadata as any)?.sessionId ?? "local"), actorId, turnId: entry.view.turnId },
+        status: "active", webOwned: actor.execution?.webOwned || origin?.source === "web",
+      };
+      entry.preparing = true;
+      entry.deadline = entry.admission.timeoutMs && entry.admission.timeoutMs > 0
+        ? Date.now() + entry.admission.timeoutMs : Infinity;
+      publishTurn(entry, { state: "running" });
+      syncInteractiveActive();
+      const deliveryFinished = () => {
+        entry.preparing = false;
+        if (entry.controller.signal.aborted) {
+          // A delivery callback must obey its AbortSignal and not enqueue after abort.
+          finishTurn(entry, entry.timedOut ? "interrupted" : "cancelled", entry.timedOut
+            ? { status: "timeout_unsettled", safepointSafe: false, reason: "delivery_timeout" }
+            : { status: "cancelled", safepointSafe: false });
+        } else {
+          entry.delivered = true;
+          const record = params.driver.inspectRuntime().state.fibers[entry.admission.mainFiberId];
+          if (record?.status === "failed" || record?.status === "cancelled" || record?.status === "completed") {
+            params.driver.reviveFiber(entry.admission.mainFiberId, Date.now());
+          } else {
+            params.driver.resumeFiber(entry.admission.mainFiberId, Date.now());
+          }
+        }
+        schedulePump();
+      };
+      try {
+        const delivery = entry.admission.deliver?.(entry.controller.signal);
+        if (delivery && typeof delivery.then === "function") {
+          void delivery.then(deliveryFinished, (error: unknown) => {
+            entry.preparing = false;
+            finishTurn(entry, entry.controller.signal.aborted ? "cancelled" : "failed", entry.controller.signal.aborted
+              ? { status: "cancelled", safepointSafe: false }
+              : { status: "failed", safepointSafe: false, error: error instanceof Error ? error.message : String(error) });
+            schedulePump();
+          });
+        } else deliveryFinished();
+      } catch (error) {
+        entry.preparing = false;
+        finishTurn(entry, "failed", { status: "failed", safepointSafe: false, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  };
+
+  const pumpSlice = async () => {
+    if (disposed) return;
+    startQueued();
+    if ([...activeByActor.values()].some((entry) => entry.delivered && entry.view.state === "running")) {
+      await params.driver.tickUntilForegroundSettled({ now: Date.now(), maxWallMs: 50 });
+    }
+    const inspected = params.driver.inspectRuntime();
+    const globalSafe = evaluateAiAgentRuntimeSnapshotSafepoint({ vm: params.vm, inspected }).safe;
+    for (const entry of [...activeByActor.values()]) {
+      if (entry.preparing) {
+        if (Date.now() >= entry.deadline) {
+          entry.timedOut = true;
+          entry.controller.abort();
+        }
+        continue;
+      }
+      if (!entry.delivered) continue;
+      const scope = readScope(entry, inspected);
+      const root = inspected.state.fibers[entry.admission.mainFiberId];
+      const scopedSettled = !scope.outstanding && scope.safepoint.safe;
+      if ((root?.status === "failed" || root?.status === "cancelled") && !scopedSettled) {
+        // A root terminal record cannot release its actor queue while a child
+        // still owns foreground work or asynchronous cleanup.
+        interruptTurn(entry);
+      } else if (root?.status === "failed" && scopedSettled) {
+        finishTurn(entry, entry.view.cancelRequested ? "cancelled" : "failed", entry.view.cancelRequested
+          ? { status: "cancelled", safepointSafe: globalSafe }
+          : { status: "failed", safepointSafe: globalSafe, error: root.lastError ?? "runtime_actor_fiber_failed" });
+      } else if (scopedSettled && (root?.status === "cancelled" || entry.view.cancelRequested)) {
+        finishTurn(entry, entry.timedOut ? "interrupted" : "cancelled", entry.timedOut
+          ? { status: "timeout_unsettled", safepointSafe: false, reason: "turn_deadline" }
+          : { status: "cancelled", safepointSafe: globalSafe });
+      } else if (scope.human && !entry.view.cancelRequested) {
+        if (entry.compatibility) {
+          finishTurn(entry, "succeeded", { status: "blocked_on_human", safepointSafe: globalSafe,
+            fiberId: scope.human.fiberId, reason: scope.human.reason });
+        } else if (entry.view.state !== "waiting_input") {
+          publishTurn(entry, { state: "waiting_input", waitingFiberId: scope.human.fiberId, waitingReason: scope.human.reason });
+          await flushPersistenceWriteBehind();
+          await sealCompletedProgress();
+        }
+      } else if (!scope.outstanding && scope.safepoint.safe) {
+        finishTurn(entry, "succeeded", { status: "settled", safepointSafe: globalSafe });
+      } else if (Date.now() >= entry.deadline && !entry.timedOut) {
+        const reason = scope.safepoint.safe ? "foreground_still_running" : scope.safepoint.blockers.map((blocker) => blocker.reason).join(",");
+        if (entry.compatibility) {
+          finishTurn(entry, "interrupted", { status: "timeout_unsettled", safepointSafe: false, reason });
+        } else {
+          entry.timedOut = true;
+          publishTurn(entry, { cancelRequested: true, state: "running" });
+          interruptTurn(entry);
+        }
+      }
+    }
+    await settleCompleted();
+  };
+
+  function schedulePump(): void {
+    if (pumpScheduled || disposed) return;
+    pumpScheduled = true;
+    setTimeout(() => {
+      void enqueueWithoutSnapshot(pumpSlice).catch((error) => {
+        for (const entry of activeByActor.values()) {
+          finishTurn(entry, "failed", { status: "failed", safepointSafe: false, error: error instanceof Error ? error.message : String(error) });
+        }
+        for (const { entry } of completed.splice(0)) entry.reject(error);
+      }).finally(() => {
+        pumpScheduled = false;
+        const runnable = [...activeByActor.values()].some((entry) => entry.view.state === "running");
+        const queued = [...queuedByActor.keys()].some((actorId) => !activeByActor.has(actorId));
+        if (runnable || queued || completed.length) schedulePump();
+      });
+    }, 0);
+  }
+
+  const admit = (admission: RuntimeInteractiveTurnAdmission, compatibility = false): RuntimeInteractiveTurnHandle => {
+    if (disposed || closing) throw new Error("runtime_coordinator_disposed");
+    if (!admission.turnId || turns.has(admission.turnId)) throw new Error("runtime_turn_id_conflict");
+    const fiber = params.driver.inspectRuntime().fibers[admission.mainFiberId];
+    if (!fiber || fiber.actor.id !== admission.actorId) throw new Error("runtime_actor_not_found");
+    if (admission.executionOrigin) {
+      const origin = decodeExecutionOrigin(admission.executionOrigin);
+      if (!origin || origin.actorId !== admission.actorId || origin.turnId !== admission.turnId
+        || (origin.source === "web" && origin.sessionId !== String((params.vm.outerCtx?.metadata as any)?.sessionId ?? ""))) {
+        throw new Error("runtime_execution_origin_invalid");
+      }
+      admission = { ...admission, executionOrigin: origin };
+    }
+    if ([...turns.values()].filter((entry) => !isTerminal(entry.view.state)).length >= capacity.maxOutstandingTurns) {
+      throw new Error("runtime_session_turn_capacity");
+    }
+    if ((queuedByActor.get(admission.actorId)?.length ?? 0) >= capacity.maxQueuedTurnsPerActor) {
+      throw new Error("runtime_actor_turn_capacity");
+    }
+    let resolve!: TurnEntry["resolve"];
+    let reject!: TurnEntry["reject"];
+    const settled = new Promise<AiAgentRuntimeInteractiveTurnResult>((ok, fail) => { resolve = ok; reject = fail; });
+    const entry: TurnEntry = {
+      admission, compatibility, settled, resolve, reject, controller: new AbortController(),
+      delivered: false, preparing: false, deadline: Infinity, timedOut: false,
+      view: Object.freeze({ turnId: admission.turnId, actorId: admission.actorId, mainFiberId: admission.mainFiberId,
+        state: "queued", cancelRequested: false }),
+    };
+    turns.set(admission.turnId, entry);
+    const queue = queuedByActor.get(admission.actorId) ?? [];
+    queue.push(entry);
+    queuedByActor.set(admission.actorId, queue);
+    publishTurn(entry, {});
+    schedulePump();
+    return { turnId: admission.turnId, settled };
+  };
+
+  const cancelInteractiveTurn = (input: { actorId: string; turnId: string }): RuntimeInteractiveTurnCancelResult => {
+    const entry = turns.get(input.turnId);
+    if (!entry || entry.view.actorId !== input.actorId) return { status: "not_found" };
+    if (isTerminal(entry.view.state)) return { status: "already_terminal" };
+    if (entry.delivered && !entry.preparing && entry.view.state === "running" && !entry.view.cancelRequested) {
+      const scope = readScope(entry);
+      if (!scope.outstanding && scope.safepoint.safe && !scope.human) {
+        const globalSafe = evaluateAiAgentRuntimeSnapshotSafepoint({ vm: params.vm, inspected: params.driver.inspectRuntime() }).safe;
+        finishTurn(entry, "succeeded", { status: "settled", safepointSafe: globalSafe });
+        schedulePump();
+        return { status: "already_terminal" };
+      }
+    }
+    if (entry.view.state === "queued") {
+      finishTurn(entry, "cancelled", { status: "cancelled", safepointSafe: false });
+      schedulePump();
+      return { status: "cancelled_before_delivery" };
+    }
+    if (!entry.view.cancelRequested) {
+      publishTurn(entry, { cancelRequested: true, state: "running" });
+      interruptTurn(entry);
+    }
+    schedulePump();
+    return { status: "cancel_requested" };
+  };
+
+  const resumeInteractiveTurn = (input: { actorId: string; turnId: string }): boolean => {
+    const entry = turns.get(input.turnId);
+    if (!entry || entry.view.actorId !== input.actorId || entry.view.state !== "waiting_input") return false;
+    publishTurn(entry, { state: "running", waitingFiberId: undefined, waitingReason: undefined });
+    params.driver.resumeFiber(entry.admission.mainFiberId, Date.now());
+    schedulePump();
+    return true;
+  };
+
+  const runInteractiveTurn = (input: { mainFiberId: string; timeoutMs?: number }) => {
+    const actor = params.driver.inspectRuntime().fibers[input.mainFiberId]?.actor;
+    if (!actor) return Promise.reject(new Error("runtime_actor_not_found"));
+    return admit({ ...input, actorId: actor.id, turnId: `local-turn:${++compatibilitySequence}` }, true).settled;
   };
 
   const deliverMemberInbox = async (deliverParams: {
@@ -608,13 +870,59 @@ export function createAiAgentRuntimeCoordinator(params: {
 
   return {
     enqueue,
+    // Existing command owners call this from inside enqueue. The safepoint
+    // check belongs to saveSnapshotAfterProgress; recursively enqueueing here
+    // would deadlock that owner.
     saveSnapshot: saveSnapshotAfterProgress,
     startBackgroundPump,
     stopBackgroundPump,
     runInteractiveTurn,
+    admitInteractiveTurn: (input) => admit(input),
+    forgetInteractiveTurn: ({ actorId, turnId }) => {
+      const entry = turns.get(turnId);
+      if (!entry || entry.view.actorId !== actorId || !isTerminal(entry.view.state)) return false;
+      return turns.delete(turnId);
+    },
+    cancelInteractiveTurn,
+    resumeInteractiveTurn,
+    readInteractiveTurns: () => [...turns.values()].map((entry) => entry.view),
+    subscribeInteractiveTurns: (listener) => {
+      turnListeners.add(listener);
+      return { unsubscribe: () => { turnListeners.delete(listener); } };
+    },
     deliverMemberInbox,
+    shutdown() {
+      return shutdownPromise ??= (async () => {
+        closing = true;
+        stopBackgroundPump();
+        const pending = [...turns.values()].filter((entry) => !isTerminal(entry.view.state));
+        for (const entry of pending) cancelInteractiveTurn(entry.view);
+        await Promise.allSettled(pending.map((entry) => entry.settled));
+        await enqueueWithoutSnapshot(async () => {
+          for (const fiberId of Object.keys(params.driver.inspectRuntime().fibers)) {
+            params.driver.settleInterruptedFiber({ fiberId, now: Date.now(), reason: "idle_external" as any });
+          }
+          // Cancellation requests are not completion. Detached effects and
+          // provider transports retain the session writer until their actual
+          // tasks have returned, even when a fiber record is already terminal.
+          await params.driver.awaitOwnedTasks();
+          await flushPersistenceWriteBehind();
+          await checkpointDiagnostics.flush();
+        });
+      })();
+    },
     dispose() {
+      disposed = true;
       stopBackgroundPump();
+      for (const entry of turns.values()) {
+        if (isTerminal(entry.view.state)) continue;
+        entry.controller.abort();
+        entry.resolve({ status: "timeout_unsettled", safepointSafe: false, reason: "runtime_coordinator_disposed" });
+      }
+      activeByActor.clear();
+      queuedByActor.clear();
+      turnListeners.clear();
+      syncInteractiveActive();
       void flushPersistenceWriteBehind();
       void checkpointDiagnostics.flush().catch(() => {});
     },

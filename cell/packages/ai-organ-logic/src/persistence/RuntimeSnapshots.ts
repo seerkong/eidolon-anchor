@@ -27,6 +27,7 @@ import {
   type VmRecoveryReport,
 } from "@cell/ai-core-logic"
 import { hasPendingAiAgentWakeMailbox } from "@cell/ai-core-logic/runtime/actor"
+import { quarantineWebExecutionOnRecovery } from "./ExecutionOriginRecovery"
 import { restoreAgentContextPipelineExecution } from "../resources/EidolonAppResourceRegistryAdapter"
 import type { AiRuntimeOuterCtx } from "@cell/ai-core-contract/runtime/AiRuntimeOuterCtx"
 import type { McpManagerLike } from "@cell/ai-core-contract/runtime/McpManagerLike"
@@ -117,6 +118,7 @@ import {
   inferRuntimeControlCheckpointEffectEvidenceSequence,
   readRuntimeControlCohortCommitFile,
   readRuntimeControlEffectEvidence,
+  readRuntimeControlEffectEvidenceAfterSequence,
   readRuntimeControlEffectEvidenceThroughSequence,
   readRuntimeControlSessionUpgradeFile,
   admitMigratedRuntimeSnapshotCheckpoint,
@@ -357,6 +359,7 @@ function serializeCooperativeExecState(value: unknown): any | null {
 }
 
 type RuntimeControlRecoveryGate = {
+  effectEvidenceSequence: number
   checkpoint: NonNullable<Awaited<ReturnType<typeof readRuntimeControlCohortCommitFile>>>
   effects: ReturnType<typeof rebuildEffectsFromLifecycleEvidence>
   result: RealSessionRecoveryResult
@@ -397,7 +400,7 @@ async function readRuntimeControlRecoveryGate(sessionDir: string): Promise<Runti
   if (result.classification === "dirty" || result.classification === "orphaned") {
     throw new Error(`dirty_runtime_control_recovery:${result.classification}`)
   }
-  return { checkpoint: checkpointForRecovery, effects, result }
+  return { checkpoint: checkpointForRecovery, effects, result, effectEvidenceSequence: inferredEffectEvidenceSequence ?? 0 }
 }
 
 function assertPendingEffectsBelongToRecoveredInflight(params: {
@@ -1045,6 +1048,12 @@ function redeliverPendingDurableControlSignalsOnRecovery(params: {
   for (const signal of pending) {
     const actor = params.vm.actors[signal.actorKey]
     if (!actor) continue
+    if (actor.execution?.status === "interrupted" || signal.executionOrigin?.source === "web"
+      || (signal.originSchemaVersion !== undefined && !signal.executionOrigin)) {
+      markDurableControlSignalConsumed(params.vm.sessionState.controlSignals, signal.eventId)
+      privateRxData.controlSignals.append({ ...signal, delivery: "ignored" })
+      continue
+    }
     if (signal.fiberId && !restoredFiberIds.has(signal.fiberId)) continue
 
     let signalAlreadyCommitted = false
@@ -1449,6 +1458,8 @@ function toPersistedFiberSnapshot(params: {
   return {
     version: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
     fiberId: params.fiberId,
+    executionOrigin: params.ctx.actor.execution?.origin,
+    originSchemaVersion: params.ctx.actor.execution ? 1 : undefined,
     actorKey: params.ctx.actor.key,
     actorId: params.ctx.actor.id,
     parentFiberId: params.stateRecord?.parentId,
@@ -1677,6 +1688,7 @@ export async function saveAiAgentRuntimeSnapshot(params: {
 export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams): Promise<RecoverAiAgentRuntimeResult | null> {
   const recoveryGate = await readRuntimeControlRecoveryGate(params.sessionDir)
   const effectEvidence = await readRuntimeControlEffectEvidence(params.sessionDir)
+  const uncheckpointedEffectEvidence = await readRuntimeControlEffectEvidenceAfterSequence({ sessionDir: params.sessionDir, sequence: recoveryGate.effectEvidenceSequence })
   const repository = getRuntimeSnapshotRepository(params.sessionDir)
   const loaded = await repository.loadSnapshot()
   if (!loaded) {
@@ -1696,6 +1708,7 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
     manifest: loaded.manifest as Record<string, unknown>,
     vm: loaded.vm as Record<string, unknown>,
   })
+  const quarantinedActorKeys = quarantineWebExecutionOnRecovery(loaded, uncheckpointedEffectEvidence)
   const cachedIndexes = await loadDerivedIndexes(params.sessionDir)
 
   const conversationRepository = getConversationPersistenceRepositoryIo(params.sessionDir)
@@ -1866,7 +1879,7 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
   // provider-visible result.
   reconcileSupersededToolLineageOnRecovery({
     vm,
-    actors,
+    actors: Object.fromEntries(Object.entries(actors).filter(([key]) => !quarantinedActorKeys.has(key))),
     sessionId: params.sessionId,
     effectEvidence,
     occurredAt: conversationHydratedAt,
@@ -1883,7 +1896,9 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
     .map((fiberSnapshot) => {
       const actor = fiberSnapshot.actorKey ? actors[fiberSnapshot.actorKey] : undefined
       if (!actor) return null
-      const recoveredInflight = recoverInterruptedCooperativeInflight(actor,
+      const recoveredInflight = quarantinedActorKeys.has(actor.key)
+        ? { execState: null, recoveryEvidence: [] }
+        : recoverInterruptedCooperativeInflight(actor,
         readPersistedCooperativeExecState(fiberSnapshot)
           ?? inferCooperativeExecStateFromPendingAiGenerated(actor),
         effectEvidence,

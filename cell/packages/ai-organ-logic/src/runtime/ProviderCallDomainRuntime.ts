@@ -54,6 +54,7 @@ export function createProviderCallDomainRuntime(): ProviderCallDomainRuntime {
       fail(`duplicate provider_call_id "${input.providerCallId}"`);
     }
     const record: ProviderCallRecord = {
+      ...(input.executionOrigin ? { executionOrigin: input.executionOrigin } : {}),
       providerCallId: input.providerCallId,
       actorKey: input.actorKey,
       turnId: input.turnId,

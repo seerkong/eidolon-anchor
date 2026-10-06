@@ -45,6 +45,10 @@ export function projectInputContentText(content: InputContent): string {
 }
 
 export interface ChatMessage {
+  /** Domain-neutral execution lineage. The runtime owns validation. */
+  executionOrigin?: Readonly<Record<string, unknown>>;
+  originSchemaVersion?: number;
+  providerAttemptId?: string;
   /**
    * Conversation-domain identity. Runtime materialization uses this to track
    * delivery without exposing the identifier to provider request bodies.

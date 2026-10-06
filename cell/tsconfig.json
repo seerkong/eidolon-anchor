@@ -11,6 +11,13 @@
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
+      "@cell/ai-runtime-host-contract": ["packages/ai-runtime-host-contract/src/index.ts"],
+      "@cell/ai-runtime-host-logic": ["packages/ai-runtime-host-logic/src/index.ts"],
+      "@cell/ai-runtime-host-support": ["packages/ai-runtime-host-support/src/index.ts"],
+      "@cell/ai-runtime-host-capsule": ["packages/ai-runtime-host-capsule/src/index.ts"],
+      "@cell/ai-runtime-host-capsule/*": ["packages/ai-runtime-host-capsule/src/*"],
+      "@cell/mod-profiles": ["packages/mod-profiles/src/index.ts"],
+      "@cell/mod-profiles/*": ["packages/mod-profiles/src/*"],
       "@terminal/organ/AIAgent/LocalHolonTaskRuntimeBootstrap": ["../terminal/packages/organ/src/AIAgent/LocalHolonTaskRuntimeBootstrap.ts"],
       "@cell/core-contract": ["packages/core-contract/src/index.ts"],
       "@cell/core-contract/*": ["packages/core-contract/src/*"],

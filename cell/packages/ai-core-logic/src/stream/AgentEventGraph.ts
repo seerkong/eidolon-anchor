@@ -32,6 +32,10 @@ type SemanticEventListener = {
 };
 
 export class AgentEventGraph {
+  private executionOriginResolver?: (actorId: string) => import("@cell/ai-core-contract/runtime/ExecutionOrigin").ExecutionOrigin | undefined;
+  setExecutionOriginResolver(resolve: (actorId: string) => import("@cell/ai-core-contract/runtime/ExecutionOrigin").ExecutionOrigin | undefined): void {
+    this.executionOriginResolver = resolve;
+  }
   private readonly eventLog = new BoundedEventLog<SemanticEvent>({ retentionLimit: LIVE_EVENT_REPLAY_LIMIT });
   private readonly consumers = new Set<{
     subscription: Subscription;
@@ -98,6 +102,8 @@ export class AgentEventGraph {
   }
 
   emit(event: SemanticEvent): void {
+    const origin = event.executionOrigin ?? this.executionOriginResolver?.(event.actor.actor_id);
+    if (origin) event = { ...event, executionOrigin: origin, originSchemaVersion: 1 };
     if (this.done) {
       return;
     }

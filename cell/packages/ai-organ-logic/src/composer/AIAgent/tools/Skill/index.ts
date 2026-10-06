@@ -48,6 +48,7 @@ export function buildSkillToolDef(): ToolDef<SkillOuterInput, SkillOuterOutput, 
   const coreLogic = skillCoreLogic
 
   return {
+    resourceEffect: "read_only",
     schema,
     briefPromptXnl: readPromptFromDir("Skill", "Tool.brief.xnl"),
     detailPromptXnl: readPromptFromDir("Skill", "Tool.detail.xnl"),

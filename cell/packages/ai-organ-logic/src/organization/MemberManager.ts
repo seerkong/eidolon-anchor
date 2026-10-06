@@ -194,6 +194,7 @@ export class MemberManager {
       actor.taskTree = params.controlActor.taskTree;
     }
 
+    params.vm.effects.actorRegistration?.beforeRegister({ actorId: actor.id, actorKey: actor.key, actorType: actor.type, identity: actor.identity });
     params.vm.actors[actor.key] = actor;
     if (!params.vm.actorRuntime.has(actor.key)) {
       params.vm.actorRuntime.register(actor.key, actor);

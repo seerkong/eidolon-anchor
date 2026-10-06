@@ -4,7 +4,6 @@ import {
   buildRuntimeBindingDescriptor,
   type RuntimeBindingDescriptor,
   type RuntimeEntryType,
-  type RuntimeProfile,
   type RuntimeStorageCapabilityFlags,
 } from "@cell/ai-composer";
 import type {
@@ -14,6 +13,7 @@ import type {
   RuntimeBootstrapOptions,
   RuntimeSlashCommandDescriptor,
   RuntimeSlashRuntime,
+  RuntimeProfile,
 } from "@cell/ai-composer/ai-contract";
 
 export type RuntimeCompositionBindingDescriptor = RuntimeBindingDescriptor;

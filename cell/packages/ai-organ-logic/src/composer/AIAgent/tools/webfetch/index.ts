@@ -36,6 +36,7 @@ export function buildWebfetchToolDef(): ToolDef<WebfetchOuterInput, WebfetchOute
   }
 
   return {
+    resourceEffect: "read_only",
     schema,
     briefPromptXnl: readPromptFromDir("webfetch", "Tool.brief.xnl"),
     detailPromptXnl: readPromptFromDir("webfetch", "Tool.detail.xnl"),

@@ -13,6 +13,8 @@ export type DurableControlSignalClass = "interrupt" | "wake" | "ordinary";
 export type DurableControlSignalMailboxKind = keyof AiAgentMailboxSchema;
 
 export type DurableControlSignalData = {
+  executionOrigin?: import("./ExecutionOrigin").ExecutionOrigin;
+  originSchemaVersion?: 1;
   eventId: string;
   sequence?: number;
   actorKey: string;

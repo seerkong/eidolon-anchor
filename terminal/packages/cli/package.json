@@ -16,6 +16,8 @@
     "@types/yargs": "^17.0.32"
   },
   "dependencies": {
+    "@cell/ai-runtime-host-contract": "workspace:*",
+    "@backend/elysia-shell": "workspace:*",
     "@cell/ai-organ-contract": "workspace:*",
     "@cell/ai-support": "workspace:*",
     "@cell/ai-runtime-control-composer": "workspace:*",

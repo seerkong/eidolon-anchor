@@ -39,6 +39,7 @@ export function buildRunDetachedBashToolDef(): ToolDef<
   }
 
   return {
+    resourceEffect: "orchestration",
     schema,
     briefPromptXnl: readPromptFromDir("RunDetachedBash", "Tool.brief.xnl"),
     detailPromptXnl: readPromptFromDir("RunDetachedBash", "Tool.detail.xnl"),

@@ -1,0 +1,15 @@
+{
+  "extends": "../../cell/tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "noEmit": true
+  },
+  "include": [
+    "../../cell/packages/ai-organ-logic/src/runtime/AiAgentRuntimeCoordinator.ts",
+    "../../cell/packages/ai-organ-logic/src/runtime/InteractiveActor.ts",
+    "../../cell/packages/ai-organ-logic/src/orchestratorCapsule/internals/driverRuntime.ts",
+    "../../cell/packages/ai-organ-logic/src/ambient-assets.d.ts"
+  ],
+  "exclude": []
+}

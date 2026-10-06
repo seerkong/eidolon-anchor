@@ -14,8 +14,6 @@ import type {
   ContinuationBaselineData,
 } from "@cell/ai-core-contract/runtime/ContextControl"
 import { getCoordinationEngine } from "../coordination/CoordinationEngine"
-import { getMemberManager } from "../organization/MemberManager"
-import { getOrganizationManager } from "../organization/OrganizationManager"
 import {
   getActorContinuationBaselineFromVm,
   getActorWorkContextFromVm,
@@ -81,28 +79,8 @@ function isDirectWatchedActorEvent(vm: DomainRuntimeVm, event: SemanticEvent): b
   return !!actor && actor.id === target.id && actor.watchState === "watched"
 }
 
-function isWatchedOrganizationProjectionEvent(vm: DomainRuntimeVm, event: SemanticEvent): boolean {
-  const target = getSemanticEventActorIdentity(event)
-  const holon = getOrganizationManager().resolveHolon(vm, target.key)
-  return !!holon && holon.holonId === target.id && holon.watchState === "watched"
-}
-
-function isWatchedMemberEventViaOrganization(vm: DomainRuntimeVm, event: SemanticEvent): boolean {
-  const target = getSemanticEventActorIdentity(event)
-  const member = getMemberManager().findByActor({ vm, actorKey: target.key, actorId: target.id })
-  if (!member) return false
-
-  return getOrganizationManager()
-    .listHolons(vm)
-    .some((holon) => (
-      holon.watchState === "watched"
-      && (
-        holon.governance === "autonomous"
-          ? holon.memberIds.includes(member.memberId)
-          : holon.leaderMemberId === member.memberId
-      )
-    ))
-}
+/** Renderer-specific projections may add visibility without changing actor authority. */
+export type AdditionalWatchedProjection = (params: { vm: DomainRuntimeVm; event: SemanticEvent }) => boolean
 
 export type ShellRuntimeFacade = {
   buildCoordinationOutbound: (params: {
@@ -148,7 +126,7 @@ export type ShellRuntimeFacade = {
   }) => ShellRuntimeEventRouting
 }
 
-export function createShellRuntimeFacade(): ShellRuntimeFacade {
+export function createShellRuntimeFacade(options: { additionalWatchedProjection?: AdditionalWatchedProjection } = {}): ShellRuntimeFacade {
   return {
     buildCoordinationOutbound(params) {
       return params.requestId
@@ -189,8 +167,7 @@ export function createShellRuntimeFacade(): ShellRuntimeFacade {
       const forControlActor = isSemanticEventForActor(params.event, params.controlActor)
       const forWatchedTarget =
         isDirectWatchedActorEvent(params.vm, params.event)
-        || isWatchedOrganizationProjectionEvent(params.vm, params.event)
-        || isWatchedMemberEventViaOrganization(params.vm, params.event)
+        || options.additionalWatchedProjection?.({ vm: params.vm, event: params.event }) === true
 
       return {
         visibleInTurn: forControlActor || forWatchedTarget,

@@ -13,6 +13,7 @@ import type { PlanReviewOuterConfig, PlanReviewOuterInput, PlanReviewOuterOutput
 
 export function buildPlanReviewToolDef(): ToolDef<PlanReviewOuterInput, PlanReviewOuterOutput, PlanReviewOuterConfig> {
   return {
+    resourceEffect: "orchestration",
     schema: {
       type: "function" as const,
       function: {

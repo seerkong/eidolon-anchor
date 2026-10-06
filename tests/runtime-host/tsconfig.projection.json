@@ -1,0 +1,9 @@
+{
+  "extends": "../../cell/tsconfig.json",
+  "compilerOptions": { "target": "ES2022", "lib": ["ES2022", "DOM"], "noEmit": true },
+  "include": [
+    "../../cell/packages/ai-runtime-host-capsule/src/semanticObservation.ts",
+    "../../cell/packages/ai-organ-logic/src/persistence/ExecutionOriginRecovery.ts"
+  ],
+  "exclude": []
+}

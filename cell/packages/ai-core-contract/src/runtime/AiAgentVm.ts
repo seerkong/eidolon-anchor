@@ -6,7 +6,7 @@ import type { ObservabilityRecord } from "./Observability";
 import type { ActorSurfaceRuntimeStateData } from "./ActorSurface";
 import type { DurableControlSignalData, DurableControlSignalStore } from "./DurableControlSignal";
 import type { HeartbeatSchedulerRuntimeState } from "./Heartbeat";
-import type { QuestionnaireRow } from "./Questionnaire";
+import type { QuestionnaireRow, QuestionnairePublicationEffects } from "./Questionnaire";
 import type { SemanticEvent } from "../stream/semantic";
 import type { UsageData } from "../stream/common";
 import type { ActorRuntimeFacetRegistry } from "./ActorRuntimeFacet";
@@ -47,6 +47,14 @@ export type RuntimeStorageOptions = {
 };
 
 export type RuntimeEffects = {
+  /** Synchronous host admission before either owner registry is mutated. */
+  actorRegistration?: {
+    beforeRegister: (actor: { actorId: string; actorKey: string; actorType: string; identity?: { kind: string } }) => void;
+  };
+  questionnaires?: QuestionnairePublicationEffects;
+  toolResources?: {
+    acquire: (input: { workDir: string; kind: "read_only" | "workspace_mutation" | "unclassified"; signal?: AbortSignal }) => Promise<{ release: () => void; invalidate?: () => void }>;
+  };
   log?: (level: "info" | "warn" | "error" | "debug", message: string, context?: Record<string, unknown>) => void;
   orchestrationHistory?: {
     appendEvent: (event: {
@@ -208,11 +216,14 @@ export type VmDeferredResume = {
 export type VmOrchestratorContext = {
   parentFiberId: string;
   spawnFiber: (params: any) => void;
+  registerBackgroundTask?: (task: Promise<unknown>) => void;
+  registerForegroundTask?: (task: Promise<unknown>) => void;
 };
 
 export type VmRuntimeContext = {
   driver: unknown | null;
   currentOrchestrator: VmOrchestratorContext | null;
+  actorOrchestrators: Record<string, VmOrchestratorContext>;
   deferredMemberResumes: VmDeferredResume[];
   interactiveTurnActive: boolean;
   conversationDomainRuntime: unknown | null;

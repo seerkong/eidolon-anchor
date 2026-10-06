@@ -50,26 +50,36 @@ async function* abortableStream<T>(stream: AsyncIterable<T>, signal?: AbortSigna
   }
 
   const iterator = stream[Symbol.asyncIterator]();
+  let pendingNext: Promise<IteratorResult<T>> | undefined;
   try {
     while (!signal.aborted) {
-      const next = iterator.next();
+      const next = Promise.resolve(iterator.next());
+      pendingNext = next;
+      let onAbort = () => {};
       const abort = new Promise<IteratorResult<T>>((resolve) => {
+        onAbort = () => resolve({ done: true, value: undefined as T });
         if (signal.aborted) {
-          resolve({ done: true, value: undefined as T });
+          onAbort();
           return;
         }
-        signal.addEventListener(
-          "abort",
-          () => resolve({ done: true, value: undefined as T }),
-          { once: true },
-        );
+        signal.addEventListener("abort", onAbort, { once: true });
       });
-      const result = await Promise.race([next, abort]);
+      let result: IteratorResult<T>;
+      try {
+        result = await Promise.race([next, abort]);
+      } finally {
+        signal.removeEventListener("abort", onAbort);
+      }
       if (signal.aborted || result.done) return;
+      pendingNext = undefined;
       yield result.value;
     }
   } finally {
-    void iterator.return?.();
+    // Abort stops semantic delivery immediately, but completion must still
+    // represent the real provider iterator and its cleanup settling.
+    const closing = iterator.return?.();
+    if (signal.aborted) await Promise.allSettled([pendingNext, closing]);
+    else await closing;
   }
 }
 

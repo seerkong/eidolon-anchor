@@ -47,6 +47,7 @@ export type ToolDef<
   TInnerOutput = TOuterOutput,
 > = {
   schema: ToolSchema;
+  resourceEffect?: "read_only" | "workspace_mutation" | "unclassified" | "orchestration";
   briefPromptXnl: string;
   detailPromptXnl?: string;
   run: (runtime: TOuterRuntime, input: TOuterInput, config: TOuterConfig) => Promise<TOuterOutput>;

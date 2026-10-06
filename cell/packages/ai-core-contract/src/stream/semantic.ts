@@ -74,6 +74,11 @@ export type SemanticTaskTransition =
 export type SemanticNoticeLevel = "info" | "warning";
 
 type SemanticEventBase<TEventType extends SemanticEventType> = {
+  /** Parser-attempt identity assigned before the shared history reducer. */
+  providerAttemptId?: string;
+  messageId?: string;
+  executionOrigin?: import("../runtime/ExecutionOrigin").ExecutionOrigin;
+  originSchemaVersion?: 1;
   trace: TraceData;
   actor: ActorRefData;
   team: TeamRefData;

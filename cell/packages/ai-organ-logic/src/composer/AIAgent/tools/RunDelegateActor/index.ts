@@ -48,6 +48,7 @@ export function buildRunDelegateActorToolDef(): ToolDef<
   const coreLogic = runDelegateActorCoreLogic
 
   return {
+    resourceEffect: "orchestration",
     schema,
     briefPromptXnl: readPromptFromDir("RunDelegateActor", "Tool.brief.xnl"),
     detailPromptXnl: readPromptFromDir("RunDelegateActor", "Tool.detail.xnl"),

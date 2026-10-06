@@ -95,7 +95,9 @@ export const bashCoreLogic: StdInnerLogic<BashInnerRuntime, BashInnerInput, Bash
       return "Error: Dangerous command blocked"
     }
     const selection = resolveSandboxBackendSelectionFromRuntime(runtime, cwd, typeof _config?.platform === "string" ? String(_config.platform) : undefined)
-    const currentFiberId = ensureVmRuntimeContext(runtime.vm).currentOrchestrator?.parentFiberId
+    const context = ensureVmRuntimeContext(runtime.vm)
+    const actorOrchestrator = runtime.actor ? context.actorOrchestrators[runtime.actor.id] : undefined
+    const currentFiberId = (actorOrchestrator ?? context.currentOrchestrator)?.parentFiberId
     const store = getDetachedActorObservabilityStore(runtime.vm)
     const detachedTaskId = typeof currentFiberId === "string" ? store.getTaskIdForFiber(currentFiberId) : null
     // Tests can inject a sync spawn override via _config.spawnSyncFn.

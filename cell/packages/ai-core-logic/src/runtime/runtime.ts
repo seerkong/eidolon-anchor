@@ -119,6 +119,7 @@ export function createEmptyVmRuntimeContext(): VmRuntimeContext {
   return {
     driver: null,
     currentOrchestrator: null,
+    actorOrchestrators: {},
     deferredMemberResumes: [],
     interactiveTurnActive: false,
     conversationDomainRuntime: null,
@@ -163,6 +164,7 @@ function materializeVmRuntimeContext(runtimeContext?: Partial<VmRuntimeContext>)
     interactiveTurnActive: runtimeContext?.interactiveTurnActive === true,
     driver: runtimeContext?.driver ?? null,
     currentOrchestrator: runtimeContext?.currentOrchestrator ?? null,
+    actorOrchestrators: { ...(runtimeContext?.actorOrchestrators ?? {}) },
     conversationDomainRuntime: runtimeContext?.conversationDomainRuntime ?? null,
     toolCallDomain: runtimeContext?.toolCallDomain ?? null,
     providerCallDomain: runtimeContext?.providerCallDomain ?? null,
@@ -444,5 +446,7 @@ export function createVM(params: CreateVMParams): AiAgentVm {
     }
   }
 
+  vm.eventBus?.setExecutionOriginResolver((actorId) =>
+    Object.values(vm.actors).find((actor) => actor.id === actorId)?.execution?.origin);
   return vm;
 }

@@ -1,6 +1,6 @@
 import type { StdInnerLogic } from "depa-processor"
 import type { QuestionnaireRequestPayload } from "@cell/ai-core-contract/runtime/Questionnaire"
-import { upsertPendingQuestionnaireRow } from "@cell/ai-core-logic"
+import { publishPendingQuestionnaireRow } from "@cell/ai-core-logic"
 import type {
   QuestionnaireInnerConfig,
   QuestionnaireInnerInput,
@@ -60,19 +60,7 @@ export const questionnaireCoreLogic: StdInnerLogic<
   // Idempotency guard: don't duplicate pending records on retries.
   const existing = (runtime.actor as any)?.pendingQuestionnaires?.[questionnaireId]
   if (!existing) {
-    ;(runtime.actor as any).pendingQuestionnaires[questionnaireId] = payload
-    upsertPendingQuestionnaireRow({ vm: runtime.vm as any, actor: runtime.actor as any, request: payload })
-    runtime.actor.send("control" as any, {
-      kind: "questionnaire_pending",
-      toolCallId: payload.toolCallId,
-      questionnaireId: payload.questionnaireId,
-      suspendPolicy: payload.suspendPolicy,
-    })
-
-    const bus = (runtime.vm as any)?.eventBus
-    if (bus && typeof bus.emitQuestionnaireRequest === "function") {
-      bus.emitQuestionnaireRequest({ key: runtime.actor.key, id: runtime.actor.id }, payload)
-    }
+    publishPendingQuestionnaireRow({ vm: runtime.vm, actor: runtime.actor, request: payload })
   }
 
   // Return value is irrelevant for control flow; executor relies on the pending marker.

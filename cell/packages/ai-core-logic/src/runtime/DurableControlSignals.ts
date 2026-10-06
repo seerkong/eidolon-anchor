@@ -97,6 +97,8 @@ export function normalizeDurableControlSignal(
 
   return {
     eventId,
+    ...(input.executionOrigin ? { executionOrigin: { ...input.executionOrigin } } : {}),
+    ...(input.originSchemaVersion !== undefined ? { originSchemaVersion: input.originSchemaVersion } : {}),
     sequence: options.sequence,
     actorKey: input.actorKey,
     actorId: input.actorId,
@@ -187,6 +189,8 @@ function toBoundedSignalSnapshot(event: DurableControlSignalData): DurableContro
   const summary = event.payloadSummary ?? summarizePayload(event.payload);
   return {
     eventId: event.eventId,
+    ...(event.executionOrigin ? { executionOrigin: { ...event.executionOrigin } } : {}),
+    ...(event.originSchemaVersion !== undefined ? { originSchemaVersion: event.originSchemaVersion } : {}),
     sequence: inferEventSequence(event),
     actorKey: event.actorKey,
     actorId: event.actorId,

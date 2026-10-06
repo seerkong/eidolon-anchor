@@ -13,6 +13,7 @@ import type { ApplyPatchOuterConfig, ApplyPatchOuterInput, ApplyPatchOuterOutput
 
 export function buildApplyPatchToolDef(): ToolDef<ApplyPatchOuterInput, ApplyPatchOuterOutput, ApplyPatchOuterConfig> {
   return {
+    resourceEffect: "workspace_mutation",
     schema: {
       type: "function" as const,
       function: {

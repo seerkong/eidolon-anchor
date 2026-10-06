@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { LocalFileConversationPersistenceRepositoryFactory } from "../src/conversation/local/LocalFileConversationPersistenceRepository";
+import { applyConversationCompaction } from "../src/conversation/local/LocalConversationRuntime";
 
 const roots: string[] = [];
 
@@ -23,6 +24,19 @@ afterEach(() => {
 });
 
 describe("conversation identity is not the physical landing zone", () => {
+  test("compaction preserves logical identity in generations, heads and lineage", async () => {
+    const sessionDir = landingZone();
+    const sessionId = "logical-compaction-session";
+    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir, sessionId);
+    const result = await applyConversationCompaction({ sessionDir, repository, actorKey: "main", actorId: "actor-main",
+      summary: "summary", compressedMessages: [{ role: "user", content: "summary" }, { role: "assistant", content: "tail" }] });
+    expect((await repository.loadHistoryGeneration(result.historyGenerationId))?.sessionId).toBe(sessionId);
+    expect((await repository.loadPromptGeneration(result.promptGenerationId))?.sessionId).toBe(sessionId);
+    expect(result.historyIndex.heads.main.sessionId).toBe(sessionId);
+    expect(result.historyIndex.lineages[result.historyGenerationId].sessionId).toBe(sessionId);
+    expect(result.sessionIndex.session.activeSelection?.sessionId).toBe(sessionId);
+  });
+
   test("records the explicit logical sessionId instead of the ephemeral directory name", async () => {
     const sessionDir = landingZone();
     const sessionKey = "plan-0";

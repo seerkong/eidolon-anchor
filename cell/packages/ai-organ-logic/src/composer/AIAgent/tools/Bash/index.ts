@@ -13,6 +13,7 @@ import type { BashOuterConfig, BashOuterInput, BashOuterOutput } from "./OuterTy
 
 export function buildBashToolDef(): ToolDef<BashOuterInput, BashOuterOutput, BashOuterConfig> {
   return {
+    resourceEffect: "unclassified",
     schema: {
       type: "function" as const,
       function: {

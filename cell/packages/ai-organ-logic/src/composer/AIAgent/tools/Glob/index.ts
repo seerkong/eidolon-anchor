@@ -13,6 +13,7 @@ import type { GlobOuterConfig, GlobOuterInput, GlobOuterOutput } from "./OuterTy
 
 export function buildGlobToolDef(): ToolDef<GlobOuterInput, GlobOuterOutput, GlobOuterConfig> {
   return {
+    resourceEffect: "read_only",
     schema: {
       type: "function" as const,
       function: {

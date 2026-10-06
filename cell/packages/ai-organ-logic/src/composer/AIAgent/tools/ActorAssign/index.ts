@@ -13,6 +13,7 @@ import type { ActorAssignOuterConfig, ActorAssignOuterInput, ActorAssignOuterOut
 
 export function buildActorAssignToolDef(): ToolDef<ActorAssignOuterInput, ActorAssignOuterOutput, ActorAssignOuterConfig> {
   return {
+    resourceEffect: "orchestration",
     schema: {
       type: "function" as const,
       function: {

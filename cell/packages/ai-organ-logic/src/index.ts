@@ -154,6 +154,8 @@ export {
 } from "./persistence/RecoveryReadPort";
 export { configureLocalPermissionConfigStore } from "./permissions/LocalPermissionConfig";
 export { createAiAgentRuntimeCoordinator } from "./runtime/AiAgentRuntimeCoordinator";
+export { createInteractiveActor } from "./runtime/InteractiveActor";
+export type { InteractiveActorRuntime, CreateInteractiveActorInput } from "./runtime/InteractiveActor";
 export { isTerminalTurnState, turnReducer } from "./runtime/TurnReducer";
 export {
   DEFAULT_TOOL_CALL_OUTPUT_EXTERNALIZATION_THRESHOLD_BYTES,
@@ -339,8 +341,6 @@ export type {
   RuntimeLlmAdapterFactoryOverride,
 } from "./runtime/ShellRuntimeSupport";
 export type {
-  RecoverOrCreateShellRuntimeParams,
-  RecoverOrCreateShellRuntimeResult,
   ShellRuntimeActorCallbacks,
   ShellRuntimeEffects,
   ShellRuntimePaths,

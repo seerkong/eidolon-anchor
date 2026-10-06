@@ -200,8 +200,9 @@ function withMcpCallOptionsSchema(schema: any): any {
     return parameters;
   }
   parameters.type = "object";
-  parameters.properties = isRecord(parameters.properties) ? parameters.properties : {};
-  parameters.properties[MCP_CALL_OPTIONS_KEY] = {
+  const properties = isRecord(parameters.properties) ? parameters.properties : {};
+  parameters.properties = properties;
+  properties[MCP_CALL_OPTIONS_KEY] = {
     type: "object",
     description:
       "Optional Eidolon MCP call options. Use timeoutMs only when this specific call is expected to take longer, for example browser automation or long-running remote work. The option is stripped before forwarding to the MCP server.",
@@ -712,13 +713,17 @@ export class MCPClient {
   }
 
   async callTool(toolName: string, args: any, options?: McpRequestOptions) {
-    if (!this.connected || !this.transport) return "Error: Not connected";
-    infoLog(`Calling tool: ${toolName} with args: ${JSON.stringify(args)}`);
+    return (await this.callToolOutcome(toolName, args, options)).output;
+  }
+
+  async callToolOutcome(toolName: string, args: any, options?: McpRequestOptions): Promise<{ output: string; completion: "settled" | "unknown" }> {
+    if (!this.connected || !this.transport) return { output: "Error: Not connected", completion: "settled" };
+    infoLog(`Calling tool: ${toolName}`);
     const [result, error] = await this.transport.sendRequest("tools/call", { name: toolName, arguments: args }, options);
-    if (error) return `Error: ${error}`;
+    if (error) return { output: `Error: ${error}`, completion: "unknown" };
     const contents = result?.content || [];
     const texts = contents.filter((c: any) => c.type === "text").map((c: any) => c.text || "");
-    return texts.join("\n") || JSON.stringify(result);
+    return { output: texts.join("\n") || JSON.stringify(result), completion: "settled" };
   }
 
   close() {
@@ -764,6 +769,16 @@ export class MCPManager {
     if (!this.clients[tool.serverName]) return `Error: Server not connected: ${tool.serverName}`;
     const extracted = extractMcpCallOptions(argumentsObj);
     return this.clients[tool.serverName].callTool(tool.name, extracted.args, {
+      timeoutMs: options?.timeoutMs ?? extracted.timeoutMs,
+      signal: options?.signal,
+    });
+  }
+
+  async callToolOutcome(fullName: string, argumentsObj: any, options?: McpRequestOptions): Promise<{ output: string; completion: "settled" | "unknown" }> {
+    const tool = this.tools.find((item) => item.fullName === fullName);
+    if (!tool || !this.clients[tool.serverName]) return { output: "Error: MCP tool unavailable", completion: "settled" };
+    const extracted = extractMcpCallOptions(argumentsObj);
+    return this.clients[tool.serverName].callToolOutcome(tool.name, extracted.args, {
       timeoutMs: options?.timeoutMs ?? extracted.timeoutMs,
       signal: options?.signal,
     });

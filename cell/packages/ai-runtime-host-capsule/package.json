@@ -1,0 +1,33 @@
+{
+  "name": "@cell/ai-runtime-host-capsule",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./session/SessionRuntimeAssembly": "./src/session/SessionRuntimeAssembly.ts",
+    "./session/SessionRuntimePresentation": "./src/session/SessionRuntimePresentation.ts",
+    "./session/EffectiveVfsLifetime": "./src/session/EffectiveVfsLifetime.ts",
+    "./session/StandaloneHolonSessionExtension": "./src/session/StandaloneHolonSessionExtension.ts",
+    "./session/LocalHolonTaskRuntimeBootstrap": "./src/session/LocalHolonTaskRuntimeBootstrap.ts",
+    "./session/StandaloneHolonExecutionAdapters": "./src/session/StandaloneHolonExecutionAdapters.ts"
+  },
+  "files": ["src"],
+  "description": "Renderer-neutral runtime host composition over the existing actor, conversation and execution owners.",
+  "dependencies": {
+    "@cell/ai-runtime-host-contract": "workspace:*",
+    "@cell/ai-runtime-host-logic": "workspace:*",
+    "@cell/ai-runtime-host-support": "workspace:*",
+    "@cell/ai-core-contract": "workspace:*",
+    "@cell/ai-core-logic": "workspace:*",
+    "@cell/ai-organ-contract": "workspace:*",
+    "@cell/ai-organ-logic": "workspace:*",
+    "@cell/ai-support": "workspace:*",
+    "@cell/membrane": "workspace:*",
+    "@cell/mod-ai-coding": "workspace:*",
+    "@cell/mod-profiles": "workspace:*",
+    "@cell/symbiont-logic": "workspace:*",
+    "@shared/composer": "workspace:*"
+  }
+}

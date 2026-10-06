@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { QuestionnaireRequestPayload } from "@cell/ai-core-contract/runtime/Questionnaire";
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry";
-import { upsertPendingQuestionnaireRow } from "@cell/ai-core-logic";
+import { publishPendingQuestionnaireRow } from "@cell/ai-core-logic";
 import type { ToolFuncRegistryData } from "@cell/ai-core-contract/runtime/RuntimeRegistries";
 import type { AiAgentActor } from "@cell/ai-core-logic/runtime/actor";
 import type { AiAgentVm } from "@cell/ai-core-logic/runtime/runtime";
@@ -351,19 +351,7 @@ function queueLocalPermissionQuestionnaire(
   runtime.actor.pendingQuestionnaires = runtime.actor.pendingQuestionnaires ?? {};
   const existing = runtime.actor.pendingQuestionnaires[questionnaireId];
   if (!existing) {
-    runtime.actor.pendingQuestionnaires[questionnaireId] = request;
-    upsertPendingQuestionnaireRow({ vm: runtime.vm as any, actor: runtime.actor as any, request });
-    runtime.actor.send("control", {
-      kind: "questionnaire_pending",
-      toolCallId,
-      questionnaireId,
-      suspendPolicy: request.suspendPolicy,
-    });
-
-    const bus = runtime?.vm?.eventBus;
-    if (bus && typeof bus.emitQuestionnaireRequest === "function") {
-      bus.emitQuestionnaireRequest({ key: runtime.actor.key, id: runtime.actor.id }, request);
-    }
+    publishPendingQuestionnaireRow({ vm: runtime.vm, actor: runtime.actor, request });
   }
 
   return LOCAL_PERMISSION_QUESTIONNAIRE_PENDING_OUTPUT;

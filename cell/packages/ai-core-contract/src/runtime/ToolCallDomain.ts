@@ -45,6 +45,7 @@ export type ToolCallOutputArtifactRef = {
 };
 
 export type ToolCallRecord = {
+  executionOrigin?: import("./ExecutionOrigin").ExecutionOrigin;
   /** LLM-transparent unique id; the sole pairing key. */
   toolCallId: string;
   actorKey: string;
@@ -69,6 +70,7 @@ export function isTerminalToolCallStatus(status: ToolCallStatus): boolean {
 }
 
 export type PlanToolInput = {
+  executionOrigin?: import("./ExecutionOrigin").ExecutionOrigin;
   toolCallId: string;
   actorKey: string;
   turnId: number;

@@ -65,7 +65,14 @@ type ValueSignal<T> = {
   get: () => T;
   set: (next: T) => void;
   subscribe: (listener: (value: T) => void) => { unsubscribe: () => void };
+  captureAndSubscribe: (listener: (capture: ConversationReadCapture<T>) => void, onError: (error: unknown) => void) => ConversationReadLease<T>;
 };
+
+export type ConversationReadCapture<T> = Readonly<{ revision: number; value: T }>;
+export type ConversationReadLease<T> = Readonly<{
+  snapshot: ConversationReadCapture<T>;
+  unsubscribe: () => void;
+}>;
 
 type DomainListener<TEvent> = (event: TEvent) => void;
 

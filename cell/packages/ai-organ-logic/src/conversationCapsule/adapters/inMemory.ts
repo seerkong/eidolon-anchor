@@ -7,6 +7,7 @@ import {
   type ConversationArtifactRefsSnapshot,
   type ConversationHistoryIndexSnapshot,
   type ConversationPersistenceRepository,
+  type ConversationPersistenceRepositoryFactory,
   type ConversationPromptIndexSnapshot,
   type ConversationSessionIndexSnapshot,
 } from "@cell/ai-organ-contract";
@@ -325,7 +326,7 @@ function createInMemoryConversationPersistenceRepository(
   };
 }
 
-export function createInMemoryConversationPersistenceAdapter(): ConversationPersistenceAdapter {
+export function createInMemoryConversationPersistenceAdapter(): ConversationPersistenceAdapter & ConversationPersistenceRepositoryFactory {
   const storesBySessionDir = new Map<string, InMemoryConversationStore>();
   return {
     createRepository(sessionDir: string, sessionId?: string) {

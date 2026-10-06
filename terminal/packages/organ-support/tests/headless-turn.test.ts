@@ -226,8 +226,8 @@ describe("headless terminal turn", () => {
     expect(secondCount).toBe(firstCount)
 
     const sessionRoot = path.join(activeWorkdir, ".eidolon", "sessions")
-    const sessions = fs.readdirSync(sessionRoot)
-    expect(sessions.length).toBe(2)
+    const sessions = fs.readdirSync(sessionRoot).filter((entry) => !entry.startsWith("."))
+    expect(sessions).toEqual([expect.stringMatching(/^\d{14}__/), expect.stringMatching(/^\d{14}__/)])
     expect(sessions.every((name) => /^\d{14}__[0-9A-HJKMNP-TV-Z]{26}$/.test(name))).toBe(true)
   })
 

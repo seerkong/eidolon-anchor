@@ -9,6 +9,7 @@ export {
   commitDeliveredProviderContextFactsToConversationDomainRuntime,
   commitProviderContextTransition,
   bindActorConversationProjectionToVm,
+  captureAndSubscribeConversationHistory,
   applyPromptTransformToConversationDomainRuntime,
   clearContextBlocksInConversationDomainRuntime,
   closeConversationSessionInConversationDomainRuntime,

@@ -44,7 +44,7 @@ import {
   dispatchActorRuntimeFacetEvent,
   dispatchActorRuntimeFacetToolOutcome,
   runActorRuntimeFacetProviderBoundary,
-  upsertPendingQuestionnaireRow,
+  publishPendingQuestionnaireRow,
 } from "@cell/ai-core-logic";
 import { MessageHistoryGraph } from "@cell/ai-core-logic/stream/MessageHistoryGraph";
 import { buildRuntimeSemanticBase } from "@cell/ai-core-logic/stream/runtime/SemanticRuntimeSupport";
@@ -363,6 +363,13 @@ function appendRuntimeControlLifecycleEvidenceFromVm(
   if (!isRuntimeStorageFilesEnabled(vm)) return;
   const sessionDir = getRuntimeControlSessionDir(vm);
   if (!sessionDir) return;
+  const payload = "payload" in event && event.payload && typeof event.payload === "object" ? event.payload as Record<string, unknown> : {};
+  const actorKey = typeof payload.actorKey === "string" ? payload.actorKey : undefined;
+  const executionOrigin = event.executionOrigin
+    ?? (actorKey ? vm.actors[actorKey]?.execution?.origin : undefined)
+    ?? getVmProviderCallDomain(vm)?.getRecord(event.effectId)?.executionOrigin
+    ?? getVmToolCallDomain(vm)?.getRecord(event.effectId)?.executionOrigin;
+  if (executionOrigin) event = { ...event, executionOrigin, originSchemaVersion: 1 };
   getPersistenceWritePort(vm).appendEffectEvidence({
     sessionDir,
     event: event as unknown as PersistenceEffectEvidenceEvent,
@@ -372,7 +379,7 @@ function appendRuntimeControlLifecycleEvidenceFromVm(
 function prepareMessagesForLlmAdapter(llmAdapter: LlmAdapter, messages: any[]): any[] {
   const providerVisibleMessages = messages.map((message) => {
     if (!message || typeof message !== "object") return message;
-    const { messageId: _messageId, ...providerVisible } = message;
+    const { messageId: _messageId, providerAttemptId: _providerAttemptId, executionOrigin: _executionOrigin, originSchemaVersion: _originSchemaVersion, ...providerVisible } = message;
     return providerVisible;
   });
   if (llmAdapter.type === "openai") {
@@ -663,7 +670,7 @@ function isDelegateActor(actor: AiAgentActor): boolean {
 }
 
 function isHistoryTrackedActor(actor: AiAgentActor): boolean {
-  return actor.type === "primary" || actor.identity?.kind === "member";
+  return actor.type === "primary" || actor.type === "interactive" || actor.identity?.kind === "member";
 }
 
 function shouldCompressActorHistory(actor: AiAgentActor): boolean {
@@ -2872,6 +2879,7 @@ function trackToolCallPlanned(params: {
   if (domain.getRecord(params.toolCallId)) return;
   try {
     domain.planTool({
+      executionOrigin: params.vm.actors[params.actorKey]?.execution?.origin,
       toolCallId: params.toolCallId,
       actorKey: params.actorKey,
       turnId: params.turnId,
@@ -3004,6 +3012,7 @@ function trackProviderCallStarted(params: {
   const options = (modelConfig.options ?? {}) as Record<string, unknown>;
   try {
     domain.startProviderCall({
+      executionOrigin: params.actor.execution?.origin,
       providerCallId: params.providerCallId,
       actorKey: params.actor.key,
       turnId: params.turnId,
@@ -3477,19 +3486,9 @@ async function drainActorMailboxes(
         intro,
       };
 
-      actor.pendingQuestionnaires[questionnaireId] = clarification;
-      upsertPendingQuestionnaireRow({ vm, actor, request: clarification });
-      actor.send("control", {
-        kind: "questionnaire_pending",
-        toolCallId,
-        questionnaireId,
-        suspendPolicy: clarification.suspendPolicy,
-      });
-
-      if (eventBus) {
-        eventBus.emitQuestionnaireRequest(eventActor, clarification);
-        eventBus.emitAgentTurnEnd(eventActor, "questionnaire_wait");
-      }
+      if (vm.effects.questionnaires) clarification.questionnaireId = `q-${crypto.randomUUID()}`;
+      publishPendingQuestionnaireRow({ vm, actor, request: clarification, replaceQuestionnaireId: questionnaireId });
+      eventBus?.emitAgentTurnEnd(eventActor, "questionnaire_wait");
 
       return { stopReason: "questionnaire_wait" };
     }
@@ -6379,24 +6378,10 @@ export async function aiAgentLoopStreaming({
       const pending = findQuestionnairePendingControl(actor, result.toolCallId);
       const pendingId = pending?.questionnaireId;
       const stored = pendingId ? (actor.pendingQuestionnaires as any)?.[pendingId] : undefined;
-      const req = stored ?? normalizeQuestionnaireRequestArgs(result.args, result.toolCallId);
+      let req = stored ?? normalizeQuestionnaireRequestArgs(result.args, result.toolCallId);
 
-      // Backstop: if a custom Questionnaire tool didn't mark pending, do it here.
-      if (!pendingId) {
-        actor.pendingQuestionnaires[req.questionnaireId] = req;
-        upsertPendingQuestionnaireRow({ vm, actor, request: req });
-        actor.send("control", {
-          kind: "questionnaire_pending",
-          toolCallId: req.toolCallId,
-          questionnaireId: req.questionnaireId,
-          suspendPolicy: req.suspendPolicy,
-        });
-      }
-
-      // If the tool already emitted QuestionnaireRequest, do not duplicate.
-      if (!stored) {
-        eventBus?.emitQuestionnaireRequest(eventActor, req);
-      }
+      // Custom tool fallback uses the same owner admission and publication boundary.
+      if (!stored) req = publishPendingQuestionnaireRow({ vm, actor, request: req }).request;
       appendRuntimeControlLifecycleEvidenceFromVm(vm, {
         kind: "waiting",
         effectKind: result.effectKind,
@@ -6812,9 +6797,12 @@ function takePendingEvent<TKind extends CooperativeAiGeneratedEvent["kind"]>(
   return (ev as any) ?? null;
 }
 
-function registerCooperativeAsyncTask(vm: AiAgentVm, task: Promise<unknown>): void {
-  const orchestrator = ensureVmRuntimeContext(vm).currentOrchestrator as any;
-  if (typeof orchestrator?.registerBackgroundTask === "function") {
+function registerCooperativeAsyncTask(vm: AiAgentVm, actor: AiAgentActor, task: Promise<unknown>): void {
+  const context = ensureVmRuntimeContext(vm);
+  const orchestrator = context.actorOrchestrators[actor.id] ?? context.currentOrchestrator;
+  if (typeof orchestrator?.registerForegroundTask === "function") {
+    orchestrator.registerForegroundTask(task);
+  } else if (typeof orchestrator?.registerBackgroundTask === "function") {
     orchestrator.registerBackgroundTask(task);
   }
 }
@@ -7129,15 +7117,8 @@ export async function aiAgentCooperativeStep(params: {
           intro,
         } as any;
 
-        actor.pendingQuestionnaires[questionnaireId] = clarification;
-        upsertPendingQuestionnaireRow({ vm, actor, request: clarification });
-        actor.send("control", {
-          kind: "questionnaire_pending",
-          toolCallId,
-          questionnaireId,
-          suspendPolicy: clarification.suspendPolicy,
-        });
-        eventBus?.emitQuestionnaireRequest(eventActor, clarification);
+        if (vm.effects.questionnaires) clarification.questionnaireId = `q-${crypto.randomUUID()}`;
+        const clarificationRow = publishPendingQuestionnaireRow({ vm, actor, request: clarification, replaceQuestionnaireId: questionnaireId });
         eventBus?.emitAgentTurnEnd(eventActor, "questionnaire_wait");
 
         state.phase = "drain";
@@ -7145,7 +7126,7 @@ export async function aiAgentCooperativeStep(params: {
         return {
           kind: "suspend",
           reason: mapQuestionnaireKindToWait(clarification.kind),
-          suspendPolicy: normalizeSuspendPolicy(clarification.suspendPolicy),
+          suspendPolicy: normalizeSuspendPolicy(clarificationRow.suspendPolicy),
         };
       }
 
@@ -7393,7 +7374,7 @@ export async function aiAgentCooperativeStep(params: {
           });
         }
       })();
-      registerCooperativeAsyncTask(vm, task);
+      registerCooperativeAsyncTask(vm, actor, task);
 
       return { kind: "suspend", reason: "wait_compress_result" };
     }
@@ -7577,7 +7558,7 @@ export async function aiAgentCooperativeStep(params: {
           if (actor.llmAbortController === abortController) actor.llmAbortController = null;
         }
       })();
-      registerCooperativeAsyncTask(vm, task);
+      registerCooperativeAsyncTask(vm, actor, task);
 
       if (wasInflightClearedByInterrupt(state, "llm", opId)) {
         params.setState(state);
@@ -7867,7 +7848,7 @@ export async function aiAgentCooperativeStep(params: {
           });
         }
       })();
-      registerCooperativeAsyncTask(vm, task);
+      registerCooperativeAsyncTask(vm, actor, task);
 
       if (wasInflightClearedByInterrupt(state, "tool", opId)) {
         params.setState(state);
@@ -7957,20 +7938,10 @@ export async function aiAgentCooperativeStep(params: {
       const pending = findQuestionnairePendingControl(actor, toolCallId);
       if (pending) {
         const stored = (actor.pendingQuestionnaires as any)?.[pending.questionnaireId];
-        const req = stored ?? normalizeQuestionnaireRequestArgs((ev as any).args, toolCallId);
+        let req = stored ?? normalizeQuestionnaireRequestArgs((ev as any).args, toolCallId);
 
-        // Backstop: if a custom Questionnaire tool didn't mark pending, do it here.
-        if (!stored) {
-          actor.pendingQuestionnaires[req.questionnaireId] = req;
-          upsertPendingQuestionnaireRow({ vm, actor, request: req });
-          actor.send("control", {
-            kind: "questionnaire_pending",
-            toolCallId: req.toolCallId,
-            questionnaireId: req.questionnaireId,
-            suspendPolicy: req.suspendPolicy,
-          });
-          eventBus?.emitQuestionnaireRequest(eventActor, req);
-        }
+        // Custom tool fallback uses the same owner admission and publication boundary.
+        if (!stored) req = publishPendingQuestionnaireRow({ vm, actor, request: req }).request;
 
         appendRuntimeControlLifecycleEvidenceFromVm(vm, {
           kind: "waiting",

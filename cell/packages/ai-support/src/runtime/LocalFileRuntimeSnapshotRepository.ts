@@ -365,6 +365,7 @@ export class LocalFileRuntimeSnapshotRepository {
       },
       actorState: {
         version: actor.version,
+        execution: actor.execution,
         planApproval: actor.planApproval,
         shutdownCoordination: actor.shutdownCoordination,
         taskTree: actor.taskTree,
@@ -381,6 +382,7 @@ export class LocalFileRuntimeSnapshotRepository {
       actorMailboxes: {
         version: actor.version,
         mailboxes: actor.mailboxes,
+        mailboxExecutionOrigins: actor.mailboxExecutionOrigins,
         updatedAt: actor.updatedAt,
       },
     };
@@ -430,6 +432,8 @@ export class LocalFileRuntimeSnapshotRepository {
       executionContract: actorJson.executionContract,
       contextPipeline: actorJson.contextPipeline,
       origin: actorJson.origin,
+      execution: stateJson.execution,
+      mailboxExecutionOrigins: mailboxesJson.mailboxExecutionOrigins,
       modelConfig: removePersistedProviderSecrets(actorJson.modelConfig ?? {}) as RuntimeSnapshotActor["modelConfig"],
       ctrlOptions: actorJson.ctrlOptions ?? {
         stopAfterFirstTool: false,

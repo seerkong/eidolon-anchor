@@ -236,6 +236,7 @@ export function createToolCallDomainRuntime(): ToolCallDomainRuntime {
       fail(`duplicate tool_call_id "${input.toolCallId}"`);
     }
     const record: ToolCallRecord = {
+      ...(input.executionOrigin ? { executionOrigin: input.executionOrigin } : {}),
       toolCallId: input.toolCallId,
       actorKey: input.actorKey,
       turnId: input.turnId,

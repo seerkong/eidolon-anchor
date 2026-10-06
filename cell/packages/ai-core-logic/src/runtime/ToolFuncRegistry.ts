@@ -81,7 +81,18 @@ export class ToolFuncRegistry extends ToolFuncRegistryData {
 
     const tool = ToolFuncRegistry.get(registry, name);
     if (tool) {
-      return await tool.run(extendedRuntime, args as any, {} as any);
+      const policy = tool.resourceEffect ?? "unclassified";
+      const resources = vm.effects?.toolResources;
+      if (!resources || policy === "orchestration" || policy === "read_only") {
+        return await tool.run(extendedRuntime, args as any, {} as any);
+      }
+      const workDir = vm.outerCtx.workDir;
+      if (typeof workDir !== "string" || !workDir) throw new Error("tool_resource_workdir_required");
+      const lease = await resources.acquire({ workDir, kind: policy, signal: meta?.signal });
+      try {
+        meta?.signal?.throwIfAborted();
+        return await tool.run(extendedRuntime, args as any, {} as any);
+      } finally { lease.release(); }
     }
 
     const mcpManager: McpManagerLike | undefined = runtime.vm.mcpManager;
@@ -92,7 +103,27 @@ export class ToolFuncRegistry extends ToolFuncRegistryData {
 
       if (matched) {
         const coreLogic = async (_runtime: any, input: unknown, _config: Record<string, unknown>) => {
-          return await mcpManager.callTool(name, input, { signal: meta?.signal });
+          const resources = vm.effects?.toolResources;
+          if (!resources) return await mcpManager.callTool(name, input, { signal: meta?.signal });
+          const workDir = vm.outerCtx.workDir;
+          if (typeof workDir !== "string" || !workDir) throw new Error("tool_resource_workdir_required");
+          const lease = await resources.acquire({ workDir, kind: "unclassified", signal: meta?.signal });
+          let completionKnown = true;
+          try {
+            meta?.signal?.throwIfAborted();
+            if (mcpManager.callToolOutcome) {
+              const result = await mcpManager.callToolOutcome(name, input, { signal: meta?.signal });
+              completionKnown = result.completion === "settled";
+              return result.output;
+            }
+            return await mcpManager.callTool(name, input, { signal: meta?.signal });
+          } catch (error) {
+            completionKnown = false;
+            throw error;
+          } finally {
+            if (completionKnown) lease.release();
+            else lease.invalidate?.();
+          }
         };
 
         return await runByFuncStyleAdapter(

@@ -39,3 +39,5 @@ export * from "./runtime/PersistencePorts";
 export * from "./runtime/ConversationProjectionReadPort";
 export * from "./runtime/AttachmentResolverPort";
 export * from "./runtimeComposer";
+export { EXECUTION_ORIGIN_SCHEMA_VERSION, decodeExecutionOrigin } from "./runtime/ExecutionOrigin";
+export type { ExecutionOrigin, ActorExecutionState } from "./runtime/ExecutionOrigin";

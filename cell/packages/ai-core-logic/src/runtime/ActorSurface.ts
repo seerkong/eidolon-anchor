@@ -682,6 +682,7 @@ function materializeActorForLane(vm: AiAgentVm, laneId: string): AiAgentActor {
 }
 
 function registerSurfaceActor(vm: AiAgentVm, laneId: string, actor: AiAgentActor): void {
+  vm.effects.actorRegistration?.beforeRegister({ actorId: actor.id, actorKey: actor.key, actorType: actor.type, identity: actor.identity });
   const sessionState = ensureVmSessionState(vm);
   vm.actors[actor.key] = actor;
   if (!vm.actorRuntime.has(actor.key)) {

@@ -79,7 +79,8 @@ export type QuestionnaireSurfaceLifecycleState =
   | "pending"
   | "answered"
   | "cancelled"
-  | "expired";
+  | "expired"
+  | "invalidated";
 
 export type QuestionnaireSurfaceItemData = {
   questionnaireId: string;

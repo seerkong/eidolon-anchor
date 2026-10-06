@@ -13,6 +13,7 @@ import type { MultieditOuterConfig, MultieditOuterInput, MultieditOuterOutput } 
 
 export function buildMultieditToolDef(): ToolDef<MultieditOuterInput, MultieditOuterOutput, MultieditOuterConfig> {
   return {
+    resourceEffect: "workspace_mutation",
     schema: {
       type: "function" as const,
       function: {

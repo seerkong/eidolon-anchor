@@ -479,6 +479,8 @@ export function executeStreamingSandboxedBashCommand(
     let child: ChildProcess;
     let timeout: ReturnType<typeof setTimeout> | undefined;
     let terminationFallback: ReturnType<typeof setTimeout> | undefined;
+    let groupClosePoll: ReturnType<typeof setTimeout> | undefined;
+    let processError: string | undefined;
     let abortHandler: (() => void) | undefined;
 
     function finish(result: Omit<StreamingBashResult, "stdout" | "stderr" | "outputText">) {
@@ -486,6 +488,7 @@ export function executeStreamingSandboxedBashCommand(
       settled = true;
       if (timeout) clearTimeout(timeout);
       if (terminationFallback) clearTimeout(terminationFallback);
+      if (groupClosePoll) clearTimeout(groupClosePoll);
       if (abortHandler) params.signal?.removeEventListener("abort", abortHandler);
       const outputText = `${stdout}${stderr}`.trim() || "(no output)";
       resolve({
@@ -535,16 +538,9 @@ export function executeStreamingSandboxedBashCommand(
       killChild("SIGTERM");
       terminationFallback = setTimeout(() => {
         killChild("SIGKILL");
-        child.stdout?.destroy();
-        child.stderr?.destroy();
-        finish({
-          ok: false,
-          exitCode: null,
-          signal: "SIGKILL",
-          error: aborted ? "bash command aborted" : `bash command timed out after ${params.timeoutMs}ms`,
-          timedOut,
-          aborted,
-        });
+        // Sending a signal is not process completion. The tool registry keeps
+        // the workspace lease until `close` confirms the child and its stdio
+        // have finished; never release it while a killed process is unreaped.
       }, 1_000);
     };
 
@@ -577,6 +573,11 @@ export function executeStreamingSandboxedBashCommand(
       params.onStderr?.(text);
     });
     child.on("error", (error) => {
+      processError = error.message;
+      if (typeof child.pid === "number") {
+        terminate();
+        return;
+      }
       finish({
         ok: false,
         exitCode: null,
@@ -585,14 +586,31 @@ export function executeStreamingSandboxedBashCommand(
       });
     });
     child.on("close", (code, signal) => {
-      finish({
-        ok: code === 0 && !timedOut && !aborted,
-        exitCode: code,
-        signal,
-        error: aborted ? "bash command aborted" : timedOut ? `bash command timed out after ${params.timeoutMs}ms` : undefined,
-        timedOut,
-        aborted,
-      });
+      const settleClosedGroup = () => {
+        // A grandchild may close inherited stdio yet keep mutating after the
+        // wrapper exits. Its dedicated POSIX group still owns this lease.
+        if (process.platform !== "win32" && typeof child.pid === "number") {
+          try {
+            process.kill(-child.pid, 0);
+            groupClosePoll = setTimeout(settleClosedGroup, 10);
+            return;
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ESRCH") {
+              groupClosePoll = setTimeout(settleClosedGroup, 10);
+              return;
+            }
+          }
+        }
+        finish({
+          ok: code === 0 && !timedOut && !aborted && !processError,
+          exitCode: code,
+          signal,
+          error: processError ?? (aborted ? "bash command aborted" : timedOut ? `bash command timed out after ${params.timeoutMs}ms` : undefined),
+          timedOut,
+          aborted,
+        });
+      };
+      settleClosedGroup();
     });
   });
 }

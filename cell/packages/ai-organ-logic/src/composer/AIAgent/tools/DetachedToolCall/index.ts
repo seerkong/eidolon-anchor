@@ -40,6 +40,7 @@ export function buildDetachedToolCallToolDef(): ToolDef<
   }
 
   return {
+    resourceEffect: "orchestration",
     schema,
     briefPromptXnl: readPromptFromDir("DetachedToolCall", "Tool.brief.xnl"),
     detailPromptXnl: readPromptFromDir("DetachedToolCall", "Tool.detail.xnl"),

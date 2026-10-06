@@ -580,6 +580,7 @@ function runtimeEffectEventMetadata(
     version: 1,
     sequence,
     kind: event.kind,
+    originSchemaVersion: event.originSchemaVersion,
     effectKind: event.effectKind,
     effectId: event.effectId,
     handlerKey: event.handlerKey,
@@ -594,9 +595,10 @@ function runtimeEffectEventMetadata(
 function runtimeEffectEventExtend(event: AiRuntimeEffectLifecycleEvent): XnlRecordExtendChildren {
   const child = runtimeEffectEventChild(event)
   return {
-    order: [child.tag],
+    order: event.executionOrigin ? [child.tag, "ExecutionOrigin"] : [child.tag],
     children: {
       [child.tag]: child,
+      ...(event.executionOrigin ? { ExecutionOrigin: { kind: "data" as const, tag: "ExecutionOrigin", attributes: { ...event.executionOrigin } } } : {}),
     },
   }
 }
@@ -2311,6 +2313,8 @@ function xnlRecordToRuntimeControlEffectEvidenceEnvelope(
 function runtimeEffectEventRecordToLifecycleEvent(record: XnlStreamRecord): AiRuntimeEffectLifecycleEvent | null {
   const kind = record.metadata.kind
   const common = {
+    executionOrigin: getXnlDataUniqueChild(record, "ExecutionOrigin")?.attributes,
+    originSchemaVersion: record.metadata.originSchemaVersion === 1 ? 1 as const : undefined,
     effectKind: String(record.metadata.effectKind ?? "") as AiRuntimeEffectLifecycleEvent["effectKind"],
     effectId: String(record.metadata.effectId ?? ""),
     handlerKey: String(record.metadata.handlerKey ?? ""),

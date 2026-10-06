@@ -13,6 +13,7 @@ import type { EditOuterConfig, EditOuterInput, EditOuterOutput } from "./OuterTy
 
 export function buildEditToolDef(): ToolDef<EditOuterInput, EditOuterOutput, EditOuterConfig> {
   return {
+    resourceEffect: "workspace_mutation",
     schema: {
       type: "function" as const,
       function: {

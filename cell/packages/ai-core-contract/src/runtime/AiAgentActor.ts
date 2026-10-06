@@ -284,6 +284,7 @@ export interface AiAgentActorData<TVm = any, TActor = any> {
   /** Prepared process-local code; never serialized by the Actor snapshot codec. */
   contextPipelineExecution?: AgentContextPipelineExecution;
   origin?: ActorOriginFact;
+  execution?: import("./ExecutionOrigin").ActorExecutionState;
   modelConfig: ActorModelConfig;
   llmClient: object | null;
   stream: XStream<any> | null;

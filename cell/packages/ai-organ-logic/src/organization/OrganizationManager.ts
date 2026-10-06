@@ -186,6 +186,7 @@ export class OrganizationManager {
           watchState: record.watchState ?? "unwatched",
         },
       });
+      vm.effects.actorRegistration?.beforeRegister({ actorId: actor.id, actorKey: actor.key, actorType: actor.type, identity: actor.identity });
       vm.actors[key] = actor;
       if (!vm.actorRuntime.has(key)) {
         vm.actorRuntime.register(key, actor);
@@ -228,6 +229,7 @@ export class OrganizationManager {
           routes: {},
         },
       });
+      vm.effects.actorRegistration?.beforeRegister({ actorId: actor.id, actorKey: actor.key, actorType: actor.type, identity: actor.identity });
       vm.actors[key] = actor;
       if (!vm.actorRuntime.has(key)) {
         vm.actorRuntime.register(key, actor);

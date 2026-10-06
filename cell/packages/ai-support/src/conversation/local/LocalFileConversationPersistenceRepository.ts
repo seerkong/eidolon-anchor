@@ -731,6 +731,13 @@ function historyMessageRecordToMessage(
   if (typeof record.metadata.messageId === "string" && record.metadata.messageId) {
     message.messageId = record.metadata.messageId;
   }
+  if (typeof record.metadata.providerAttemptId === "string" && record.metadata.providerAttemptId) {
+    message.providerAttemptId = record.metadata.providerAttemptId;
+  }
+  if (record.attributes.executionOrigin && typeof record.attributes.executionOrigin === "object") {
+    message.executionOrigin = { ...(record.attributes.executionOrigin as Record<string, unknown>) };
+    message.originSchemaVersion = Number(record.metadata.originSchemaVersion);
+  }
   if (typeof record.metadata.name === "string") message.name = record.metadata.name;
   if (typeof record.metadata.startAt === "number") message.startAt = record.metadata.startAt;
   if (typeof record.metadata.endAt === "number") message.endAt = record.metadata.endAt;
@@ -1654,6 +1661,8 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
               actorKey: entry.actorKey,
               actorId: entry.actorId,
               messageId: entry.message.messageId,
+              providerAttemptId: entry.message.providerAttemptId,
+              originSchemaVersion: entry.message.originSchemaVersion,
               role: entry.message.role,
               name: entry.message.name,
               startAt: entry.message.startAt,
@@ -1673,6 +1682,7 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
             // Legacy transcript-shaped `sourceRecords` duplicate the same text already
             // stored in the block children, so they are intentionally not persisted.
             // The reader keeps accepting `sourceRecords` attributes from legacy records.
+            attributes: entry.message.executionOrigin ? { executionOrigin: { ...entry.message.executionOrigin } } : undefined,
             body: blocks,
           });
           knownRecordIds.add(entry.recordId);

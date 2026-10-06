@@ -41,6 +41,7 @@ export type RuntimeSnapshotSafepointResult = {
 }
 
 export type AiRuntimeInspection = {
+  pendingForegroundTasks?: readonly string[]
   fibers?: Record<string, unknown>
   state?: {
     fibers?: Record<string, unknown>
@@ -231,6 +232,7 @@ export function evaluateAiAgentRuntimeSnapshotSafepoint(params: {
   const blockers: RuntimeSnapshotSafepointBlocker[] = []
   const fibers = params.inspected.fibers ?? {}
   const stateFibers = (params.inspected.state?.fibers ?? {}) as Record<string, any>
+  const pendingForegroundTasks = new Set(params.inspected.pendingForegroundTasks ?? [])
 
   for (const [fiberId, ctx] of Object.entries(fibers)) {
     const execState = normalizeCooperativeExecState((ctx as any)?.execState)
@@ -238,7 +240,8 @@ export function evaluateAiAgentRuntimeSnapshotSafepoint(params: {
     const record = stateFibers[fiberId] ?? {}
     const mailboxClassifications = actor ? classifyAiSnapshotBlockingMailboxes(actor, execState) : []
     if (
-      isLiveAsyncWaitPhase(execState)
+      pendingForegroundTasks.has(fiberId)
+      || isLiveAsyncWaitPhase(execState)
       || (
         isMandatoryRunnablePhase(execState)
         && (record.status === "ready" || record.status === "running")

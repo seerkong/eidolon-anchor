@@ -13,6 +13,7 @@ import type { ReadOuterConfig, ReadOuterInput, ReadOuterOutput } from "./OuterTy
 
 export function buildReadToolDef(): ToolDef<ReadOuterInput, ReadOuterOutput, ReadOuterConfig> {
   return {
+    resourceEffect: "read_only",
     schema: {
       type: "function" as const,
       function: {

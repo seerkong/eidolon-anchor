@@ -2227,7 +2227,7 @@ describe("runtime recovery bootstrap", () => {
 
     await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
 
-    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
+    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir, sessionId)
     const summary = "<state_snapshot><overall_goal>conversation truth</overall_goal></state_snapshot>"
     await applyConversationCompaction({
       sessionDir,
@@ -2311,7 +2311,7 @@ describe("runtime recovery bootstrap", () => {
 
     await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
 
-    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
+    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir, sessionId)
     const summary = "<state_snapshot><overall_goal>context control summary</overall_goal></state_snapshot>"
     await applyConversationCompaction({
       sessionDir,

@@ -77,6 +77,8 @@ export function toCommittedConversationMessage(message: ChatMessage): Conversati
       ? { messageId: message.messageId }
       : {}),
     role: message.role,
+    ...(message.providerAttemptId ? { providerAttemptId: message.providerAttemptId } : {}),
+    ...(message.executionOrigin ? { executionOrigin: { ...message.executionOrigin }, originSchemaVersion: message.originSchemaVersion } : {}),
     name: message.name,
     content: typeof message.content === "string" ? message.content : normalizeInputContent(message.content),
     reasoningContent: message.reasoning_content,
@@ -123,6 +125,8 @@ export function fromCommittedConversationMessage(message: ConversationCommittedM
       ? { messageId: message.messageId }
       : {}),
     role,
+    ...(message.providerAttemptId ? { providerAttemptId: message.providerAttemptId } : {}),
+    ...(message.executionOrigin ? { executionOrigin: { ...message.executionOrigin }, originSchemaVersion: message.originSchemaVersion } : {}),
     name: message.name,
     content,
     reasoning_content: message.reasoningContent,

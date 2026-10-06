@@ -67,6 +67,10 @@ const ACTOR_SNAPSHOT_CODEC = createSnapshotCodec<AiAgentActor, RuntimeSnapshotAc
         ? cloneAndFreezeAgentContextPipelineBinding(actor.contextPipeline)
         : undefined,
       origin: actor.origin ? { ...actor.origin } : undefined,
+      execution: actor.execution ? structuredClone(actor.execution) : undefined,
+      mailboxExecutionOrigins: actor.execution?.origin
+        ? Object.fromEntries(Object.entries(mailboxes).filter(([, queue]) => queue.length).map(([tag]) => [tag, { ...actor.execution!.origin! }]))
+        : undefined,
       modelConfig: { ...actor.modelConfig },
       ctrlOptions: {
         stopAfterFirstTool: actor.ctrlOptions.stopAfterFirstTool,
@@ -150,6 +154,7 @@ function hydrateActorFromSnapshot(
       ? cloneAndFreezeAgentContextPipelineBinding(snapshot.contextPipeline)
       : undefined,
     origin: snapshot.origin ? { ...snapshot.origin } : undefined,
+    execution: snapshot.execution ? structuredClone(snapshot.execution) : undefined,
     modelConfig: { ...snapshot.modelConfig },
     ctrlOptions: {
       stopAfterFirstTool: snapshot.ctrlOptions.stopAfterFirstTool,

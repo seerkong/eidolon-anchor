@@ -553,6 +553,9 @@ describe("headless exec", () => {
         }
         async function* stream() {
           if (streamCount === 1) {
+            // Force one real deadline boundary. Leave enough budget on resume
+            // for the durable tool/result path instead of racing 50ms disk IO.
+            await new Promise((resolve) => setTimeout(resolve, 600))
             yield {
               choices: [
                 {
@@ -589,7 +592,7 @@ describe("headless exec", () => {
       input: "keep reading",
       sessionKey: "headless-auto-resume-turn",
       mcp: false,
-      timeoutSeconds: 0.05,
+      timeoutSeconds: 0.5,
       autoResume: true,
       maxContinuations: 2,
       outputLastMessagePath,
@@ -599,7 +602,7 @@ describe("headless exec", () => {
       },
     })
 
-    expect(result.status).toBe("completed")
+    expect({ status: result.status, streamCount, diagnostics, failureSummary: result.failureSummary }).toMatchObject({ status: "completed" })
     expect(result.finalMessage).toBe("resumed final")
     expect(result.timing.counts).toMatchObject({ providerCalls: 2, toolCalls: 1 })
     expect(result.timing.toolCalls.entries).toHaveLength(1)

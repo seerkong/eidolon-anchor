@@ -18,6 +18,8 @@ const VM_SNAPSHOT_CODEC = createSnapshotCodec<AiAgentVm, RuntimeSnapshotVm>({
     return {
       version: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
       controlActorKey: vm.controlActorKey,
+      executionOrigins: { originSchemaVersion: 1, webActorIds: Object.values(vm.actors)
+        .filter((actor) => actor.execution?.webOwned || actor.execution?.origin?.source === "web").map((actor) => actor.id) },
       actorKeys: Object.keys(vm.actors),
       registryIndexRefs: {
         memberRoster: "indexes/memberRoster.json",

@@ -152,3 +152,6 @@ codument/**/reports
 **/zig-out/
 **/.zig-cache/
 **/windows-sandbox-runner/dist/
+
+# Temporary upstream public release candidates, verified before workspace preparation.
+!artifacts/holarchy-public-file/*.tgz

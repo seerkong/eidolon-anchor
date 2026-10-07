@@ -1,0 +1,103 @@
+{
+  "schema": "holarchy.public-file-release/v1",
+  "status": "unpublished-public-release-candidate",
+  "sourceRepository": "holon-workbench.ts",
+  "sourceBaseCommit": "3052161201d054f799e2b7ce3b0bf32d6b96814f",
+  "sourceFiles": [
+    {
+      "file": "packages/holarchy-file-xnl-logic/src/index.ts",
+      "sha256": "da967731cc478885db7c82604d8973ebcface3acf172a449edc12ae049cc8a10"
+    },
+    {
+      "file": "packages/holarchy-file-xnl-logic/src/record-decode-cache.ts",
+      "sha256": "acf2d44f973152acae0955557cb1a4cd0beab3c2231a4ddd08d893b4ff0a49e1"
+    },
+    {
+      "file": "packages/holarchy-file-xnl-support/src/owner.ts",
+      "sha256": "61043150efc85941f95071b5d8b7c804e67f8d10dfcb51b8f55977e9e9f48ef3"
+    },
+    {
+      "file": "packages/holarchy-file-xnl-logic/package.json",
+      "sha256": "96372eb27758b684116d1a5500dbf90bb60fc39de12e11e5e4f5d51f2cbe4ee4"
+    },
+    {
+      "file": "packages/holarchy-file-xnl-support/package.json",
+      "sha256": "a22841b1914d69aad8e570674068db7884bedc3274b6a46b7ba23547800b44cc"
+    },
+    {
+      "file": "packages/holarchy-file-xnl-capsule/package.json",
+      "sha256": "c3ff039205ff1aa849e21c3febbf4fb0fefc71936ae105d8ac664af559b96f4a"
+    },
+    {
+      "file": "packages/holarchy-test-support/package.json",
+      "sha256": "dab5b0d69e67bec1d639952a3369655f2d57fb880ed8b5166d86c9704c9e8fbe"
+    }
+  ],
+  "packages": [
+    {
+      "name": "holarchy-file-xnl-capsule",
+      "version": "0.4.1",
+      "filename": "holarchy-file-xnl-capsule-0.4.1.tgz",
+      "sha256": "ca50f7163b97469ab5e2bc2cc492906370973e11285face9ba660980984ded1f",
+      "integrity": "sha512-MvIVZATQ5gDtyTdHA9tOTbkN7PNAeoKZfiZJoV+T4VJtS+npc5jDv8tkkuHoaVS3+I3DqEkN0AxN/sarv779DA==",
+      "dependencies": {
+        "holarchy-core-contract": "0.3.0",
+        "holarchy-core-logic": "0.3.0",
+        "holarchy-file-xnl-support": "0.3.1"
+      }
+    },
+    {
+      "name": "holarchy-file-xnl-logic",
+      "version": "0.3.1",
+      "filename": "holarchy-file-xnl-logic-0.3.1.tgz",
+      "sha256": "dc9ce006ef4f8e8456b0593873177e08d3433946d5f5daac7becb38e61c2dfcb",
+      "integrity": "sha512-5KUvQSZ0USTt3G3kaTcGLQ2izIxf/FNpmhbVKBoVFJLeSkovE7+jGv7Sw0a9yweRBD0RMUFf4k6UF6HRmi7XWw==",
+      "dependencies": {
+        "holarchy-core-contract": "0.3.0",
+        "holarchy-core-logic": "0.3.0",
+        "holarchy-file-xnl-contract": "0.3.0",
+        "xnl-core": "0.1.13"
+      }
+    },
+    {
+      "name": "holarchy-file-xnl-support",
+      "version": "0.3.1",
+      "filename": "holarchy-file-xnl-support-0.3.1.tgz",
+      "sha256": "4048926b92ce3906d0dea7267d068e154aaf5d7dcb930ba23d6e446ef334bef0",
+      "integrity": "sha512-iUjdEjVLGOttTE/uBoXQpm8znMM4vKBMVeLB1Ljyh2h7cWmF3RirkCwiOCTbV9o69lIAlzIQ5RhkG/oHPIVTjQ==",
+      "dependencies": {
+        "holarchy-core-contract": "0.3.0",
+        "holarchy-core-logic": "0.3.0",
+        "holarchy-file-xnl-contract": "0.3.0",
+        "holarchy-file-xnl-logic": "0.3.1"
+      }
+    },
+    {
+      "name": "holarchy-test-support",
+      "version": "0.1.1",
+      "filename": "holarchy-test-support-0.1.1.tgz",
+      "sha256": "17fe33152a1ccf0f474f12fa5091eaddd1da10dae81ecb2303bf1d52a7cb06cb",
+      "integrity": "sha512-AzbTmdsDj/MsIPWN52yEv80Nw+vVFkKTJgEpdcQqQ0Xamg7CR/p3sZPHyxr0yQju3UFFwskwO9TdajcjpigUFA==",
+      "dependencies": {
+        "holarchy-core-contract": "0.3.0",
+        "holarchy-core-logic": "0.3.0",
+        "holarchy-file-xnl-logic": "0.3.1"
+      }
+    }
+  ],
+  "verification": {
+    "codec": {
+      "recordCount": 14616,
+      "negativeCases": 11,
+      "reportSha256": "34ed237f68e7de3c4f914b7bc7ac01c524b64a344f9dffb8e1ebe26a3e3108e3"
+    },
+    "linuxOwner": {
+      "observations": 22,
+      "reportSha256": "21b9a790558db7281b13087d5fde22c84cb4a5834d6c0179a8c8333ebaa5a838"
+    },
+    "independentCas": {
+      "rounds": 24,
+      "reportSha256": "4748a4460bbc4efda6d9b5bff255b9e0fba35f907fbe47425eb089c5eca8294f"
+    }
+  }
+}

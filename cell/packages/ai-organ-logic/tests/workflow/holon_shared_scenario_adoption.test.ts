@@ -79,7 +79,7 @@ for (const id of ["atomic-transfer", "same-field-conflict", "retired-target-inde
         load: () => capsule.loadOrganizationState({ authorityId: scenario.base.authorityId, effectiveDate: scenario.base.effectiveDate }), commit,
         preview: async group => (await capsule.previewOrganizationChangeSet(group, config())).after,
         observeAuthority: async () => { const state = await capsule.store.load(); return { revision: state.revision, sequence: state.sequence, tables: state.tables, files: await inventory(authorityRoot) } },
-        reconcile: input => reconcileOrganization({ infer: request => inference.infer(request), validateCandidate: async ({ changeSet }) => {
+        reconcile: input => reconcileOrganization({ infer: async request => { const result = await inference.infer(request); if (result.status !== "complete") console.error(JSON.stringify({ scenario: id, inferenceStatus: result.status, diagnostics: result.diagnostics })); return result }, validateCandidate: async ({ changeSet }) => {
           try { await capsule.previewOrganizationChangeSet(changeSet, config()); return [] }
           catch (error) { if (error instanceof HolonAuthorityContractError && error.diagnostics.length) return error.diagnostics; throw error }
         } }, input),

@@ -699,11 +699,16 @@ async function waitForPhysicalStandaloneTerminal(
   taskSpaceId: string,
   taskId: string,
 ): Promise<void> {
-  const deadline = Date.now() + 2_000
+  // These integration tasks perform real fsync and share a serial coordinator.
+  // Bound completion without treating host disk latency as a task-runtime SLO.
+  const deadline = Date.now() + 15_000
   while (Date.now() < deadline) {
     if (await host.support.terminalSettlement(taskSpaceId, taskId)) return
-    await new Promise((resolve) => setTimeout(resolve, 5))
+    await new Promise((resolve) => setTimeout(resolve, 50))
   }
+  console.error(JSON.stringify({ physicalStandaloneTimeout: await host.capability.service.observe({
+    admissionId: host.admissionIds[0]!, taskSpaceId, taskId,
+  }) }))
   throw new Error(`Timed out waiting for physical standalone task ${taskSpaceId}/${taskId}`)
 }
 
@@ -2510,7 +2515,7 @@ describe("HolonExecutionBinding shared registry projection", () => {
     while (Date.now() < waitingProbeDeadline) {
       waitingProbeProjection = await waitingProbeService.status("holon-auto-waiting-probe-run")
       if (waitingProbeProjection?.terminal) break
-      await new Promise((resolve) => setTimeout(resolve, 25))
+      await new Promise((resolve) => setTimeout(resolve, 50))
     }
     expect(waitingProbeProjection).toMatchObject({ status: "Completed", terminal: true })
     expect(providerCalls).toBe(5)

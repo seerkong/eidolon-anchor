@@ -22,7 +22,7 @@
   "dependencies": {
     "ai-workflow-contract": "0.2.1",
     "depa-actor": "0.2.2",
-    "halfcode-compiler.xnl": "0.3.1",
+    "halfcode-compiler.xnl": "0.3.2",
     "holarchy-core-contract": "0.3.0"
   },
   "devDependencies": {

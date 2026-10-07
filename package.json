@@ -79,7 +79,8 @@
     "ai-workflow-contract": "0.2.1",
     "ai-workflow-logic": "0.2.1",
     "node-gyp": "10.0.1",
-    "test-exclude": "7.0.1"
+    "test-exclude": "7.0.1",
+    "halfcode-compiler.xnl": "0.3.2"
   },
   "version": "1.0.0",
   "description": "",

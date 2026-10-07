@@ -1,0 +1,49 @@
+{
+  "schema": "holarchy.public-file-publication/v1",
+  "registry": "https://registry.npmjs.com",
+  "startedAt": "2026-10-07T05:51:31.123Z",
+  "manifestSha256": "4635af4c3f094a33ac11d2f8d07a1fe8a90f94608716863d4ad6ea9c4f2a2424",
+  "packages": [
+    {
+      "name": "holarchy-file-xnl-logic",
+      "version": "0.3.1",
+      "sha256": "dc9ce006ef4f8e8456b0593873177e08d3433946d5f5daac7becb38e61c2dfcb",
+      "integrity": "sha512-5KUvQSZ0USTt3G3kaTcGLQ2izIxf/FNpmhbVKBoVFJLeSkovE7+jGv7Sw0a9yweRBD0RMUFf4k6UF6HRmi7XWw==",
+      "status": "registry-verified",
+      "publishedAt": "2026-10-07T05:51:44.797Z",
+      "tarball": "https://registry.npmjs.org/holarchy-file-xnl-logic/-/holarchy-file-xnl-logic-0.3.1.tgz",
+      "verifiedAt": "2026-10-07T05:53:23.813Z"
+    },
+    {
+      "name": "holarchy-file-xnl-support",
+      "version": "0.3.1",
+      "sha256": "4048926b92ce3906d0dea7267d068e154aaf5d7dcb930ba23d6e446ef334bef0",
+      "integrity": "sha512-iUjdEjVLGOttTE/uBoXQpm8znMM4vKBMVeLB1Ljyh2h7cWmF3RirkCwiOCTbV9o69lIAlzIQ5RhkG/oHPIVTjQ==",
+      "status": "registry-verified",
+      "publishedAt": "2026-10-07T05:53:07.375Z",
+      "tarball": "https://registry.npmjs.org/holarchy-file-xnl-support/-/holarchy-file-xnl-support-0.3.1.tgz",
+      "verifiedAt": "2026-10-07T05:54:16.892Z"
+    },
+    {
+      "name": "holarchy-file-xnl-capsule",
+      "version": "0.4.1",
+      "sha256": "ca50f7163b97469ab5e2bc2cc492906370973e11285face9ba660980984ded1f",
+      "integrity": "sha512-MvIVZATQ5gDtyTdHA9tOTbkN7PNAeoKZfiZJoV+T4VJtS+npc5jDv8tkkuHoaVS3+I3DqEkN0AxN/sarv779DA==",
+      "status": "registry-verified",
+      "publishedAt": "2026-10-07T05:53:12.896Z",
+      "tarball": "https://registry.npmjs.org/holarchy-file-xnl-capsule/-/holarchy-file-xnl-capsule-0.4.1.tgz",
+      "verifiedAt": "2026-10-07T05:55:32.277Z"
+    },
+    {
+      "name": "holarchy-test-support",
+      "version": "0.1.1",
+      "sha256": "17fe33152a1ccf0f474f12fa5091eaddd1da10dae81ecb2303bf1d52a7cb06cb",
+      "integrity": "sha512-AzbTmdsDj/MsIPWN52yEv80Nw+vVFkKTJgEpdcQqQ0Xamg7CR/p3sZPHyxr0yQju3UFFwskwO9TdajcjpigUFA==",
+      "status": "registry-verified",
+      "publishedAt": "2026-10-07T05:53:20.044Z",
+      "tarball": "https://registry.npmjs.org/holarchy-test-support/-/holarchy-test-support-0.1.1.tgz",
+      "verifiedAt": "2026-10-07T05:55:35.976Z"
+    }
+  ],
+  "completedAt": "2026-10-07T05:55:35.976Z"
+}

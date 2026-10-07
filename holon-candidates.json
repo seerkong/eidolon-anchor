@@ -13,8 +13,8 @@
     },
     {
       "name": "holarchy-file-xnl-capsule",
-      "version": "0.4.0",
-      "sha256": "f1c753d91bfabf00dcffa0605b8ddbfdf16bcca95e449fd45541e3c30dfd14ee"
+      "version": "0.4.1",
+      "sha256": "ca50f7163b97469ab5e2bc2cc492906370973e11285face9ba660980984ded1f"
     },
     {
       "name": "holarchy-file-xnl-contract",
@@ -23,18 +23,18 @@
     },
     {
       "name": "holarchy-file-xnl-logic",
-      "version": "0.3.0",
-      "sha256": "b4daa8984fe4e3f86afb613c4cfc5a59292af9b15f66ea1bbc32195dcb3b2ced"
+      "version": "0.3.1",
+      "sha256": "dc9ce006ef4f8e8456b0593873177e08d3433946d5f5daac7becb38e61c2dfcb"
     },
     {
       "name": "holarchy-file-xnl-support",
-      "version": "0.3.0",
-      "sha256": "853ea2e5586b57c019a9a80ca9316e974e44289b9a57b57a1e866a876a08cbf9"
+      "version": "0.3.1",
+      "sha256": "4048926b92ce3906d0dea7267d068e154aaf5d7dcb930ba23d6e446ef334bef0"
     },
     {
       "name": "holarchy-test-support",
-      "version": "0.1.0",
-      "sha256": "35bee27ee0e4984cd3cc1e6e46fbbcc741cc3498c31d261caeabe2e42ea6da07"
+      "version": "0.1.1",
+      "sha256": "17fe33152a1ccf0f474f12fa5091eaddd1da10dae81ecb2303bf1d52a7cb06cb"
     },
     {
       "name": "xnl-core",
@@ -86,5 +86,6 @@
       "version": "0.1.0",
       "sha256": "b97e58a2af68ff74e96f493e11878fb7596a94526c988d326582723de3dec635"
     }
-  ]
+  ],
+  "publicFileRelease": "artifacts/holarchy-public-file/manifest.json"
 }

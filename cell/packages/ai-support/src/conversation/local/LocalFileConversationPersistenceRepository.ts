@@ -56,6 +56,7 @@ import {
   getLocalConversationPaths,
 } from "./LocalConversationPaths";
 import { readJsonBestEffort, writeJsonAtomically } from "./LocalConversationJson";
+import { defaultRuntimeConfig } from "../../runtime/RuntimeConfigVfsLoader";
 
 const HISTORY_GENERATION_RECORD_TAG = "history-generation";
 const HISTORY_GENERATION_BODY_TAG = "generation";
@@ -783,8 +784,24 @@ function historyMessageRecordToMessage(
       }
       const output = block.attributes?.output;
       if (output && typeof output === "object" && !Array.isArray(output)) {
-        const text = (output as Record<string, unknown>).text;
-        message.content = typeof text === "string" ? text : "";
+        const record = output as Record<string, unknown>;
+        if (record.kind === "artifact_ref" && isHistoryOutputAsset(record)) {
+          const preview = typeof (output as Record<string, unknown>).preview === "string"
+            ? (output as Record<string, unknown>).preview as string
+            : "";
+          message.content = externalizedToolResultText(record, preview);
+          message.resultMetadata = {
+            ...(message.resultMetadata ?? {}),
+            historyOutputAsset: {
+              assetId: record.assetId,
+              digest: record.digest,
+              size: record.size,
+            },
+          };
+        } else {
+          const text = record.text;
+          message.content = typeof text === "string" ? text : "";
+        }
       } else if (typeof output === "string") {
         message.content = output;
       }
@@ -955,6 +972,63 @@ export function promptGenerationXnlRecordToData(record: XnlStreamRecord): ActorP
   return xnlRecordToPromptGeneration(record as XnlConversationRecord);
 }
 
+type HistoryOutputAsset = {
+  assetId: string;
+  digest: string;
+  size: number;
+};
+
+function historyToolResultBudget() {
+  return defaultRuntimeConfig().compact.microCompact.budget;
+}
+
+function isHistoryOutputAsset(value: unknown): value is HistoryOutputAsset {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const asset = value as Partial<HistoryOutputAsset>;
+  return typeof asset.assetId === "string"
+    && typeof asset.digest === "string"
+    && typeof asset.size === "number";
+}
+
+function externalizedToolResultText(asset: HistoryOutputAsset, preview: string): string {
+  return [
+    "<persisted-tool-result status=\"history_externalized\">",
+    `assetId: ${asset.assetId}`,
+    `Original bytes: ${asset.size}`,
+    "Full output is stored outside history.xnl.",
+    "Preview:",
+    preview,
+    "</persisted-tool-result>",
+  ].join("\n");
+}
+
+async function externalizeHistoryToolResult(sessionDir: string, text: string, existing: unknown): Promise<{
+  output: Record<string, unknown>;
+  content: string;
+  asset?: HistoryOutputAsset;
+}> {
+  const budget = historyToolResultBudget();
+  const asset = isHistoryOutputAsset(existing) ? existing : undefined;
+  if (!asset && Buffer.byteLength(text, "utf8") <= budget.toolResultPersistThresholdBytes) {
+    return { output: { kind: "text", text }, content: text };
+  }
+  const persisted = asset ?? await writeSessionAttachmentAsset({
+    sessionDir,
+    bytes: Buffer.from(text, "utf8"),
+  });
+  const preview = text.slice(0, budget.toolResultPreviewChars);
+  const historyOutputAsset: HistoryOutputAsset = {
+    assetId: persisted.assetId,
+    digest: persisted.digest,
+    size: persisted.size,
+  };
+  return {
+    output: { kind: "artifact_ref", ...historyOutputAsset, preview },
+    content: externalizedToolResultText(historyOutputAsset, preview),
+    asset: historyOutputAsset,
+  };
+}
+
 async function createHistoryMessageBlocks(
   entry: ActorHistoryGenerationData["messages"][number],
   sessionDir: string,
@@ -1021,6 +1095,12 @@ async function createHistoryMessageBlocks(
     const toolCallIdFields = entry.message.toolCallId && entry.message.tool_call_id
       ? "both"
       : entry.message.tool_call_id ? "snake" : "camel";
+    const toolText = typeof entry.message.content === "string" ? entry.message.content : "";
+    const externalized = await externalizeHistoryToolResult(
+      sessionDir,
+      toolText,
+      entry.message.resultMetadata?.historyOutputAsset,
+    );
     blocks.push({
       kind: "data",
       tag: "ToolResult",
@@ -1031,13 +1111,11 @@ async function createHistoryMessageBlocks(
         toolCallIdFields,
       },
       attributes: {
-        output: {
-          kind: "text",
-          text: typeof entry.message.content === "string" ? entry.message.content : "",
+        output: externalized.output,
+        resultMetadata: {
+          ...(entry.message.resultMetadata ? { ...entry.message.resultMetadata } : {}),
+          ...(externalized.asset ? { historyOutputAsset: externalized.asset } : {}),
         },
-        ...(entry.message.resultMetadata
-          ? { resultMetadata: { ...entry.message.resultMetadata } }
-          : {}),
       },
     });
   }

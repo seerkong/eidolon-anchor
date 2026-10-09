@@ -131,19 +131,23 @@ it("yields during multi-batch preparation and does not cache invalidated scans",
   expect((await index.prepare(filePath)).cacheHit).toBe(false);
 });
 
-it("rejects a record beyond the bounded scan budget", async () => {
+it("indexes a record beyond the scan budget without hiding the records after it", async () => {
   const filePath = await fixture();
   await appendXnlRecord({
     filePath, tag: "HistoryMessage",
-    metadata: { id: "large", actorKey: "main", generationId: "g1", sequence: 0 },
+    metadata: { id: "large", actorKey: "main", generationId: "g1", sequence: 0, role: "tool", name: "bash" },
     body: [{ kind: "text", tag: "content", text: "x".repeat(8 * 1024 * 1024) }],
   });
+  await appendXnlRecord({
+    filePath, tag: "HistoryMessage",
+    metadata: { id: "after", actorKey: "main", generationId: "g1", sequence: 1, role: "assistant" },
+    body: [{ kind: "text", tag: "content", text: "kept" }],
+  });
   const index = createLocalHistoryRecordIndex();
-  const error = await index.prepare(filePath).catch((error: unknown) => error);
-  expect(error).toBeInstanceOf(LocalHistoryIndexError);
-  expect((error as LocalHistoryIndexError).code).toBe("record_exceeds_budget");
-  expect((error as LocalHistoryIndexError).message).toBe("conversation_history_index_record_exceeds_budget");
-  expect(await index.getPrepared(filePath)).toBeNull();
+  const prepared = await index.prepare(filePath);
+  expect(prepared.entries.map(entry => entry.recordId)).toEqual(["large", "after"]);
+  expect(prepared.entries[0]!.endOffset - prepared.entries[0]!.startOffset).toBeGreaterThan(8 * 1024 * 1024);
+  expect(prepared.entries[0]?.name).toBe("bash");
 });
 
 it("bounds every retained identity before caching metadata", async () => {

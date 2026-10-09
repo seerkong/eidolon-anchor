@@ -46,7 +46,7 @@ import type {
   ConversationSessionProjectionTarget,
   PendingQuestionsProjection,
 } from "@cell/ai-core-contract/runtime/ConversationProjectionReadPort";
-import { projectInputContentText, type InputContentPart } from "@shared/composer";
+import { projectInputContentText, type ChatMessage, type InputContentPart } from "@shared/composer";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { stat } from "node:fs/promises";
@@ -468,7 +468,16 @@ export function createLocalFileConversationProjectionReadPort(options: { signal?
         options.signal?.throwIfAborted();
         const length = row.value.endOffset - row.value.startOffset;
         if (length > MAX_HISTORY_PAGE_TOTAL_OBSERVED_BYTES - observedBytes - authorityBytes) {
-          throw new Error("conversation_history_record_exceeds_page_budget");
+          // The index already retained this record's identity. Showing a stub
+          // keeps the rest of the page readable instead of failing the session.
+          messages.push({
+            role: row.value.role === "user" || row.value.role === "assistant" ? row.value.role : "tool",
+            name: row.value.name,
+            messageId: row.value.messageId,
+            content: `[history record omitted: ${length} bytes exceed the page budget]`,
+          } satisfies ChatMessage);
+          messageOrder[row.id] = row.order;
+          continue;
         }
         const page = await readXnlRecordPage({
           filePath, tags: HISTORY_MESSAGE_RECORD_TAG, afterOffset: row.value.startOffset,

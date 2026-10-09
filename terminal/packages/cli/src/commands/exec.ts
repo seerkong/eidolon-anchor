@@ -116,8 +116,8 @@ export function createExecCommand(deps: ExecCommandDeps = DEFAULT_EXEC_COMMAND_D
         })
         .option("auto-resume", {
           type: "boolean",
-          default: false,
-          describe: "automatically continue resumable paused_with_progress turns until final output or limit",
+          default: true,
+          describe: "continue a turn that is still in mandatory_continuation after the per-turn timeout, until final output or --max-continuations. Pass --no-auto-resume to stop at the first pause.",
         })
         .option("max-continuations", {
           type: "number",

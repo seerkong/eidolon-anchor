@@ -85,6 +85,36 @@ afterEach(() => {
 })
 
 describe("headless exec", () => {
+  it("writes a relative last-message path when the working directory already exists", async () => {
+    const workdir = makeTempWorkdir()
+    const previous = process.cwd()
+    process.chdir(workdir)
+    try {
+      await writeExecLastMessageFile({
+        status: "completed",
+        visibleOutput: "PONG",
+        finalMessage: "PONG",
+        warnings: [],
+        failureSummary: null,
+        timing: {} as never,
+        usage: {
+          prompt_tokens: 0,
+          completion_tokens: 0,
+          total_tokens: 0,
+          cache_creation_tokens: 0,
+          cache_read_tokens: 0,
+          is_estimated: false,
+        },
+        providerCacheObservations: [],
+        workflowExecutions: [],
+        outputLastMessagePath: "last.md",
+      })
+      expect(fs.readFileSync(path.join(workdir, "last.md"), "utf8")).toBe("PONG")
+    } finally {
+      process.chdir(previous)
+      fs.rmSync(workdir, { recursive: true, force: true })
+    }
+  })
   it("parses the supported config override subset", () => {
     expect(parseExecConfigOverride("mcp_servers={}")).toEqual({ mcp: false })
     expect(() => parseExecConfigOverride("sandbox_mode=workspace-write")).toThrow(

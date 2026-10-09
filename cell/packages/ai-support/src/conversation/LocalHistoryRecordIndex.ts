@@ -1,4 +1,4 @@
-import { stat } from "node:fs/promises";
+import { open, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { setImmediate } from "node:timers/promises";
 import { readXnlRecordPage } from "@cell/ai-file-store-logic";
@@ -13,6 +13,8 @@ export type LocalHistoryRecordIndexEntry = Readonly<{
   hasMessageId: boolean;
   createdReason: string;
   sequence?: number;
+  role?: string;
+  name?: string;
   startOffset: number;
   endOffset: number;
   physicalRevision: number;
@@ -27,6 +29,76 @@ export type PreparedLocalHistoryRecordIndex = Readonly<{
   cacheHit: boolean;
 }>;
 
+const RECORD_START_MARKERS = ["\n<HistoryMessage ", "\n<history-generation "].map(value => Buffer.from(value));
+const HEADER_READ_LIMIT = 64 * 1024;
+
+function readHeaderAttribute(header: string, name: string): string | undefined {
+  const key = `${name}=`;
+  const at = header.indexOf(key);
+  if (at < 0) return undefined;
+  let index = at + key.length;
+  const quote = header[index];
+  if (quote === "\"" || quote === "'") {
+    const end = header.indexOf(quote, index + 1);
+    return end < 0 ? undefined : header.slice(index + 1, end);
+  }
+  if (quote === "[") {
+    const end = header.indexOf("]", index);
+    return end < 0 ? undefined : header.slice(index, end + 1);
+  }
+  const end = header.slice(index).search(/[\s>]/);
+  const raw = end < 0 ? header.slice(index) : header.slice(index, index + end);
+  return raw === "undefined" || raw === "null" || raw.length === 0 ? undefined : raw;
+}
+
+/** The next line-start record, or the file end. Does not retain the skipped body. */
+async function findNextRecordStart(filePath: string, startOffset: number, fileSize: number): Promise<number> {
+  const handle = await open(filePath, "r");
+  try {
+    let offset = startOffset;
+    let carry = Buffer.alloc(0);
+    while (offset < fileSize) {
+      const length = Math.min(1024 * 1024, fileSize - offset);
+      const chunk = Buffer.allocUnsafe(length);
+      const { bytesRead } = await handle.read(chunk, 0, length, offset);
+      if (bytesRead === 0) break;
+      const data = Buffer.concat([carry, chunk.subarray(0, bytesRead)]);
+      const base = offset - carry.length;
+      let found = -1;
+      for (const marker of RECORD_START_MARKERS) {
+        let from = 0;
+        while (from < data.length) {
+          const pos = data.indexOf(marker, from);
+          if (pos < 0) break;
+          const absolute = base + pos + 1;
+          if (absolute > startOffset) found = found < 0 ? absolute : Math.min(found, absolute);
+          from = pos + 1;
+        }
+      }
+      if (found >= 0) return found;
+      carry = data.subarray(Math.max(0, data.length - RECORD_START_MARKERS[0]!.length));
+      offset += bytesRead;
+    }
+    return fileSize;
+  } finally {
+    await handle.close();
+  }
+}
+
+async function readOpeningHeader(filePath: string, startOffset: number, endOffset: number): Promise<string> {
+  const length = Math.min(HEADER_READ_LIMIT, Math.max(0, endOffset - startOffset));
+  if (length === 0) return "";
+  const handle = await open(filePath, "r");
+  try {
+    const bytes = Buffer.allocUnsafe(length);
+    const { bytesRead } = await handle.read(bytes, 0, length, startOffset);
+    const text = bytes.subarray(0, bytesRead).toString("utf8");
+    const close = text.indexOf(">");
+    return close < 0 ? text : text.slice(0, close + 1);
+  } finally {
+    await handle.close();
+  }
+}
 const MAX_SOURCES = 2;
 const MAX_ENTRIES = 100_000;
 const SCAN_BATCH_BYTES = 8 * 1024 * 1024;
@@ -77,6 +149,35 @@ export function createLocalHistoryRecordIndex() {
   async function scan(filePath: string, slot: Slot, identity: Awaited<ReturnType<typeof sourceIdentity>>) {
     const entries: LocalHistoryRecordIndexEntry[] = [];
     const generations = new Map<string, ConversationHistoryLineageEnvelope>();
+    const rememberGeneration = (sessionId?: string, actorId?: string, actorKey?: string,
+      generationId?: string, predecessors?: string) => {
+      if (!sessionId || !actorId || !actorKey || !generationId || predecessors == null) return;
+      let predecessorGenerationIds: unknown;
+      try { predecessorGenerationIds = JSON.parse(predecessors); } catch { return; }
+      if (!Array.isArray(predecessorGenerationIds) || predecessorGenerationIds.some(id => typeof id !== "string")) {
+        throw new LocalHistoryIndexError("lineage_metadata_conflict");
+      }
+      if (predecessorGenerationIds.length > MAX_ENTRIES) throw new LocalHistoryIndexError("metadata_limit_exceeded");
+      const candidate: ConversationHistoryLineageEnvelope = {
+        sessionId: boundedIdentity(sessionId), actorId: boundedIdentity(actorId),
+        actorKey: boundedIdentity(actorKey), generationId: boundedIdentity(generationId),
+        predecessorGenerationIds: predecessorGenerationIds.map(boundedIdentity),
+      };
+      const key = JSON.stringify([candidate.actorKey, candidate.generationId]);
+      const existing = generations.get(key);
+      if (existing && JSON.stringify(existing) !== JSON.stringify(candidate)) {
+        throw new LocalHistoryIndexError("lineage_metadata_conflict");
+      }
+      if (!existing) {
+        const added = candidate.predecessorGenerationIds.length + 1;
+        if ([...sources.values()].reduce((count, source) => count + source.entryCount, 0) + added > MAX_ENTRIES) {
+          throw new LocalHistoryIndexError("metadata_limit_exceeded");
+        }
+        slot.entryCount += added;
+        Object.freeze(candidate.predecessorGenerationIds);
+        generations.set(key, Object.freeze(candidate));
+      }
+    };
     let afterOffset = 0;
     let observedBytes = 0;
     do {
@@ -90,7 +191,6 @@ export function createLocalHistoryRecordIndex() {
       if (!page.exists || page.fileSize !== identity.sourceBytes) {
         throw new LocalHistoryIndexError("source_changed");
       }
-      if (page.oversizedRecord) throw new LocalHistoryIndexError("record_exceeds_budget");
       for (const entry of page.records) {
         if ([...sources.values()].reduce((count, source) => count + source.entryCount, 0) >= MAX_ENTRIES) {
           throw new LocalHistoryIndexError("metadata_limit_exceeded");
@@ -146,11 +246,50 @@ export function createLocalHistoryRecordIndex() {
           messageId: hasMessageId ? boundedIdentity(metadata.messageId) : recordId,
           hasMessageId,
           ...(typeof sequence === "number" && Number.isSafeInteger(sequence) && sequence >= 0 ? { sequence } : {}),
+          ...(typeof metadata.role === "string" ? { role: boundedIdentity(metadata.role) } : {}),
+          ...(typeof metadata.name === "string" ? { name: boundedIdentity(metadata.name) } : {}),
           startOffset: entry.startOffset,
           endOffset: entry.endOffset,
           physicalRevision: entries.length,
         }));
         slot.entryCount += 1;
+      }
+      if (page.oversizedRecord) {
+        // A single body larger than the scan batch must not hide the rest of
+        // the history. Index the opening tag and resume after the record.
+        const resumeFrom = page.records.at(-1)?.endOffset ?? afterOffset;
+        const next = await findNextRecordStart(filePath, resumeFrom, identity.sourceBytes);
+        if (next > resumeFrom) {
+          const header = await readOpeningHeader(filePath, resumeFrom, next);
+          rememberGeneration(readHeaderAttribute(header, "sessionId"), readHeaderAttribute(header, "actorId"),
+            readHeaderAttribute(header, "actorKey"), readHeaderAttribute(header, "generationId"),
+            readHeaderAttribute(header, "predecessorGenerationIds"));
+          if (header.includes("<HistoryMessage")) {
+            const recordId = boundedIdentity(readHeaderAttribute(header, "id") ?? `oversized:${resumeFrom}`);
+            const messageId = readHeaderAttribute(header, "messageId");
+            const sequence = Number(readHeaderAttribute(header, "sequence"));
+            const role = readHeaderAttribute(header, "role");
+            const name = readHeaderAttribute(header, "name");
+            entries.push(Object.freeze({
+              actorKey: boundedIdentity(readHeaderAttribute(header, "actorKey") ?? ""),
+              createdReason: boundedIdentity(readHeaderAttribute(header, "createdReason") ?? ""),
+              generationId: boundedIdentity(readHeaderAttribute(header, "generationId") ?? ""),
+              recordId,
+              messageId: messageId ? boundedIdentity(messageId) : recordId,
+              hasMessageId: Boolean(messageId),
+              ...(Number.isSafeInteger(sequence) && sequence >= 0 ? { sequence } : {}),
+              ...(role ? { role: boundedIdentity(role) } : {}),
+              ...(name ? { name: boundedIdentity(name) } : {}),
+              startOffset: resumeFrom,
+              endOffset: next,
+              physicalRevision: entries.length,
+            }));
+            slot.entryCount += 1;
+          }
+          afterOffset = next;
+          if (afterOffset < identity.sourceBytes) continue;
+        }
+        break;
       }
       // Yield even on the final batch so clear/eviction can invalidate completion.
       await setImmediate();

@@ -126,11 +126,16 @@ export function parseExecConfigOverride(raw: string): { mcp: boolean } {
   throw new Error(`Unsupported exec config override: ${raw}`);
 }
 
+function ensureOutputParentDir(filePath: string): void {
+  // `mkdir('.')` throws EEXIST on Windows even with recursive:true. Resolve first.
+  fs.mkdirSync(path.dirname(path.resolve(filePath)), { recursive: true });
+}
+
 export async function writeExecLastMessageFile(result: HeadlessExecResult): Promise<void> {
   const outputPath = result.outputLastMessagePath?.trim();
   if (!outputPath) return;
   if (result.status !== "completed" || !result.finalMessage) return;
-  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  ensureOutputParentDir(outputPath);
   fs.writeFileSync(outputPath, result.finalMessage, "utf-8");
 }
 
@@ -205,7 +210,7 @@ function summarizeHistoryEvent(event: MessageHistoryEvent): Record<string, unkno
 function appendExecTraceRecord(outputTracePath: string | undefined, record: ExecTraceRecord): void {
   const tracePath = outputTracePath?.trim();
   if (!tracePath) return;
-  fs.mkdirSync(path.dirname(tracePath), { recursive: true });
+  ensureOutputParentDir(tracePath);
   fs.appendFileSync(tracePath, `${JSON.stringify(record)}\n`, "utf-8");
 }
 

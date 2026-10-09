@@ -58,6 +58,31 @@ it("paged messages use the same committed-message conversion as full history", a
   } finally { fs.rmSync(sessionDir, { recursive: true, force: true }) }
 })
 
+it("stores a large history tool result outside history.xnl", async () => {
+  const sessionDir = makeTempSessionDir()
+  try {
+    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
+    const tail = "TAIL-NOT-IN-HISTORY"
+    const content = `${"A".repeat(40_000)}${tail}`
+    await writeConversationHistoryFixture({ sessionId: "codec", actorKey: "main", actorId: "actor",
+      repository, messages: [
+        { role: "tool", content, tool_call_id: "call-large", name: "bash", messageId: "t" },
+      ] })
+    const historyPath = path.join(sessionDir, "conversation", "history.xnl")
+    const historyText = fs.readFileSync(historyPath, "utf8")
+    expect(historyText.includes(tail)).toBe(false)
+    expect(historyText.includes("artifact_ref")).toBe(true)
+    const assets = fs.readdirSync(path.join(sessionDir, "conversation", "assets"))
+    expect(assets).toHaveLength(1)
+    expect(fs.readFileSync(path.join(sessionDir, "conversation", "assets", assets[0]!), "utf8")).toBe(content)
+    const loaded = await repository.loadHistoryGeneration("main__active")
+    const message = loaded?.messages[0]?.message
+    expect(String(message?.content)).toContain("history_externalized")
+    expect(String(message?.content)).not.toContain(tail)
+    expect(message?.resultMetadata?.historyOutputAsset).toMatchObject({ size: Buffer.byteLength(content) })
+  } finally { fs.rmSync(sessionDir, { recursive: true, force: true }) }
+})
+
 it("logical pages select successor values without repeating retained compaction messages", async () => {
   const sessionDir = makeTempSessionDir()
   try {

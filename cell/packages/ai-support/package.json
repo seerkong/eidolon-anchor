@@ -27,7 +27,7 @@
     "task-manager-file-support": "0.1.5",
     "task-manager-logic": "0.1.6",
     "ai-workflow-flow-dsl-reference": "0.2.0",
-    "halfcode-compiler.xnl": "0.3.1",
+    "halfcode-compiler.xnl": "0.3.2",
     "holarchy-eidolon-adapter": "0.2.0",
     "xnl-core": "0.1.13",
     "xnl-vfs": "0.2.0"

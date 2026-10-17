@@ -12,6 +12,7 @@ export type MacOsSeatbeltPolicyOptions = {
   networkAccess: MacOsSeatbeltNetworkAccess;
   writableRoots: string[];
   tempDir?: string;
+  deniedReadPaths?: readonly string[];
 };
 
 export type MacOsSeatbeltCommandOptions = MacOsSeatbeltPolicyOptions & {
@@ -149,11 +150,22 @@ export function createMacOsSeatbeltPolicy(options: MacOsSeatbeltPolicyOptions): 
 
   return [
     BASE_SEATBELT_POLICY,
+    buildDeniedReadPolicy(options.deniedReadPaths ?? []).policy,
     writableRootPolicy.policy,
     networkPolicy,
   ]
     .filter((section) => section.trim())
     .join("\n");
+}
+
+function buildDeniedReadPolicy(paths: readonly string[]): { policy: string; params: Array<[string, string]> } {
+  // Keep lexical and real paths: an existing symlink and its target are both protected.
+  const roots = [...new Set(paths.flatMap(p => [path.resolve(p), normalizePathForSandbox(p)]))];
+  const params: Array<[string, string]> = roots.map((p, i) => [`PRIVATE_READ_${i}`, p]);
+  return {
+    policy: params.length ? `(deny file-read* ${params.map(([key]) => `(literal (param "${key}")) (subpath (param "${key}"))`).join(" ")})` : "",
+    params,
+  };
 }
 
 export function createMacOsSeatbeltCommand(options: MacOsSeatbeltCommandOptions): MacOsSeatbeltCommand {
@@ -164,8 +176,9 @@ export function createMacOsSeatbeltCommand(options: MacOsSeatbeltCommandOptions)
     networkAccess: options.networkAccess,
     writableRoots: options.writableRoots,
     tempDir,
+    deniedReadPaths: options.deniedReadPaths,
   });
-  const definitionArgs = writableRootPolicy.params.map(([key, value]) => `-D${key}=${value}`);
+  const definitionArgs = [...writableRootPolicy.params, ...buildDeniedReadPolicy(options.deniedReadPaths ?? []).params].map(([key, value]) => `-D${key}=${value}`);
   const shellPath = options.shellPath?.trim() || process.env.SHELL || "/bin/zsh";
 
   return {

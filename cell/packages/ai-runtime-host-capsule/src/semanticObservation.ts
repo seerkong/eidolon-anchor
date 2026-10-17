@@ -3,7 +3,10 @@ import type { ObservationPayloads, PendingStream, Preview, PublicMessagePart } f
 
 type StreamPublication = { kind: "stream.updated"; payload: PendingStream }
   | { kind: "stream.closed"; payload: ObservationPayloads["stream.closed"] }
-type RetainedStream = { value: PendingStream; parts: PublicMessagePart[]; totalBytes: number }
+// The semantic delta lane emits only these textual parts. Images and tool
+// results belong to committed history and never enter this pending buffer.
+type StreamPart = Extract<PublicMessagePart, { kind: 'text' | 'reasoning' | 'tool_call' }>
+type RetainedStream = { value: PendingStream; parts: StreamPart[]; totalBytes: number }
 
 // Count without copying a potentially large incoming token/tool fragment.
 function utf8Bytes(text: string): number {
@@ -30,11 +33,11 @@ function suffix(text: string, budget: number): string {
   return text.slice(start)
 }
 
-function textOf(part: PublicMessagePart): string {
-  return part.kind === "tool_call" ? part.input : part.kind === "tool_result" ? part.output : part.text
+function textOf(part: StreamPart): string {
+  return part.kind === "tool_call" ? part.input : part.text
 }
-function withText(part: PublicMessagePart, text: string): PublicMessagePart {
-  return part.kind === "tool_call" ? { ...part, input: text } : part.kind === "tool_result" ? { ...part, output: text } : { ...part, text }
+function withText(part: StreamPart, text: string): StreamPart {
+  return part.kind === "tool_call" ? { ...part, input: text } : { ...part, text }
 }
 
 export type SemanticObservationOptions = {
@@ -81,6 +84,10 @@ export function createSemanticObservation(options: SemanticObservationOptions) {
     options.publish({ kind: "stream.updated", payload: stream.value })
   }
   return {
+    attemptId(actorId: string, turnId: string): string | undefined {
+      const attempt = attempts.get(actorId);
+      return attempt?.turnId === turnId && attempt.state !== 'aborted' ? attempt.attemptId : undefined;
+    },
     onSemantic(event: SemanticEvent): void {
       if (disposed) return
       const actorId = event.actor.actor_id
@@ -134,7 +141,7 @@ export function createSemanticObservation(options: SemanticObservationOptions) {
         if (tool.tool_call_id.length > 1024 || tool.tool_name.length > 1024) return
         const index = stream.parts.findIndex(part => part.kind === "tool_call" && part.toolCallId === tool.tool_call_id)
         const old = index < 0 ? undefined : stream.parts[index]
-        const part: PublicMessagePart = { kind: "tool_call", toolCallId: tool.tool_call_id, name: tool.tool_name,
+        const part: StreamPart = { kind: "tool_call", toolCallId: tool.tool_call_id, name: tool.tool_name,
           input: suffix(tool.arguments_text, previewBudget) }
         stream.totalBytes += Math.max(0, utf8Bytes(tool.arguments_text) - (old ? utf8Bytes(textOf(old)) : 0))
         if (index < 0) stream.parts.push(part)

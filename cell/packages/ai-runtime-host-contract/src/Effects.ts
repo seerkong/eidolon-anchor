@@ -3,8 +3,16 @@ import type { ObservationFrame } from "./Observation"
 
 export type Principal = Readonly<{ principalId: string; grantsVersion: string }>
 export type AuthorizationTarget =
-  | Readonly<{ kind: "server"; action: "list_sessions" | "create_session" }>
-  | Readonly<{ kind: "session"; sessionId: string; action: "open" | "create_actor" }>
+  | Readonly<{kind:'agent-adapters';action:'discover'|'configure'}>
+  | Readonly<{kind:'agent-adapter';adapterId:string;action:'observe'|'execute'|'interrupt'}>
+  | Readonly<{kind:'execution-environments';action:'discover'}>
+  | Readonly<{kind:'execution-environment';workspaceKey:string;action:'read'|'execute'}>
+  | Readonly<{kind:'daemon-schedules';action:'read'|'manage'|'execute';scheduleId?:string}>
+  | Readonly<{kind:'workflows';action:'discover'|'read'|'start'|'resume';runId?:string}>
+  | Readonly<{kind:'global-taskspaces';action:'list'|'create'}>
+  | Readonly<{kind:'global-taskspace';taskSpaceId:string;action:'read'|'edit'|'execute'|'control'}>
+  | Readonly<{ kind: "server"; action: "list_sessions" | "create_session" | "discover_sessions" | "manage_workspaces" | "stop_daemon" }>
+  | Readonly<{ kind: "session"; sessionId: string; action: "open" | "import_session" | "create_actor" | "read_statistics" | "rename" | "archive" }>
   | Readonly<{ kind: "actor"; sessionId: string; actorId: string; action: ActorAction }>
 
 export type HostAuthorizationEffects = Readonly<{
@@ -20,7 +28,7 @@ export type HostIdentityEffects = Readonly<{
 export type ResourceEffectKind = "read_only" | "workspace_mutation" | "unclassified"
 export type ResourceLease = Readonly<{ release: () => void; invalidate?: () => void }>
 export type HostResourceEffects = Readonly<{
-  acquire: (input: Readonly<{ workDir: string; kind: ResourceEffectKind; signal?: AbortSignal }>) => Promise<ResourceLease>
+  acquire: (input: Readonly<{ workDir: string; kind: ResourceEffectKind; targets?: readonly string[]; signal?: AbortSignal;workflowTaskTree?:import('./WorkflowTaskTree').WorkflowTaskTreeOrigin;executionEnvironment?:import('./ExecutionEnvironment').ExecutionEnvironmentRef }>) => Promise<ResourceLease>
 }>
 
 export type SessionWriterLeaseEffects = Readonly<{

@@ -74,10 +74,15 @@ export async function loadConversationActorRawState(params: {
   const promptGeneration = promptHeadGenerationId
     ? await params.repository.loadPromptGeneration(promptHeadGenerationId)
     : null;
-  const declaredHistoryHeadGenerationId =
+  const declaredHistoryHead =
     actorBinding?.historyHeadGenerationId
     ?? session.historyIndex.heads[actorKey]?.activeGenerationId
     ?? null;
+  // Provider-context transitions encode an explicitly empty frontier using a
+  // sentinel. It is absence of a generation, not a file name or fallback source.
+  if(declaredHistoryHead==='__empty_history__'&&session.historyIndex.heads[actorKey]?.activeGenerationId
+    &&session.historyIndex.heads[actorKey]?.activeGenerationId!=='__empty_history__')throw new Error('conversation_empty_history_head_conflict');
+  const declaredHistoryHeadGenerationId=declaredHistoryHead==='__empty_history__'?null:declaredHistoryHead;
   const promptTargetHistoryGenerationId = resolvePromptTargetHistoryGenerationId({
     promptGeneration,
     historyIndex: session.historyIndex,

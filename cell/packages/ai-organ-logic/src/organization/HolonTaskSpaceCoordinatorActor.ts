@@ -35,16 +35,17 @@ type PumpCapability = Readonly<{
 }>
 
 /**
- * One virtual coordinator activation backed by the project's depa-actor
- * mailbox primitive. Durable facts stay in TaskSpace, deployment state, and
- * the journal; an activation can therefore be reconstructed for the same
- * logical `(deploymentId, holonRef)` address after a process restart.
+ * One coordinator owner and stable address per deployment/Holon. Its depa-actor
+ * mailbox lanes serialize each TaskSpace independently, so a slow execution
+ * cannot block unrelated tasks. TaskSpace and the journal retain all durable
+ * authority; lane activations are reconstructible and never own task facts.
  */
 export class HolonTaskSpaceCoordinatorActor {
   readonly actorId: string
   private readonly capabilities = new Map<string, PumpCapability>()
   private readonly completions = createCompletionSignalRegistry<string, PumpOutcome>()
   private readonly mailbox: ActorRuntime<undefined, HolonTaskSpaceCoordinatorMailbox>
+  private readonly registeredLanes = new Set<string>()
   private readonly scheduledWakes = new Map<string, ReturnType<typeof setTimeout>>()
 
   constructor(
@@ -56,7 +57,12 @@ export class HolonTaskSpaceCoordinatorActor {
       .digest("hex")
       .slice(0, 40)}`
     this.mailbox = new ActorRuntime(() => undefined)
-    this.mailbox.register(this.actorId, {
+  }
+
+  private laneFor(taskSpaceId: string): string {
+    const laneId = `${this.actorId}:space:${createHash("sha256").update(taskSpaceId).digest("hex")}`
+    if (this.registeredLanes.has(laneId)) return laneId
+    this.mailbox.register(laneId, {
       initialState: undefined,
       handlers: {
         pump: async (_self, envelope) => {
@@ -82,6 +88,8 @@ export class HolonTaskSpaceCoordinatorActor {
         },
       },
     })
+    this.registeredLanes.add(laneId)
+    return laneId
   }
 
   wake(
@@ -97,7 +105,7 @@ export class HolonTaskSpaceCoordinatorActor {
         unsubscribe()
         resolve(outcome)
       })
-      this.mailbox.sendFrom("workflow-holon-pump-host", this.actorId, "pump", Object.freeze({
+      this.mailbox.sendFrom("workflow-holon-pump-host", this.laneFor(input.subscription.taskSpaceId), "pump", Object.freeze({
         requestId,
         input,
       }))
@@ -133,6 +141,9 @@ export class HolonTaskSpaceCoordinatorActor {
     }
     schedule()
   }
+
+  /** Volatile activation work only; persisted unfinished tasks are not auto-resumed. */
+  isBusy(): boolean { return this.capabilities.size > 0 || this.scheduledWakes.size > 0 }
 
   close(): void {
     for (const timer of this.scheduledWakes.values()) clearTimeout(timer)

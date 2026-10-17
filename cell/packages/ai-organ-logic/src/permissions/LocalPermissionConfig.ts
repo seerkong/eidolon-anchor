@@ -42,6 +42,20 @@ export function protectedPermissionConfigPaths(authorityRoot?: string): string[]
   return getLocalPermissionConfigStore().protectedPermissionConfigPaths(authorityRoot);
 }
 
+export function canonicalProtectionPath(filePath: string): string {
+  return getLocalPermissionConfigStore().canonicalProtectionPath?.(filePath) ?? filePath;
+}
+
+export function privateRuntimePaths(authorityRoot?: string): string[] {
+  return getLocalPermissionConfigStore().privateRuntimePaths?.(authorityRoot) ?? [];
+}
+
+export function recursivePathReferencesPrivateRuntime(filePath: string, authorityRoot?: string): boolean {
+  const inspection = getLocalPermissionConfigStore().inspectRecursivePrivateRuntime?.(filePath, authorityRoot) ?? "clear";
+  if (inspection === "unproven") throw new LocalPermissionConfigError("private_runtime_scope_unproven: recursive access could not be proved within the observation budget; use an execution boundary that enforces private reads");
+  return inspection === "private";
+}
+
 export function loadLocalPermissionsConfig(authorityRoot?: string): LocalPermissionsConfig {
   return getLocalPermissionConfigStore().loadLocalPermissionsConfig(authorityRoot);
 }

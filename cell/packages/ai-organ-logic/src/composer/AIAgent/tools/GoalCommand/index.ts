@@ -2,6 +2,7 @@ import type { ToolDef } from "@cell/ai-core-contract/types"
 import {
   clearThreadGoal,
   formatThreadGoalStatus,
+  formatThreadGoalToolResult,
   getThreadGoal,
   setThreadGoal,
   updateThreadGoalStatus,
@@ -39,23 +40,22 @@ export function buildGoalCommandToolDef(): ToolDef<GoalCommandInput, string> {
       if (command === "set") {
         const existing = getThreadGoal(runtime.vm)
         if (existing && existing.status !== "complete") {
-          return JSON.stringify({
+          return formatThreadGoalToolResult({
             ok: false,
             error: "goal_already_exists",
             message: "A current thread goal already exists. Use /goal edit <objective> to explicitly replace it, or /goal clear first.",
             goal: existing,
           })
         }
-        return JSON.stringify(setThreadGoal({ vm: runtime.vm, objective: input?.objective, tokenBudget: input?.token_budget }))
+        return formatThreadGoalToolResult(setThreadGoal({ vm: runtime.vm, objective: input?.objective, tokenBudget: input?.token_budget }))
       }
       if (command === "edit") {
-        return JSON.stringify(setThreadGoal({ vm: runtime.vm, objective: input?.objective, tokenBudget: input?.token_budget }))
+        return formatThreadGoalToolResult(setThreadGoal({ vm: runtime.vm, objective: input?.objective, tokenBudget: input?.token_budget }))
       }
-      if (command === "pause") return JSON.stringify(updateThreadGoalStatus({ vm: runtime.vm, status: "paused" }))
-      if (command === "resume") return JSON.stringify(updateThreadGoalStatus({ vm: runtime.vm, status: "active" }))
-      if (command === "clear") return JSON.stringify(clearThreadGoal(runtime.vm))
+      if (command === "pause") return formatThreadGoalToolResult(updateThreadGoalStatus({ vm: runtime.vm, status: "paused" }))
+      if (command === "resume") return formatThreadGoalToolResult(updateThreadGoalStatus({ vm: runtime.vm, status: "active" }))
+      if (command === "clear") return formatThreadGoalToolResult(clearThreadGoal(runtime.vm))
       return JSON.stringify({ ok: false, error: "unknown_goal_command" })
     },
   }
 }
-

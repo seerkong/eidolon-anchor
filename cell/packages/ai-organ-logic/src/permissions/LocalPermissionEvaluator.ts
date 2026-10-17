@@ -11,7 +11,11 @@ import {
   loadLocalPermissionsConfig,
   loadWorkspaceAccessConfig,
   protectedPermissionConfigPaths,
+  canonicalProtectionPath,
+  privateRuntimePaths,
+  recursivePathReferencesPrivateRuntime,
   workspaceAccessGrantRoot,
+  resolveRequestedPath,
   LocalPermissionConfigError,
 } from "./LocalPermissionConfig";
 
@@ -123,6 +127,8 @@ const SHELL_KEYWORD_SIGNALS = new Set([
 const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=.*$/;
 const HEREDOC_START_RE = /<<-?\s*(?<quote>['"]?)(?<delimiter>[A-Za-z_][A-Za-z0-9_]*)\k<quote>/;
 const FD_TARGET_RE = /^(?:\d+|-)$/;
+// Wrappers/interpreters may hide a recursive operation in arguments or config.
+const RECURSIVE_BASH_COMMANDS = new Set(['grep', 'egrep', 'fgrep', 'rgrep', 'rg', 'ag', 'ack', 'find', 'fd', 'tar', 'zip', 'cp', 'rsync', 'du', 'tree', 'env', 'command', 'sh', 'bash', 'zsh', 'python', 'python3', 'perl', 'ruby', 'node', 'bun']);
 
 export type BashToken = {
   text: string;
@@ -148,7 +154,7 @@ export type WorkspaceAccessApprovalGrant = {
 
 export type LocalPermissionDecision = {
   action: LocalPermissionAction;
-  reasonCode?: "protected_permission_config" | "workspace_scope_violation";
+  reasonCode?: "protected_permission_config" | "private_runtime_data" | "workspace_scope_violation";
   message?: string;
   fallbackMessage?: string;
   matchedRule?: LocalPermissionRule;
@@ -158,16 +164,7 @@ export type LocalPermissionDecision = {
   approvalGrant?: LocalPermissionApprovalGrant | WorkspaceAccessApprovalGrant;
 };
 
-export function resolveRequestedPath(workDir: string, rawPath: string): string {
-  const home = process.env.HOME;
-  const expanded =
-    rawPath === "~"
-      ? home || rawPath
-      : rawPath.startsWith("~/") && home
-        ? path.join(home, rawPath.slice(2))
-        : rawPath;
-  return path.resolve(path.isAbsolute(expanded) ? expanded : path.resolve(workDir, expanded));
-}
+export { resolveRequestedPath } from "./LocalPermissionConfig";
 
 export function pathPatternInput(workDir: string, resolvedPath: string): string {
   return isPathWithin(resolvedPath, workDir) ? path.relative(workDir, resolvedPath) || "." : resolvedPath;
@@ -184,6 +181,8 @@ export function evaluateLocalToolPermission(params: {
   authorityRoot?: string;
   approvalGrant?: LocalPermissionApprovalGrant | WorkspaceAccessApprovalGrant;
   additionalWritableRoots?: string[];
+  // Supplied by the native execution boundary, never from a model tool payload.
+  enforcedPrivateReadPaths?: readonly string[];
 }): LocalPermissionDecision {
   const workDir = path.resolve(params.workDir);
   const {
@@ -196,6 +195,20 @@ export function evaluateLocalToolPermission(params: {
 
   if (toolName === "bash") {
     const command = String(payload.command ?? "");
+    const bashWorkDir = typeof payload.workdir === 'string' && payload.workdir.trim() ? resolveRequestedPath(workDir, payload.workdir) : workDir;
+    // Reuse metadata observations only within this one authorization decision.
+    // Glob prefixes and repeated shell words otherwise rescan the same large tree.
+    const observedPaths = new Map<string, boolean>();
+    const enforced = params.enforcedPrivateReadPaths?.map(canonicalProtectionPath);
+    const hasReadBoundary = enforced !== undefined && privateRuntimePaths(authorityRoot)
+      .every(root => enforced.some(denied => isPathWithin(canonicalProtectionPath(root), denied)));
+    const checkPrivatePath: PrivatePathCheck = (candidate, recursive = false) => {
+      const inspectTree = recursive && !hasReadBoundary;
+      const key = `${inspectTree}:${path.resolve(candidate)}`;
+      if (!observedPaths.has(key)) observedPaths.set(key, isPrivateRuntimePath(candidate, authorityRoot, inspectTree));
+      return observedPaths.get(key)!;
+    };
+    if (checkPrivatePath(bashWorkDir) || bashRawCommandReferencesPrivateRuntime(command, bashWorkDir, authorityRoot, checkPrivatePath)) throw new Error('Private runtime control data cannot be accessed via generic bash commands');
     let segmentTokensList: BashToken[][];
     try {
       segmentTokensList = parseBashSegments(command);
@@ -203,14 +216,26 @@ export function evaluateLocalToolPermission(params: {
       const fallback = evaluateUnsupportedBashSyntax({
         error,
         command,
-        workDir,
+        workDir: bashWorkDir,
         authorityRoot,
         approvalGrant,
+        checkPrivatePath,
       });
       if (fallback) return fallback;
       throw error;
     }
     const normalizedSegments = segmentTokensList.map((segmentTokens) => {
+      const words = collectBashCommandWords(segmentTokens);
+      // Search/archive/copy tools can traverse an implicit cwd, clustered short
+      // options, or configuration-provided roots. Treat their scope conservatively
+      // rather than trying to enumerate every spelling of recursive flags.
+      const recursive = words.some(word => word.split(/[\s'";&|]+/).some(part => RECURSIVE_BASH_COMMANDS.has(path.basename(part))))
+        || words.some(word => ['-r', '-R', '--recursive', '--hidden'].includes(word));
+      const changesDirectory = path.basename(words[0] ?? '') === 'cd';
+      if (recursive && checkPrivatePath(bashWorkDir, true)
+        || segmentTokens.some(token => token.kind === 'word' && [token.text, ...token.text.split(/[\s'"();,=;&|]+/)].filter(Boolean).some(candidate => bashTokenTargetsPrivateRuntime(candidate, bashWorkDir, authorityRoot, recursive || changesDirectory || token.text.includes('='), checkPrivatePath)))) {
+        throw new Error('Private runtime control data cannot be accessed via generic bash commands');
+      }
       if (bashSegmentModifiesProtectedPermissionConfig(segmentTokens, workDir, authorityRoot)) {
         throw new Error("Protected local permission config path cannot be modified via generic bash commands");
       }
@@ -338,6 +363,11 @@ export function evaluateFilePermission(params: {
   const resolvedPath = resolveRequestedPath(resolvedWorkDir, rawPath);
   const resolvedAdditionalRoots = additionalWritableRoots.map((candidate) => path.resolve(candidate));
   const outsideWorkspace = !isPathWithin(resolvedPath, resolvedWorkDir);
+
+  if (isPrivateRuntimePath(resolvedPath, authorityRoot, toolName === 'grep' || toolName === 'glob')) {
+    return { action: 'deny', reasonCode: 'private_runtime_data', message: 'Private runtime control data cannot be accessed via generic file tools',
+      permissionName: accessKind === 'read' ? 'read' : 'edit', target: pathPatternInput(resolvedWorkDir, resolvedPath), resolvedPath };
+  }
 
   if (accessKind === "write" && isProtectedPermissionConfigPath(resolvedPath, authorityRoot)) {
     return {
@@ -493,7 +523,46 @@ export function serializeBashSegments(segments: string[]): string {
 }
 
 export function isProtectedPermissionConfigPath(resolvedPath: string, authorityRoot?: string): boolean {
-  return protectedPermissionConfigPaths(authorityRoot).some((protectedPath) => path.resolve(protectedPath) === path.resolve(resolvedPath));
+  const target = canonicalProtectionPath(resolvedPath);
+  return protectedPermissionConfigPaths(authorityRoot).some((protectedPath) => isPathWithin(target, canonicalProtectionPath(protectedPath)));
+}
+
+function isPrivateRuntimePath(resolvedPath: string, authorityRoot?: string, recursive = false): boolean {
+  const target = canonicalProtectionPath(resolvedPath);
+  return privateRuntimePaths(authorityRoot).some(root => {
+    const control = canonicalProtectionPath(root);
+    return isPathWithin(target, control) || recursive && isPathWithin(control, target);
+  }) || recursive && recursivePathReferencesPrivateRuntime(resolvedPath, authorityRoot);
+}
+
+type PrivatePathCheck = (candidate: string, recursive?: boolean) => boolean;
+function bashTokenTargetsPrivateRuntime(token: string, workDir: string, authorityRoot?: string, recursive = false, check: PrivatePathCheck = (candidate, recursive) => isPrivateRuntimePath(candidate, authorityRoot, recursive)): boolean {
+  const expanded = resolveRequestedPath(workDir, token);
+  const wildcard = expanded.search(/[\*?\[\{]/);
+  const prefix = wildcard < 0 ? expanded : expanded.slice(0, wildcard);
+  // A glob's last literal component is only a prefix, not an existing directory.
+  const candidate = wildcard < 0 ? expanded : prefix.endsWith(path.sep) ? prefix : path.dirname(prefix || '.');
+  return check(resolveRequestedPath(workDir, candidate), recursive || wildcard >= 0);
+}
+
+function bashRawCommandReferencesPrivateRuntime(command: string, workDir: string, authorityRoot?: string, check: PrivatePathCheck = (candidate, recursive) => isPrivateRuntimePath(candidate, authorityRoot, recursive)): boolean {
+  const normalized = command.replace(/\\\r?\n/g, '').replace(/\\(.)/g, '$1').replace(/['"]/g, '');
+  // POSIX expands ~user independently of $HOME. Do not authorize credential
+  // reads by treating a named home as a relative application directory.
+  if (/(?:^|[\s=;&|<>])~[^/\s]+\/\.(?:npmrc|bunfig\.toml)(?=$|[\s/;&|<>])/.test(normalized)) return true;
+  // npm's config command implicitly inspects/changes the host credential file,
+  // even when no file path appears in the shell input. Public installs are separate.
+  if (/(?:^|[\s/;&|])npm\s+(?:--\S+\s+)*config(?:\s|$)/.test(normalized)) return true;
+  const literals = [...command.split(/[\s'"`();,=;&|<>]+/), ...normalized.split(/[\s`();,=;&|<>]+/),
+    ...Array.from(command.matchAll(/'([^']*)'/g), match => match[1]!),
+    ...Array.from(command.matchAll(/"([^"]*)"/g), match => match[1]!),
+  ].filter(Boolean);
+  return privateRuntimePaths(authorityRoot).some(root => [root, path.relative(workDir, root)]
+    .filter(candidate => candidate && candidate !== '.').some(candidate => normalized.includes(candidate)))
+    || literals.some(candidate => RECURSIVE_BASH_COMMANDS.has(path.basename(candidate))) && check(workDir, true)
+    // Observe literal paths before shell parsing/heredoc normalization can remove
+    // them. This also protects the unsupported-syntax approval fallback.
+    || [...new Set(literals)].some(candidate => bashTokenTargetsPrivateRuntime(candidate, workDir, authorityRoot, true, check));
 }
 
 function evaluateWorkspaceAccessGate(params: {
@@ -560,6 +629,7 @@ function evaluateUnsupportedBashSyntax(params: {
   workDir: string;
   authorityRoot?: string;
   approvalGrant?: LocalPermissionApprovalGrant | WorkspaceAccessApprovalGrant;
+  checkPrivatePath?: PrivatePathCheck;
 }): LocalPermissionDecision | null {
   if (
     !(params.error instanceof LocalPermissionConfigError) ||
@@ -567,6 +637,8 @@ function evaluateUnsupportedBashSyntax(params: {
   ) {
     return null;
   }
+  const privateReference = bashRawCommandReferencesPrivateRuntime(params.command, params.workDir, params.authorityRoot, params.checkPrivatePath);
+  if (privateReference) throw new Error('Private runtime control data cannot be accessed via generic bash commands');
   if (bashRawCommandReferencesProtectedPermissionConfig(params.command, params.workDir, params.authorityRoot)) {
     throw new Error("Protected local permission config path cannot be modified via generic bash commands");
   }
@@ -1179,7 +1251,7 @@ function matchesApprovalGrant(
 }
 
 function globMatch(pattern: string, value: string): boolean {
-  return new RegExp(`^${globPatternToRegex(pattern)}$`).test(value);
+  return new RegExp(`^${globPatternToRegex(pattern)}$`, 's').test(value);
 }
 
 function globPatternToRegex(pattern: string): string {

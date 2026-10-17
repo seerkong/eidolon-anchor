@@ -18,7 +18,7 @@ import {
   type WindowsSandboxMode,
   type WindowsSandboxNetworkAccess,
 } from "./WindowsSandbox";
-import { loadWorkspaceAccessConfig } from "../permissions/LocalPermissionConfig";
+import { loadWorkspaceAccessConfig, privateRuntimePaths } from "../permissions/LocalPermissionConfig";
 
 export type SandboxMode = "read-only" | "workspace-write" | "danger-full-access";
 export type SandboxNetworkAccess = "enabled" | "disabled";
@@ -36,6 +36,8 @@ export type SandboxBackendSelection = {
   platform: NodeJS.Platform | string;
   /** Windows-only: resolved sandbox enforcement level. */
   windowsSandboxLevel?: WindowsSandboxLevel;
+  deniedReadPaths?: string[];
+  homeDir?: string;
 };
 
 export type ResolveSandboxBackendSelectionParams = {
@@ -246,11 +248,22 @@ export function resolveSandboxBackendSelection(params: ResolveSandboxBackendSele
     workDir,
     writableRoots,
     platform,
+    ...(typeof permissions.home_dir === "string" && permissions.home_dir.trim()
+      ? { homeDir: resolvePathForPlatform(platform, workDir, permissions.home_dir) } : {}),
   };
   if (isWindowsPlatform(platform)) {
     selection.windowsSandboxLevel = resolveWindowsSandboxLevel(selection);
   }
+  selection.deniedReadPaths = privateRuntimePaths(resolveLocalPermissionAuthorityRoot(metadata));
   return selection;
+}
+
+export function privateReadExecutionBoundary(selection: SandboxBackendSelection): { enforcedPrivateReadPaths: readonly string[] } | undefined {
+  // Only this backend currently implements the denied-read contract. Other
+  // platforms retain conservative authorization until they can enforce it.
+  return selection.backendName === "macos-seatbelt" && selection.sandboxMode !== "danger-full-access"
+    && process.platform === "darwin" && Array.isArray(selection.deniedReadPaths)
+    ? { enforcedPrivateReadPaths: selection.deniedReadPaths } : undefined;
 }
 
 function resolveSynchronousBashResult(result: SpawnSyncReturns<string>, timeoutMs?: number): StreamingBashResult {
@@ -346,6 +359,7 @@ function buildSpawnSpec(
         sandboxMode: params.selection.sandboxMode as MacOsSeatbeltSandboxMode,
         networkAccess: params.selection.networkAccess as MacOsSeatbeltNetworkAccess,
         tempDir,
+        deniedReadPaths: params.selection.deniedReadPaths,
       });
       return {
         command: seatbeltCommand.executable,
@@ -355,6 +369,7 @@ function buildSpawnSpec(
           cwd: params.cwd,
           env: {
             ...process.env,
+            ...(params.selection.homeDir ? { HOME: params.selection.homeDir, USERPROFILE: params.selection.homeDir } : {}),
             EIDOLON_SANDBOX: "seatbelt",
             TMPDIR: tempDir,
             TMPPREFIX: path.join(tempDir, "zsh"),
@@ -380,6 +395,7 @@ function buildSpawnSpec(
           cwd: params.cwd,
           env: {
             ...process.env,
+            ...(params.selection.homeDir ? { HOME: params.selection.homeDir, USERPROFILE: params.selection.homeDir } : {}),
             EIDOLON_SANDBOX: "linux-bwrap",
             TMPDIR: tempDir,
           },

@@ -1,5 +1,5 @@
 import type { ToolDef } from "@cell/ai-core-contract/types"
-import { getThreadGoal, setThreadGoal } from "@cell/ai-organ-logic/goals/ThreadGoalManager"
+import { formatThreadGoalToolResult, getThreadGoal, setThreadGoal } from "@cell/ai-organ-logic/goals/ThreadGoalManager"
 
 type GoalCreateInput = {
   objective?: string
@@ -28,11 +28,10 @@ export function buildGoalCreateToolDef(): ToolDef<GoalCreateInput, string> {
     run: async (runtime, input) => {
       const existing = getThreadGoal(runtime.vm)
       if (existing && existing.status !== "complete") {
-        return JSON.stringify({ ok: false, error: "goal_already_exists", goal: existing })
+        return formatThreadGoalToolResult({ ok: false, error: "goal_already_exists", goal: existing })
       }
       const result = setThreadGoal({ vm: runtime.vm, objective: input?.objective, tokenBudget: input?.token_budget })
-      return JSON.stringify(result)
+      return formatThreadGoalToolResult(result)
     },
   }
 }
-

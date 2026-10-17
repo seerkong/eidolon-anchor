@@ -91,6 +91,7 @@ if (!__eidolonOpenTuiPlatformModule) {
 var module = await import(__eidolonPathToFileURL(__eidolonOpenTuiPlatformModule).href);`;
   return [
     'var module = await import(`@opentui/core-${process.platform}-${process.arch}/index.ts`);',
+    'module = await import(`@opentui/core-${process.platform}-${process.arch}/index.ts`);',
     'var module = await (new Function("s", "return import(s)"))("@opentui/core-" + process.platform + "-" + process.arch + "/index.ts");',
     `var module = await new Function("s", "return import(s)")("${platformPackageName}/index.ts");`,
   ].reduce((patched, pattern) => patched.replaceAll(pattern, runtimeImport), bundleText);

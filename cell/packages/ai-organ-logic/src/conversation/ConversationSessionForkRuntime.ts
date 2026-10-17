@@ -13,6 +13,7 @@ import {
   digestConversationForkSourceAuthority,
   planConversationSessionFork,
   planConversationSessionRepair,
+  projectConversationForkReceipt,
 } from "./ConversationSessionFork";
 
 export type ConversationSessionForkRuntimeEffects = Readonly<{
@@ -31,6 +32,11 @@ export type ConversationSessionForkRuntimeEffects = Readonly<{
   beforeSourceCompareAndSwap?: (sourceSessionId: string) => Promise<void>;
   /** Observation point after the final compare while the authority lease remains held. */
   afterSourceCompareAndSwap?: (sourceSessionId: string) => Promise<void>;
+  /** Host publication preparation; failure prevents any target commit. */
+  beforeCommit?: (input: Readonly<{
+    command: ConversationSessionForkCommand;
+    generation: ConversationForkInitializationGeneration;
+  }>) => Promise<void>;
 }>;
 
 function rejected(
@@ -38,26 +44,6 @@ function rejected(
   message: string,
 ): ConversationSessionForkResult {
   return { status: "rejected", rejection: { code, message } };
-}
-
-function repairReceiptFromGeneration(
-  generation: ConversationForkInitializationGeneration,
-) {
-  return {
-    schemaVersion: "conversation.session-fork-receipt/v1" as const,
-    mode: "repair" as const,
-    sourceSessionId: generation.proof.sourceSessionId,
-    targetSessionId: generation.sessionIndex.sessionId,
-    childActorKey: generation.providerEpoch.childActorKey,
-    childActorId: generation.providerEpoch.childActorId,
-    proof: generation.proof,
-    providerEpoch: generation.providerEpoch,
-    transactionId: generation.transactionId,
-    targetAuthorityDigest: generation.targetAuthorityDigest,
-    preservedTargetTailMessageCount: generation.preservedTargetTailMessageCount,
-    repairEvidence: generation.repairEvidence,
-    committedAt: generation.createdAt,
-  };
 }
 
 async function loadAuthoritySnapshot(input: {
@@ -194,6 +180,7 @@ async function executeForkUnderAuthorityLeases(
     );
   }
   await effects.afterSourceCompareAndSwap?.(command.sourceSessionId);
+  await effects.beforeCommit?.({ command, generation: planned.generation });
   try {
     await targetRepository.commitConversationForkInitialization(planned.generation);
   } catch (error) {
@@ -207,20 +194,7 @@ async function executeForkUnderAuthorityLeases(
   }
   return {
     status: "committed",
-    receipt: {
-      schemaVersion: "conversation.session-fork-receipt/v1",
-      mode: "create",
-      sourceSessionId: command.sourceSessionId,
-      targetSessionId: command.targetSessionId,
-      childActorKey: planned.generation.providerEpoch.childActorKey,
-      childActorId: planned.generation.providerEpoch.childActorId,
-      proof: planned.generation.proof,
-      providerEpoch: planned.generation.providerEpoch,
-      transactionId: planned.generation.transactionId,
-      targetAuthorityDigest: planned.generation.targetAuthorityDigest,
-      preservedTargetTailMessageCount: 0,
-      committedAt: command.occurredAt,
-    },
+    receipt: projectConversationForkReceipt(planned.generation),
   };
 }
 
@@ -288,7 +262,7 @@ async function executeRepairUnderAuthorityLeases(
     if (existing && sameProof) {
       return {
         status: command.dryRun ? "dry_run" : "committed",
-        receipt: repairReceiptFromGeneration(existing),
+        receipt: projectConversationForkReceipt(existing),
       };
     }
     return rejected("TARGET_AUTHORITY_CHANGED", "repair target is already governed by a conflicting fork transaction");
@@ -316,7 +290,7 @@ async function executeRepairUnderAuthorityLeases(
     target: target.snapshot,
   });
   if (planned.status === "rejected") return planned;
-  const receipt = repairReceiptFromGeneration(planned.generation);
+  const receipt = projectConversationForkReceipt(planned.generation);
   if (command.dryRun) return { status: "dry_run", receipt };
   if (!targetRepository.commitConversationForkInitialization) {
     return rejected("FORK_TRANSACTION_CONFLICT", "Conversation repair persistence capability is unavailable");

@@ -81,10 +81,10 @@ describe("Workflow lifecycle tool capability", () => {
       admittedNames: expectedNames,
     })
     expect(WORKFLOW_LIFECYCLE_TOOL_PROFILE.admittedNamesDigest).toBe(
-      "sha256:121df5a6adee519d8add1cee77011baad25770eab5647123a7af2759601092a6",
+      "sha256:c646e6c80b259abe13af0d046488266fb8d0d90dfef275a0045240b0f1e91f6f",
     )
     expect(WORKFLOW_LIFECYCLE_TOOL_PROFILE.schemaDigest).toBe(
-      "sha256:ecba04ba9f39aac5f644eb4afed84509c22c96207bc012b55ed3d39f8b6c1356",
+      "sha256:f12845eab4c11e8f820a02ed21dd31e2891da320cddb50a7e6e63ec8d45a3a0c",
     )
     expect(createWorkflowLifecycleToolProfileRegistry().resolve(
       WORKFLOW_LIFECYCLE_TOOL_PROFILE.profileId,

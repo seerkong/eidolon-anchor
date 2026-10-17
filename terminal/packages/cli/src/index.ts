@@ -2,11 +2,17 @@ import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
 import packageJson from "../package.json" with { type: "json" }
 import { serve } from "./commands/serve"
+import { daemon } from './commands/daemon'
 
 async function main() {
   const args = hideBin(process.argv)
-  if (args[0] === "serve") {
-    await yargs(args).scriptName("eidolon").version(packageJson.version).command(serve).strict().help().parseAsync()
+  if (args[0] === '__daemon-worker') {
+    const { runWorkspaceWorker } = await import('../../../../cell/packages/ai-runtime-host-capsule/src/daemonWorker')
+    const { createProviderRequestSqliteLedgerBindingFactory } = await import('../../organ-support/src/providerRequestSqliteLedger')
+    runWorkspaceWorker({providerRequestObservationBindingFactory:createProviderRequestSqliteLedgerBindingFactory()}); return
+  }
+  if (args[0] === "serve" || args[0] === 'daemon') {
+    await yargs(args).scriptName("eidolon").version(packageJson.version).command(serve).command(daemon).strict().help().parseAsync()
     return
   }
   const [{ TuiThreadCommand: thread }, { exec }, { run }, { replay }, { sessionUpgrade }, { sessionFork }, { trace }, { workflow }, { globalCommand }] = await Promise.all([
@@ -17,6 +23,7 @@ async function main() {
     .scriptName("eidolon")
     .version(packageJson.version)
     .command(serve)
+    .command(daemon)
     .command(exec)
     .command(run)
     .command(replay)

@@ -326,15 +326,21 @@ function reduceReasoning(
   }
 
   if (policy.reasoningContent === "ignore") return;
+  // Some DeepSeek relays emit delta.reasoning. Admit its string payload into
+  // the same canonical field; never create a parallel history representation.
+  const relayReasoning = typeof delta?.reasoning === "string"
+    ? delta.reasoning
+    : undefined;
   const sources = [delta, choice, chunk];
   const observed = sources.some(
     (source) =>
       source && typeof source === "object" && "reasoning_content" in source,
-  );
+  ) || relayReasoning !== undefined;
   const reasoning = normalizeChatCompletionsContent(
     delta?.reasoning_content ??
       choice?.reasoning_content ??
-      chunk?.reasoning_content,
+      chunk?.reasoning_content ??
+      relayReasoning,
   );
   if (observed) {
     state.reasoningContentObserved = true;

@@ -34,7 +34,7 @@ describe("official Chat Completions effect bundle contract", () => {
       "openai-official-chat",
     );
     expect(contractIdentity(deepSeekOfficialChatEffectBundle)).toBe(
-      "deepseek-official-chat",
+      "deepseek-chat",
     );
     expect(openAIOfficialChatEffectBundle.streamCore).toBe(
       deepSeekOfficialChatEffectBundle.streamCore,

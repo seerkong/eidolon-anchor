@@ -7,6 +7,19 @@ import { createPublicMessageRead, measurePublicMessage, readPublicMessageBytes }
 import type { HostRequest, ObservationPayloads } from "../../cell/packages/ai-runtime-host-contract/src"
 
 const request = (principalId = "caller"): HostRequest => ({ principal: { principalId, grantsVersion: "v1" }, requestId: "trace" })
+test("public tool outcome survives full and truncated reads without guessing over explicit facts", () => {
+  for (const [content, metadata, failed] of [
+    ["plain failed result".repeat(2000), { isError: true }, true],
+    ["Error: literal successful output".repeat(2000), { isError: false }, false],
+    ["Error: legacy failed output", undefined, true],
+  ] as const) {
+    const read = createPublicMessageRead({ recordId: "record", message: { role: "tool", toolCallId: "call", content, resultMetadata: metadata } })
+    const total = measurePublicMessage(read)
+    const full = JSON.parse(new TextDecoder().decode(readPublicMessageBytes(read, 0, total)))
+    expect(full.parts[0].isError).toBe(failed)
+    expect(read.preview(4096, total).preview.parts[0]).toMatchObject({ kind: "tool_result", toolCallId: "call", isError: failed })
+  }
+})
 function fixture(limits?: Parameters<typeof createPublicHistoryReader>[0]["limits"]) {
   const actor = createActor({ key: "main" }); const vm = createVM({ controlActorKey: actor.key, actors: { main: actor }, outerCtx: { metadata: { sessionId: "s" } } })
   const owner = ensureVmConversationDomainRuntime(vm); let time = 0; let grant = "v1"; let allowed = true; let id = 0

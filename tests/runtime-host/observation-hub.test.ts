@@ -18,6 +18,46 @@ function fixture(limits: ObservationRuntime["limits"] = {}) {
 }
 async function snapshot(it: AsyncIterator<ObservationFrame>): Promise<SessionSnapshot> { const frame = (await it.next()).value; expect(frame.kind).toBe("snapshot"); return frame.payload }
 
+test("maintenance close retires captured snapshots and backlog, delivers one terminal, and rechecks grants", async () => {
+  const { runtime, denied } = fixture()
+  const subscriptions = [captureObservation(runtime, request(), { actors: ["A"] }), captureObservation(runtime, request("other"), { actors: ["B"] })]
+  const readers = subscriptions.map(s => s.frames[Symbol.asyncIterator]())
+  // This next already captured a bootstrap item but has not returned it to the caller.
+  const captured = readers[0]!.next()
+  publishObservation(runtime, { kind: "history.committed", payload: { actorId: "A", historyRevision: "r", message: message("retired") } })
+  closeObservations(runtime, "maintenance")
+  denied.add("B/observe")
+  const terminal = await captured
+  expect(terminal.done).toBe(false)
+  expect(terminal.value).toMatchObject({ kind: "session.closing", payload: { reason: "maintenance" } })
+  expect(await readers[0]!.next()).toEqual({ done: true, value: undefined })
+  expect(await readers[1]!.next()).toEqual({ done: true, value: undefined })
+  expect(runtime.state.observers.size).toBe(0)
+  expect(() => captureObservation(runtime, request(), { actors: [] })).toThrow("session_closing")
+})
+
+test("terminal question details survive reconnect with no answer authority and old display records yield to pending capacity", async () => {
+  const { runtime, denied } = fixture()
+  for (let index = 0; index < 65; index++) publishObservation(runtime, { kind: "question.updated", payload: {
+    actorId: "A", turnId: `t${index}`, questionnaireId: `q${index}`, state: "answered", canAnswer: false,
+    schema: { title: `Question ${index}`, questions: [{ id: "q", prompt: "Original question" }] },
+  } })
+  expect(runtime.state.projection.questions.size).toBe(64)
+  expect(runtime.state.projection.questions.has("q0")).toBe(false)
+  const sub = captureObservation(runtime, request(), { actors: ["A"] })
+  const first = await snapshot(sub.frames[Symbol.asyncIterator]())
+  expect(first.questions.at(-1)).toMatchObject({ state: "answered", canAnswer: false, schema: { title: "Question 64" } })
+  sub.close(); denied.add("A/answer_question")
+  const restricted = captureObservation(runtime, request(), { actors: ["A"] })
+  const redacted = await snapshot(restricted.frames[Symbol.asyncIterator]())
+  expect(redacted.questions.every(q => !q.schema && !q.canAnswer)).toBe(true)
+  restricted.close()
+  publishObservation(runtime, { kind: "question.updated", payload: { actorId: "A", turnId: "live", questionnaireId: "live", state: "pending", canAnswer: true } })
+  expect(runtime.state.projection.questions.size).toBe(64)
+  expect(runtime.state.projection.questions.get("live")?.canAnswer).toBe(true)
+  closeObservations(runtime)
+})
+
 test("capture register barrier queues reentrant commit after its exact snapshot sequence", async () => {
   const { runtime } = fixture(); const queues = runtime.queues; let once = false
   runtime.queues = { ...queues, frameBytes(frame) {

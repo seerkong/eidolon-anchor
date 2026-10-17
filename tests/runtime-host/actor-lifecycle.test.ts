@@ -74,3 +74,18 @@ test("unknown kinds are unsupported and organization creation is denied before r
   expect(() => f.lifecycle.beforeRegister({ actorId: "org", actorKey: "org", actorType: "delegate", identity: { kind: "member" } })).toThrow("organization_creation_unsupported")
   expect(f.vm.actors.org).toBeUndefined(); expect(f.vm.actorRuntime.has("org")).toBe(false)
 })
+
+test('only exact resource-admitted organization can register; adoption still obeys capacity and cannot grant generic identity creation', () => {
+  const f = fixture()
+  const proof = { bindingRef: 'resource://org.Binding', semanticFingerprint: `sha256:${'a'.repeat(64)}` }
+  const create = (maxActors = 64) => createHostActorLifecycle({ vm: f.vm, observations: f.observations, actorViews: f.actorViews, maxActors,
+    permitsResourceHolonAdoption: input => input.holonRef === 'organization' && input.bindingRef === proof.bindingRef && input.semanticFingerprint === proof.semanticFingerprint })
+  const candidate = { actorId: 'organization', actorKey: 'holon:organization', actorType: 'detached',
+    identity: { kind: 'holon', holonId: 'organization', governance: 'leader_led' }, resourceAdmission: proof }
+  expect(() => create().beforeRegister(candidate)).not.toThrow()
+  for (const invalid of [{ ...candidate, actorId: 'other' }, { ...candidate, actorKey: 'other' }, { ...candidate, actorType: 'interactive' },
+    { ...candidate, identity: { ...candidate.identity, kind: 'member' } }, { ...candidate, resourceAdmission: { ...proof, semanticFingerprint: 'foreign' } },
+    { ...candidate, identity: undefined }]) expect(() => create().beforeRegister(invalid)).toThrow('organization_creation_unsupported')
+  expect(() => create(1).beforeRegister(candidate)).toThrow('actor_capacity')
+  expect(Object.keys(f.vm.actors)).toEqual(['main'])
+})

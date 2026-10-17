@@ -135,6 +135,7 @@ const CODEX_TRANSPORT_MARKER_KEYS = [
 export function refreshProviderTransportMarkers(
   modelConfig: { provider?: string; adapter?: string; options?: Record<string, unknown> } | null | undefined,
   workdir?: string,
+  globalRoot?: string,
 ): void {
   if (!modelConfig || !modelConfig.provider || !modelConfig.options) return;
   if (tryNormalizeAdapterName(modelConfig.adapter) !== "codex") return;
@@ -143,7 +144,7 @@ export function refreshProviderTransportMarkers(
     const projectCatalog = workdir
       ? path.join(workdir, LLM_CONFIG_DIR_NAME, PROVIDER_CONFIG_FILE_NAME)
       : undefined;
-    const catalogPath = projectCatalog && fs.existsSync(projectCatalog) ? projectCatalog : undefined;
+    const catalogPath = projectCatalog && fs.existsSync(projectCatalog) ? projectCatalog : globalRoot ? path.join(globalRoot, PROVIDER_CONFIG_FILE_NAME) : undefined;
     catalog = loadProviderCatalog(catalogPath);
   } catch {
     return;

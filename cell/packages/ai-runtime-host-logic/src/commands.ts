@@ -8,6 +8,11 @@ export class HostProtocolFailure extends Error {
   constructor(readonly status: number, readonly error: ProtocolError) { super(error.code) }
 }
 
+/** An owner may already have committed. Never report rejection or retry it. */
+export class HostCommandOutcomeUnknown extends Error {
+  constructor(readonly code: string, readonly result?: CommandStatus["result"]) { super(code) }
+}
+
 type CommandEntry = {
   hash: string
   principalId: string
@@ -38,7 +43,7 @@ export type CommandRuntime = {
     digest: (text: string) => string
     actor: (actorId: string) => ActorSummary | undefined
     preflight: (command: CommandEnvelope, admission: { request: HostRequest; status: CommandStatus }) => void | CommandAdmissionLease
-    execute: (command: CommandEnvelope, turnId: string | undefined, request: HostRequest) => Promise<{ actorId?: string } | void>
+    execute: (command: CommandEnvelope, turnId: string | undefined, request: HostRequest) => Promise<CommandStatus["result"] | void>
     defer: (run: () => Promise<void>) => void
     publishCommand: (principalId: string, status: CommandStatus) => void
   }
@@ -72,14 +77,23 @@ function checkAuthorization(runtime: CommandRuntime, request: HostRequest, comma
   }
 }
 
-function updateCommand(runtime: CommandRuntime, key: string, state: CommandStatus["state"], result?: { actorId?: string }, error?: ProtocolError): void {
+function updateCommand(runtime: CommandRuntime, key: string, state: CommandStatus["state"], result?: CommandStatus["result"], error?: ProtocolError): void {
   const entry = runtime.index.entries.get(key)
   if (!entry?.status) return
-  entry.status = { ...entry.status, state, ...(result ? { result } : {}), ...(error ? { error } : {}) }
+  const { result: _previousResult, error: _previousError, ...identity } = entry.status
+  entry.status = { ...identity, state, ...(result ? { result } : {}), ...(error ? { error } : {}) }
   const turn = entry.status.turnId ? runtime.index.turns.get(entry.status.turnId)?.turn : undefined
   if (turn) entry.status = { ...entry.status, associatedTurn: turn }
   if (state !== "accepted" && (!turn || terminal(turn))) entry.terminalAt = runtime.identity.now()
   runtime.effects.publishCommand(entry.principalId, entry.status)
+}
+
+/** Publish an explicitly verified owner outcome for a still-retained unknown command. */
+export function recordHostCommandOutcome(runtime: CommandRuntime, principalId: string, input: { commandId: string; epoch: string; state: "applied" | "rejected"; result?: CommandStatus["result"]; error?: ProtocolError }): void {
+  if (input.epoch !== runtime.epoch) return
+  const key = keyFor(principalId, input.commandId)
+  if (runtime.index.entries.get(key)?.status?.state !== "unknown") return
+  updateCommand(runtime, key, input.state, input.result, input.error)
 }
 
 export function recordHostTurn(runtime: CommandRuntime, turn: AssociatedTurn): void {
@@ -207,24 +221,25 @@ export function admitHostCommand(runtime: CommandRuntime, request: HostRequest, 
     if (questionControl && questionControl.record.state !== "pending") fail(request, 409, "question_not_pending")
   }
   if (!runtime.index.accepting && !turnControl) fail(request, 409, "session_closing")
-  if (command.kind === "send_text") {
+  const sendsInput = command.kind === "send_text" || command.kind === "send_input" || command.kind === "continue_goal"
+  if (sendsInput) {
     const queued = [...runtime.index.turns.values()].filter((item) => item.turn.state === "queued")
     if (queued.length >= 128 || queued.filter((item) => item.turn.actorId === command.payload.actorId).length >= 32) fail(request, 429, "turn_capacity")
   }
   const reserved = command.kind === "cancel_turn" ? turnControl?.cancelReserved : command.kind === "answer_question" ? questionControl?.answerReserved : false
-  const needed = command.kind === "send_text" ? 2 : reserved ? 0 : 1
+  const needed = sendsInput ? 2 : reserved ? 0 : 1
   if (!available(runtime, limits, needed)) fail(request, 429, "command_capacity")
-  const turnId = command.kind === "send_text" ? runtime.identity.newId() : command.kind === "cancel_turn" || command.kind === "answer_question" ? command.payload.turnId : undefined
+  const turnId = sendsInput ? runtime.identity.newId() : command.kind === "cancel_turn" || command.kind === "answer_question" ? command.payload.turnId : undefined
   const receipt: CommandReceipt = { commandId: command.commandId, epoch: runtime.epoch, status: "accepted", acceptedAt: new Date(runtime.identity.now()).toISOString(), ...(turnId ? { turnId } : {}) }
-  const associatedTurn: AssociatedTurn | undefined = command.kind === "send_text"
-    ? { actorId: command.payload.actorId, turnId: turnId!, state: "queued", canCancel: true, pendingQuestionIds: [] }
+  const associatedTurn: AssociatedTurn | undefined = sendsInput
+    ? { actorId: command.payload.actorId, turnId: turnId!, state: "queued", canCancel: true, pendingQuestionIds: [], ...(command.kind === "continue_goal" ? { source: "goal" as const, goalId: command.payload.goalId } : {}) }
     : turnControl?.turn
   const initialStatus: CommandStatus = { commandId: command.commandId, epoch: runtime.epoch, state: "accepted", ...(turnId ? { turnId } : {}), ...(associatedTurn ? { associatedTurn } : {}) }
-  if (command.kind === "send_text" && !controlAvailable(runtime, limits, { principalId: request.principal.principalId, commandKey: key, turn: associatedTurn, cancelReserved: true })) fail(request, 429, "control_capacity")
+  if (sendsInput && !controlAvailable(runtime, limits, { principalId: request.principal.principalId, commandKey: key, turn: associatedTurn, cancelReserved: true })) fail(request, 429, "control_capacity")
   const lease = runtime.effects.preflight(command, { request, status: initialStatus })
-  lease?.commit()
+  try { lease?.commit() } catch (error) { lease?.release(); throw error }
   runtime.index.entries.set(key, { hash, principalId: request.principal.principalId, requestId: request.requestId, receipt, status: initialStatus })
-  if (command.kind === "send_text") {
+  if (sendsInput) {
     runtime.index.reserved++
     runtime.index.turns.set(turnId!, { principalId: request.principal.principalId, commandKey: key, turn: associatedTurn!, cancelReserved: true })
   } else if (command.kind === "cancel_turn" && turnControl) {
@@ -241,13 +256,17 @@ export function admitHostCommand(runtime: CommandRuntime, request: HostRequest, 
   const immutableCommand = structuredClone(command)
   runtime.effects.defer(async () => {
     const entry = runtime.index.entries.get(key)
-    if (entry?.status?.state !== "accepted") return
+    if (entry?.status?.state !== "accepted") { lease?.release(); return }
     try {
       const result = await runtime.effects.execute(immutableCommand, turnId, request)
       if (entry.status?.state === "accepted") updateCommand(runtime, key, "applied", result || undefined)
-    } catch {
+    } catch (error) {
       lease?.release()
-      if (command.kind === "send_text" && turnId) {
+      if (error instanceof HostCommandOutcomeUnknown) {
+        updateCommand(runtime, key, "unknown", error.result, { code: error.code, requestId: request.requestId, retryable: false, state: "unknown" })
+        return
+      }
+      if (sendsInput && turnId) {
         const turn = runtime.index.turns.get(turnId)?.turn
         if (turn && !terminal(turn)) recordHostTurn(runtime, { ...turn, state: "failed", canCancel: false, pendingQuestionIds: [] })
       } else if (command.kind === "cancel_turn" && turnControl && !terminal(turnControl.turn)) {
@@ -255,7 +274,7 @@ export function admitHostCommand(runtime: CommandRuntime, request: HostRequest, 
       } else if (command.kind === "answer_question" && questionControl && questionControl.record.state === "pending") {
         questionControl.answerKey = undefined; questionControl.responseHash = undefined; questionControl.answerReserved = true; runtime.index.reserved++
       }
-      updateCommand(runtime, key, "rejected", undefined, { code: "command_failed", requestId: request.requestId, retryable: false })
+      updateCommand(runtime, key, "rejected", undefined, { code: error instanceof HostProtocolFailure ? error.error.code : "command_failed", requestId: request.requestId, retryable: false })
       const failed = runtime.index.entries.get(key)
       if (failed) failed.terminalAt = runtime.identity.now()
     }

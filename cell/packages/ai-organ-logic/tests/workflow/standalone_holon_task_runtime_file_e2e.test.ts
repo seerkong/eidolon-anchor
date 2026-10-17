@@ -34,51 +34,54 @@ describe("standalone Holon task runtime File TaskSpace E2E", () => {
     const root = await supportRoot()
     const accepted = acceptedEffects()
     const host = await openHost({ root, accepted: accepted.state, waitingProbeMs: 20 })
+    try {
+      const final = await host.capability.service.assign(
+        { kind: "holon", holonRef: "holon-review" },
+        invocation("final", "final"),
+        processorConfig,
+      )
+      expect(final.settlement).toMatchObject({
+        status: "succeeded",
+        result: { summary: expect.stringContaining("completed:") },
+      })
+      expect(accepted.count()).toBe(1)
 
-    const final = await host.capability.service.assign(
-      { kind: "holon", holonRef: "holon-review" },
-      invocation("final", "final"),
-      processorConfig,
-    )
-    expect(final.settlement).toMatchObject({
-      status: "succeeded",
-      result: { summary: expect.stringContaining("completed:") },
-    })
+      const none = await host.capability.service.assign(
+        { kind: "member", holonRef: "holon-review", memberRef: "member-reviewer" },
+        invocation("none", "none"),
+        processorConfig,
+      )
+      const stream = await host.capability.service.assign(
+        { kind: "admission", admissionId: host.admission.admissionId },
+        invocation("stream", "stream"),
+        processorConfig,
+      )
+      expect(none.settlement).toBeNull()
+      expect(stream.settlement).toBeNull()
+      expect(none.coordinatorWake.coordinatorActorRef)
+        .toBe(final.coordinatorWake.coordinatorActorRef)
+      expect(stream.coordinatorWake.coordinatorActorRef)
+        .toBe(final.coordinatorWake.coordinatorActorRef)
+      // none/stream may already progress while the other assignment is admitted.
+      // Exact-once is asserted at terminal settlement, not before background work.
+      await Promise.all([
+        waitForTerminal(host, none.task.taskSpaceId, none.task.taskId),
+        waitForTerminal(host, stream.task.taskSpaceId, stream.task.taskId),
+      ])
+      expect(accepted.count()).toBe(3)
 
-    const none = await host.capability.service.assign(
-      { kind: "member", holonRef: "holon-review", memberRef: "member-reviewer" },
-      invocation("none", "none"),
-      processorConfig,
-    )
-    const stream = await host.capability.service.assign(
-      { kind: "admission", admissionId: host.admission.admissionId },
-      invocation("stream", "stream"),
-      processorConfig,
-    )
-    expect(none.settlement).toBeNull()
-    expect(stream.settlement).toBeNull()
-    expect(none.coordinatorWake.coordinatorActorRef)
-      .toBe(final.coordinatorWake.coordinatorActorRef)
-    expect(stream.coordinatorWake.coordinatorActorRef)
-      .toBe(final.coordinatorWake.coordinatorActorRef)
-    expect(accepted.count()).toBe(1)
-
-    await Promise.all([
-      waitForTerminal(host, none.task.taskSpaceId, none.task.taskId),
-      waitForTerminal(host, stream.task.taskSpaceId, stream.task.taskId),
-    ])
-    expect(accepted.count()).toBe(3)
-
-    const replayed = await host.capability.service.assign(
-      { kind: "holon", holonRef: "holon-review" },
-      invocation("final", "final"),
-      processorConfig,
-    )
-    expect(replayed.task.replayed).toBe(true)
-    expect(replayed.coordinatorWake.replayed).toBe(true)
-    expect(replayed.settlement?.replayed).toBe(true)
-    expect(accepted.count()).toBe(3)
-    host.support.close()
+      const replayed = await host.capability.service.assign(
+        { kind: "holon", holonRef: "holon-review" },
+        invocation("final", "final"),
+        processorConfig,
+      )
+      expect(replayed.task.replayed).toBe(true)
+      expect(replayed.coordinatorWake.replayed).toBe(true)
+      expect(replayed.settlement?.replayed).toBe(true)
+      expect(accepted.count()).toBe(3)
+    } finally {
+      host.support.close()
+    }
   })
 
   it("retains one support/coordinator owner per VM scope and rejects replacement", async () => {

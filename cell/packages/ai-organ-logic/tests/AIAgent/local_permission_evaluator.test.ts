@@ -6,6 +6,7 @@ import path from "path";
 import { configureLocalPermissionConfigStore } from "@cell/ai-organ-logic";
 import {
   evaluateLocalToolPermission,
+  evaluatePermissionRuleSet,
   parseBashCommandSegments,
 } from "@cell/ai-organ-logic/permissions/LocalPermissionEvaluator";
 import { resolveWorkspaceAccessGrantSelection } from "@cell/ai-organ-logic/permissions/LocalPermissionRuntime";
@@ -35,6 +36,16 @@ afterEach(() => {
 });
 
 describe("local permission evaluator", () => {
+  it("matches explicit wildcard rules across multiline unsupported syntax without granting protected writes",()=>{
+    configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
+    const root=makeTempRoot(),workDir=path.join(root,'work'),authorityRoot=path.join(root,'authority');
+    fs.mkdirSync(workDir);writePermissions(authorityRoot,{bash:{'*':'allow'}});
+    const command='set -e\nprintf "test" > local.log\necho "exit=$?"';
+    expect(evaluatePermissionRuleSet({workDir,authorityRoot,permissionName:'bash',pattern:command}).action).toBe('allow');
+    const decision=evaluateLocalToolPermission({workDir,authorityRoot,toolName:'bash',payload:{command}});
+    expect(decision.action).toBe('allow');
+    expect(()=>evaluateLocalToolPermission({workDir,authorityRoot,toolName:'bash',payload:{command:command+'\nprintf unsafe > '+path.join(authorityRoot,'permissions.json')}})).toThrow('Protected local permission');
+  });
   it("denies accidental parent traversal without creating an external-access grant", () => {
     configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
     const root = makeTempRoot();

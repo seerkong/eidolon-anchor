@@ -19,8 +19,19 @@ function rawTextNode(tag: string, text: string): TextElementNode {
   };
 }
 
+// XNL treats bare `undefined` as a Word node, not a missing JSON property.
+// Questionnaires are JSON data: omit optional object fields recursively before encoding.
+function jsonData(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(child => child === undefined ? null : jsonData(child));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).filter(([, child]) => child !== undefined)
+      .map(([key, child]) => [key, jsonData(child)]));
+  }
+  return value;
+}
+
 function omitUndefined(value: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(value).filter(([, child]) => child !== undefined));
+  return jsonData(value) as Record<string, unknown>;
 }
 
 function optionalMetadata(metadata: Record<string, XnlNode>, key: string, value: string | number | undefined): void {

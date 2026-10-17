@@ -273,6 +273,36 @@ it("shutdown rejects new admission and awaits actual provider and detached task 
 });
 
 describe("independent turn human wait boundaries", () => {
+  it("does not lose an answer delivered while the human wait step is still installing", async () => {
+    const main = createActor({ key: "main" });
+    const vm = createVM({ controlActorKey: main.key, actors: { main }, options: { storage: { files: false, logs: false } } });
+    const published = deferred(), installWait = deferred();
+    let steps = 0, answered = false;
+    const driver = createAiAgentOrchestratorDriver({ fibers: [], runStep: async ({ actor }) => {
+      steps++;
+      actor.drainMailbox("humanInput");
+      if (steps === 1) {
+        published.resolve(); await installWait.promise;
+        return { kind: "suspend", reason: "human_answer" as any, suspendPolicy: "continue_others" };
+      }
+      answered = actor.drainMailbox("toolResult").length > 0;
+      return { kind: "suspend", reason: "idle_external" as any, suspendPolicy: "continue_others" };
+    } });
+    const target = createInteractiveActor({ vm, driver, newId: () => "early-answer", now: Date.now }, {});
+    const coordinator = createAiAgentRuntimeCoordinator({ vm, driver });
+    cleanups.push(() => { installWait.resolve(); coordinator.dispose(); });
+    const turn = coordinator.admitInteractiveTurn({ actorId: target.actor.id, mainFiberId: target.fiberId, turnId: "early-answer-turn",
+      deliver: () => { driver.emitFiberSignal({ fiberId: target.fiberId, signalKind: "mailbox_enqueue", mailbox: { kind: "humanInput", payload: "question" }, idempotencyKey: "question" }); },
+    });
+    await published.promise;
+    driver.emitFiberSignal({ fiberId: target.fiberId, signalKind: "mailbox_enqueue", mailbox: { kind: "toolResult", payload: { toolCallId: "question-tool", content: "answer" } }, idempotencyKey: "early-answer" });
+    coordinator.resumeInteractiveTurn({ actorId: target.actor.id, turnId: turn.turnId });
+    installWait.resolve();
+    await until(() => answered, "early answer is consumed by the same turn");
+    expect((await turn.settled).status).toBe("settled");
+    expect(steps).toBe(2);
+  });
+
   it("keeps A waiting and queued while B runs, then resumes the same turn", async () => {
     const main = createActor({ key: "main" });
     const vm = createVM({ controlActorKey: main.key, actors: { main }, options: { storage: { files: false, logs: false } } });

@@ -319,6 +319,9 @@ describe("conversation domain runtime", () => {
     expect(session?.sessionIndex.session.activeActorKey).toBe("main");
     expect(session?.sessionIndex.session.activeSelection?.activeActorKey).toBe("main");
     expect(session?.actorBindings["member:alice"]?.historyHeadGenerationId).toBe("member:alice__active");
+    expect(session?.historyIndex.heads.main).toMatchObject({ actorId: "actor-main", activeGenerationId: "main__active", visibleGenerationIds: ["main__active"] });
+    expect(session?.historyIndex.heads["member:alice"]).toMatchObject({ actorId: "actor-alice", activeGenerationId: "member:alice__active", visibleGenerationIds: ["member:alice__active"] });
+    expect(session?.historyIndex.generations["main__active"]).toMatchObject({ actorKey: "main", actorId: "actor-main", sealed: false });
 
     expect(materializeConversationHistoryMessagesFromVm({ vm, actorKey: "main" }).map((message) => String(message.content))).toEqual([
       "primary prompt",

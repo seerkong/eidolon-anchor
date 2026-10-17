@@ -1,7 +1,12 @@
 import fs from "node:fs"
+import { saveAiAgentRuntimeSnapshot, type RuntimeSnapshotSaveResult } from "@cell/ai-organ-logic/persistence/RuntimeSnapshots"
 import os from "node:os"
 import path from "node:path"
 import { randomUUID } from "node:crypto"
+import { getThreadGoal, updateThreadGoalStatus } from "@cell/ai-organ-logic/goals/ThreadGoalManager"
+import type { ThreadGoalContinuationAdmission } from "@cell/ai-organ-logic/goals/ThreadGoalRuntime"
+import { ensureVmRuntimeContext } from "@cell/ai-core-logic/runtime/runtime"
+import { extendActorRetirementFacetRegistry, requireActiveActor } from "@cell/ai-organ-logic/runtime/ActorRetirementFacet"
 import { resolveEidolonGlobalRoot } from "@cell/ai-support/system-skill/SystemSkillInstaller"
 
 import {
@@ -14,11 +19,15 @@ import {
   ensureVmRxData,
   isRuntimeStorageLogsEnabled,
   recoverHeartbeatSchedules,
+  ensureHeartbeatSchedulerState,
+  cancelHeartbeatSchedule,
   startHeartbeatSchedulerWorker,
   type DomainRuntimeVm,
   AgentRegistry,
 } from "@cell/ai-core-logic"
 import { applyActorModelConfigControlSignals, hasPendingAiAgentWakeMailbox, type AiAgentActor } from "@cell/ai-core-logic/runtime/actor"
+import type { ConversationSessionForkRuntimeEffects } from "@cell/ai-organ-logic/conversation/ConversationSessionForkRuntime"
+import type { ConversationSessionRewindRuntimeEffects } from "@cell/ai-organ-logic/conversation/ConversationSessionRewindRuntime"
 import {
   createRuntimeLlmAdapter,
   createProviderDiagnosticsCollector,
@@ -118,9 +127,12 @@ import {
 import type {
   ConversationSessionForkCommand,
   ConversationSessionForkResult,
+  ConversationSessionForkReceipt,
   ConversationSessionRewindCommand,
   ConversationSessionRewindResult,
+  ConversationSessionRewindReceipt,
 } from "@cell/ai-organ-contract"
+import { readConversationForkCommitEvidence, readConversationRewindCommitEvidence, type ConversationCommitEvidence } from "@cell/ai-organ-logic/conversation/ConversationCommitEvidence"
 import { ResourceVFSLoaderOps } from "@cell/symbiont-logic/resource/ResourceVFSLoader"
 import { createLegacyResourceVfsProjectionFromReadPort } from "@cell/symbiont-logic/resource/EffectiveEidolonVfsMaterializer"
 
@@ -147,6 +159,17 @@ export type RuntimeBridgeInitStatus = {
 
 type RuntimeBridgeInitStatusHandler = (status: RuntimeBridgeInitStatus) => void
 
+export type ConversationForkInvocation = {
+  actorId: string
+  beforeSourceRead?: () => Promise<void>
+  beforeCommit?: ConversationSessionForkRuntimeEffects["beforeCommit"]
+}
+export type ConversationRewindInvocation = {
+  actorId: string
+  beforeSourceRead?: () => Promise<void>
+  beforeCommit?: ConversationSessionRewindRuntimeEffects["beforeCommit"]
+}
+
 export type SessionRuntimeBridge = {
   /** Binding descriptor produced by the shared profile composition path. */
   bindingDescriptor?: RuntimeCompositionBindingDescriptor
@@ -156,6 +179,7 @@ export type SessionRuntimeBridge = {
   setActorActiveModel?: (target: {
     laneId?: string
     actorId?: string
+    requestedBy?: string
   }, model: RuntimeActiveModelSelection) => Promise<ActorSurfaceProjectionData>
   turn: (
     input: InputContent,
@@ -170,7 +194,9 @@ export type SessionRuntimeBridge = {
     onChunk?: (chunk: string) => void | Promise<void>
     onControl?: (control: SessionControl) => void | Promise<void>
   }) => Promise<string>
-  compact: () => Promise<{ ok: boolean; message: string }>
+  compact: (target?: { actorId: string; beforeCompact?: () => void }) => Promise<{
+    ok: boolean; message: string; compaction?: { compacted: boolean; tokensBefore: number; messagesAfter: number }
+  }>
   callTool: (name: string, input: unknown) => Promise<unknown>
   callWorkflowHostCommand: (name: string, input: unknown) => Promise<unknown>
   getActorSurface?: (options?: {
@@ -194,7 +220,8 @@ export type SessionRuntimeBridge = {
     projection: ActorSurfaceProjectionData
   }>
   abort: () => Promise<void>
-  dispose: () => void | Promise<void>
+  /** already_saved is only for a maintenance owner that just committed a quiet checkpoint. */
+  dispose: (options?: { checkpoint?: "already_saved" }) => void | Promise<void>
   subscribeNotifications: (handler: (notification: RuntimeBridgeNotification) => void) => { unsubscribe: () => void }
   subscribeUsage?: (handler: (usage: AiAgentVmUsageData) => void) => { unsubscribe: () => void }
   subscribeHistoryEvents?: (handler: (event: RuntimeBridgeHistoryEvent) => void) => { unsubscribe: () => void }
@@ -221,10 +248,12 @@ export type SessionRuntimeBridge = {
   /** Conversation-owned durable fork command; surfaces never pass messages or paths. */
   forkConversationSession?: (
     command: ConversationSessionForkCommand,
+    target?: ConversationForkInvocation,
   ) => Promise<ConversationSessionForkResult>
   /** Conversation-owned durable same-session rewind command. */
   rewindConversationSession?: (
     command: ConversationSessionRewindCommand,
+    target?: ConversationRewindInvocation,
   ) => Promise<ConversationSessionRewindResult>
   /** Sanitized, read-only timing projection over existing runtime domains. */
   readTimingProjection?: (window: RuntimeTimingWindow) => RuntimeTimingProjection
@@ -238,6 +267,8 @@ export type SessionRuntimeBridge = {
 
 export type SessionRuntimeConfig = {
   workDir: string
+  /** Trusted composition only: source configuration authority can differ from the tools' cwd. */
+  configurationWorkDir?:string
   /** Explicit authority root for hosted instances and isolated test runtimes. */
   globalRoot?: string
   adapter?: string
@@ -300,18 +331,33 @@ export type SessionRuntimeReady = {
   sessionDir: string
   resolveActorModelConfig(modelRef?: string): AiAgentActor["modelConfig"]
   prepareActor(actor: AiAgentActor): Promise<void>
+  validateActorInput(actor: AiAgentActor, input: InputContent): InputContentPart[]
   persistSnapshot(): Promise<void>
+  /** Caller owns the coordinator lane; reports skipped checkpoints and never ticks execution. */
+  checkpointWithoutExecution(): Promise<RuntimeSnapshotSaveResult>
   activateSessionMaterialization(): void
+  conversationPersistence?: {
+    readForkCommit(receipt: ConversationSessionForkReceipt): Promise<ConversationCommitEvidence<ConversationSessionForkReceipt>>
+    readRewindCommit(receipt: ConversationSessionRewindReceipt): Promise<ConversationCommitEvidence<ConversationSessionRewindReceipt>>
+    synchronizeActor(actorId: string, beforeRead: () => void): Promise<void>
+  }
 }
 
-export type SessionRuntimeExtensionContext = Pick<SessionRuntimeReady, "vm" | "actor" | "driver" | "sessionDir" | "activateSessionMaterialization"> & {
+export type SessionRuntimeExtensionContext = Pick<SessionRuntimeReady, "vm" | "actor" | "driver" | "sessionDir" | "activateSessionMaterialization" | "persistSnapshot"> & {
   workDir: string
   workflowComponent: ReturnType<typeof createWorkflowComponentForRuntimeBinding>
 }
 
 export type SessionRuntimeAssemblyOptions = {
   sessionKey: string
+  /** Trusted owner storage. Managed executions use their independent root, outside the Session directory. */
+  ownedSessionDir?:string
   config: SessionRuntimeConfig
+  /** Web serve --model is the initial default; explicit per-actor durable selections survive reopening. CLI run keeps its operator override semantics. */
+  preserveRecoveredModel?: boolean
+  /** Installs the shell execution policy before any background/recovered work starts. */
+  requireExplicitGoalActivation?: boolean
+  goalContinuationAdmission?: ThreadGoalContinuationAdmission
   presentationFactory?: SessionPresentationFactory
   additionalWatchedProjection?: AdditionalWatchedProjection
   onInitStatus?: RuntimeBridgeInitStatusHandler
@@ -836,10 +882,11 @@ export async function createSessionRuntimeAssembly(
   const llmAdapterFactory = llmAdapterFactoryOverride
   const assemblyFactory = runtimeAssemblyFactoryOverride
   const paths = createShellRuntimePaths(runtimeConfig.workDir)
+  const configurationWorkDir=runtimeConfig.configurationWorkDir??paths.WORKDIR,configurationPaths=createShellRuntimePaths(configurationWorkDir)
   const normalizedRuntimeMetadata = normalizeSessionRuntimeMetadata(paths.WORKDIR, runtimeConfig.metadata, runtimeConfig.globalRoot)
   const preparedEffectiveVfs = await prepareEffectiveEidolonVfs({
     homeEidolonRoot: String((normalizedRuntimeMetadata.local_permissions as Record<string, unknown>).authority_root),
-    workspaceEidolonRoot: path.join(paths.WORKDIR, ".eidolon"),
+    workspaceEidolonRoot: path.join(configurationWorkDir, ".eidolon"),
   })
   return withEffectiveVfsLifetime<SessionRuntimeBridge>(preparedEffectiveVfs, async () => {
   const resourcePackages = isPlainRecord(normalizedRuntimeMetadata.resourcePackages)
@@ -867,7 +914,7 @@ export async function createSessionRuntimeAssembly(
   if (!runtimeSupport) {
     throw new Error("Runtime unavailable: runtime profile did not provide runtime support descriptor")
   }
-  const agentLoader = runtimeSupport.createAgentLoader(paths.AGENTS_DIR)
+  const agentLoader = runtimeSupport.createAgentLoader(configurationPaths.AGENTS_DIR)
   const workflowComponent = createWorkflowComponentForRuntimeBinding({
     workDir: paths.WORKDIR,
     metadata: normalizedRuntimeMetadata,
@@ -916,7 +963,8 @@ export async function createSessionRuntimeAssembly(
     : {}
 
   const modelConfig = runtimeSupport.resolveActorModelConfig({
-    workDir: paths.WORKDIR,
+    workDir: configurationWorkDir,
+    globalRoot: runtimeConfig.globalRoot,
     agentKey: "main",
     modelRef: explicitRuntimeModelRef,
     strictModelRef: Boolean(explicitRuntimeModelRef),
@@ -928,7 +976,7 @@ export async function createSessionRuntimeAssembly(
   // provider's Responses-WebSocket-v2 transport config. Gap-fill the transport
   // markers from the current catalog keyed by the session's actual provider name
   // so continuity activates without re-resolving the whole (frozen) config.
-  refreshProviderTransportMarkers(modelConfig, paths.WORKDIR)
+  refreshProviderTransportMarkers(modelConfig, configurationWorkDir, runtimeConfig.globalRoot)
 
   const adapterType = configuredAdapterType ?? modelConfig.adapter
   if (!adapterType) {
@@ -936,7 +984,8 @@ export async function createSessionRuntimeAssembly(
   }
   const sessionDir = runtimeConfig.ephemeral
     ? fs.mkdtempSync(path.join(os.tmpdir(), `eidolon-exec-${sessionKey}-`))
-    : ensureShellRuntimeSessionDir(paths.WORKDIR, sessionKey)
+    : options.ownedSessionDir??ensureShellRuntimeSessionDir(paths.WORKDIR, sessionKey)
+  if(options.ownedSessionDir&&(!path.isAbsolute(options.ownedSessionDir)||runtimeConfig.ephemeral))throw new Error('invalid_owned_session_directory')
   const usesSessionStorage = runtimeBinding.descriptor.storage.files || runtimeBinding.descriptor.storage.logs
   const writerLease = usesSessionStorage ? await createSessionWriterLeaseEffects().acquire(sessionDir) : null
   return withEffectiveVfsLifetime<SessionRuntimeBridge>({ dispose: () => writerLease?.release() }, async () => {
@@ -963,7 +1012,7 @@ export async function createSessionRuntimeAssembly(
   }
   const llmAdapter = await createRuntimeLlmAdapter({
     adapterType,
-    workDir: paths.WORKDIR,
+    workDir: configurationWorkDir,
     defaults: buildAdapterDefaults(),
     useMock: USE_MOCK,
     overrides: {
@@ -988,7 +1037,7 @@ export async function createSessionRuntimeAssembly(
 
   let mcpManager: MCPManager | null = null
   if (runtimeConfig.mcp !== false) {
-    const mcpServers = loadMcpServers(paths.MCP_DIR)
+    const mcpServers = loadMcpServers(configurationPaths.MCP_DIR)
     const mcpServerNames = Object.keys(mcpServers)
     if (mcpServerNames.length > 0) {
       options?.onInitStatus?.({
@@ -1135,6 +1184,19 @@ export async function createSessionRuntimeAssembly(
       },
     })
   })
+  ensureVmRuntimeContext(vm).actorFacetRuntime = extendActorRetirementFacetRegistry(ensureVmRuntimeContext(vm).actorFacetRuntime)
+  if (options.requireExplicitGoalActivation) {
+    ensureVmRuntimeContext(vm).threadGoalRuntime.requireExplicitActivation = true
+    if (getThreadGoal(vm)?.status === "active") updateThreadGoalStatus({ vm, status: "paused", suspensionReason: "runtime_restarted" })
+    for (const runtimeActor of Object.values(vm.actors)) {
+      runtimeActor.mailboxes.heartbeat = []
+    }
+    // Opening a Web workspace does not grant recovered schedules authority to execute.
+    // New schedules created by subsequently admitted work still use the normal scheduler.
+    for (const schedule of Object.values(ensureHeartbeatSchedulerState(vm).schedules)) {
+      cancelHeartbeatSchedule(vm, { scheduleId: schedule.scheduleId, reason: 'web_runtime_restarted' })
+    }
+  }
   const runtimeCoordinator = shellRuntimeFacade.createRuntimeCoordinator({
     vm,
     driver,
@@ -1144,7 +1206,7 @@ export async function createSessionRuntimeAssembly(
     },
     sealCompletedProgress,
     hookDefinitions: runtimeAssembly.hookDefinitions,
-    hookHandlers: createDefaultRuntimeHookHandlers(),
+    hookHandlers: createDefaultRuntimeHookHandlers({ goalContinuationAdmission: options.goalContinuationAdmission }),
   })
   const activateSessionMaterialization = () => {
     sessionMaterialized = true
@@ -1158,7 +1220,7 @@ export async function createSessionRuntimeAssembly(
   try {
   sessionExtension = await options.openExtension?.({
     vm, actor, driver, sessionDir, workDir: paths.WORKDIR,
-    workflowComponent, activateSessionMaterialization,
+    workflowComponent, activateSessionMaterialization, persistSnapshot,
   })
   const emitHeartbeatWakeSignal = (event: { schedule: HeartbeatSchedule; wake: HeartbeatWakePayload }) => {
     const fiberId = `${event.schedule.targetActorKey}:${event.schedule.targetActorId}`
@@ -1340,7 +1402,7 @@ export async function createSessionRuntimeAssembly(
 
   runtimeCoordinator.startBackgroundPump()
   const recoveredMailboxWorkFiberIds = getRecoveredMailboxWorkFiberIds()
-  if (recoveredHeartbeatFires.length > 0 || recoveredMailboxWorkFiberIds.length > 0) {
+  if (!options.requireExplicitGoalActivation && (recoveredHeartbeatFires.length > 0 || recoveredMailboxWorkFiberIds.length > 0)) {
     void runtimeCoordinator.enqueue(async () => {
       const now = Date.now()
       const fiberIds = new Set(recoveredMailboxWorkFiberIds)
@@ -1361,7 +1423,8 @@ export async function createSessionRuntimeAssembly(
 
   const resolveConfiguredActorModelConfig = () => {
     return runtimeSupport.resolveActorModelConfig({
-      workDir: paths.WORKDIR,
+      workDir: configurationWorkDir,
+      globalRoot: runtimeConfig.globalRoot,
       agentKey: "main",
       modelRef: explicitRuntimeModelRef,
       strictModelRef: Boolean(explicitRuntimeModelRef),
@@ -1377,8 +1440,8 @@ export async function createSessionRuntimeAssembly(
   // as unresolvable -> re-resolve the default preset).
   const resolveCurrentProviderCatalog = () => {
     try {
-      const projectCandidate = path.join(paths.WORKDIR, ".eidolon", PROVIDER_CONFIG_FILE_NAME)
-      const configPath = fs.existsSync(projectCandidate) ? projectCandidate : defaultProviderConfigPath()
+      const projectCandidate = path.join(configurationWorkDir, ".eidolon", PROVIDER_CONFIG_FILE_NAME)
+      const configPath = fs.existsSync(projectCandidate) ? projectCandidate : runtimeConfig.globalRoot ? path.join(runtimeConfig.globalRoot, PROVIDER_CONFIG_FILE_NAME) : defaultProviderConfigPath()
       return loadProviderCatalog(configPath)
     } catch {
       return null
@@ -1397,7 +1460,7 @@ export async function createSessionRuntimeAssembly(
     // provider's Responses-WebSocket-v2 transport config. Gap-fill the transport
     // markers from the current catalog keyed by the actor's actual provider name
     // so continuity activates without re-resolving the whole (frozen) config.
-    refreshProviderTransportMarkers(targetActor.modelConfig, paths.WORKDIR)
+    refreshProviderTransportMarkers(targetActor.modelConfig, configurationWorkDir, runtimeConfig.globalRoot)
     const nextAdapterType = targetActor.modelConfig.adapter || adapterType
     const previousAdapterState = adapterStateByActor.get(targetActor)
 
@@ -1419,7 +1482,7 @@ export async function createSessionRuntimeAssembly(
     if (shouldRefreshAdapter) {
       const refreshed = await createRuntimeLlmAdapter({
         adapterType: nextAdapterType,
-        workDir: paths.WORKDIR,
+        workDir: configurationWorkDir,
         defaults: buildAdapterDefaults(),
         useMock: USE_MOCK,
         overrides: {
@@ -1450,7 +1513,7 @@ export async function createSessionRuntimeAssembly(
   // `eidolon run --session ... --model provider/model` silently keep using
   // the failed provider/model.  Refreshing the adapter below makes this a
   // durable, provider-consistent switch before the next user turn.
-  if (explicitRuntimeModelRef) {
+  if (explicitRuntimeModelRef && !options.preserveRecoveredModel) {
     actor.modelConfig = resolveConfiguredActorModelConfig()
     pendingProviderEpochReason.set(actor, "model_control")
   }
@@ -1499,7 +1562,8 @@ export async function createSessionRuntimeAssembly(
     applyActorModelConfigControlSignals(targetActor)
     if (!targetActor.modelConfig.model || !isActorModelConfigResolvable(targetActor)) {
       targetActor.modelConfig = runtimeSupport.resolveActorModelConfig({
-        workDir: paths.WORKDIR,
+        workDir: configurationWorkDir,
+        globalRoot: runtimeConfig.globalRoot,
         agentKey: targetActor.key,
         modelRef: targetActor === actor ? explicitRuntimeModelRef : undefined,
         strictModelRef: targetActor === actor && Boolean(explicitRuntimeModelRef),
@@ -1542,16 +1606,19 @@ export async function createSessionRuntimeAssembly(
     return resolved
   }
 
-  const resolveAndValidateInputContent = async (input: InputContent): Promise<InputContentPart[]> => {
-    const resolved = await resolveInputContent(input)
+  const validateActorInput = (targetActor: AiAgentActor, input: InputContent): InputContentPart[] => {
+    requireActiveActor(targetActor)
+    const resolved = normalizeInputContent(input)
+    if (resolved.some(part => part.type === "file_reference")) throw new Error("input_file_reference_unresolved")
     validateProviderPromptInputModalities({
       vm,
-      actor,
-      model: actor.modelConfig.model ?? "",
+      actor: targetActor,
+      model: targetActor.modelConfig.model ?? "",
       messages: [{ role: "user", content: resolved }],
     })
     return resolved
   }
+  const resolveAndValidateInputContent = async (input: InputContent): Promise<InputContentPart[]> => validateActorInput(actor, await resolveInputContent(input))
 
   const enqueueUserProvidedInput = (input: InputContent): InputContent => {
     const inputText = projectInputContentText(input)
@@ -1817,18 +1884,26 @@ export async function createSessionRuntimeAssembly(
     await persistSnapshot()
   }
 
-  const compact = async () => {
-    applyActorModelConfigControlSignals(actor)
-    if (!actor.modelConfig.model || !isActorModelConfigResolvable(actor)) {
-      actor.modelConfig = resolveConfiguredActorModelConfig()
+  const compact: SessionRuntimeBridge["compact"] = async (target) => {
+    const targetActor = target ? Object.values(vm.actors).find(candidate => candidate.id === target.actorId) : actor
+    if (!targetActor) throw new Error("actor_not_found")
+    if (target && targetActor !== actor && targetActor.type !== "interactive") throw new Error("actor_read_only")
+    target?.beforeCompact?.()
+    applyActorModelConfigControlSignals(targetActor)
+    if (!targetActor.modelConfig.model || !isActorModelConfigResolvable(targetActor)) {
+      targetActor.modelConfig = resolveConfiguredActorModelConfig()
     }
-    await refreshActorAdapterForModelConfig(actor)
+    await refreshActorAdapterForModelConfig(targetActor)
+    target?.beforeCompact?.()
+    const beforeMessageCount = targetActor.messages.length
     const result = await runtimeCoordinator.enqueue(async () => {
+      target?.beforeCompact?.()
       const compressed = await forceCompressActorHistory({
         vm,
-        actor,
+        actor: targetActor,
         trigger: "manual_compact",
       })
+      if (!compressed.ok) return compressed
       await persistSnapshot()
       return compressed
     })
@@ -1839,16 +1914,18 @@ export async function createSessionRuntimeAssembly(
       return {
         ok: true,
         message: `Session already compact enough (${result.tokensBefore} estimated tokens, ${result.messagesAfter} messages)`,
+        compaction: { compacted: false, tokensBefore: result.tokensBefore, messagesAfter: result.messagesAfter },
       }
     }
     currentProviderCollector?.onCompaction({
-      beforeMessageCount: actor.messages.length,
+      beforeMessageCount,
       afterMessageCount: result.messagesAfter,
       reason: "manual_compact",
     })
     return {
       ok: true,
       message: `Session compacted (${result.tokensBefore} estimated tokens -> ${result.messagesAfter} messages)`,
+      compaction: { compacted: true, tokensBefore: result.tokensBefore, messagesAfter: result.messagesAfter },
     }
   }
 
@@ -1914,14 +1991,15 @@ export async function createSessionRuntimeAssembly(
   }
 
   const setActorActiveModel = async (
-    target: { laneId?: string; actorId?: string },
+    target: { laneId?: string; actorId?: string; requestedBy?: string },
     model: RuntimeActiveModelSelection,
   ): Promise<ActorSurfaceProjectionData> => {
     const modelRef = `${model.providerID}/${model.modelID}`
     const beforeProjection = buildActorSurfaceProjection(vm as any)
     const targetActorBeforeSignal = findActorForSurfaceProjection(beforeProjection, target) ?? actor
     const nextModelConfig = runtimeSupport.resolveActorModelConfig({
-      workDir: paths.WORKDIR,
+      workDir: configurationWorkDir,
+      globalRoot: runtimeConfig.globalRoot,
       agentKey: targetActorBeforeSignal.key,
       modelRef,
       strictModelRef: true,
@@ -1934,7 +2012,7 @@ export async function createSessionRuntimeAssembly(
       actorId: target.actorId,
       modelRef,
       source: "user-explicit",
-      requestedBy: "terminal-tui",
+      requestedBy: target.requestedBy ?? "terminal-tui",
       modelConfig: nextModelConfig,
     })
     const targetActor = findActorForSurfaceProjection(projection, target)
@@ -1996,11 +2074,11 @@ export async function createSessionRuntimeAssembly(
     return createDurableActorSurfaceFacade().submitQuestionnaireResponse(questionnaireId, responseText)
   }
 
-  const dispose = async () => {
+  const dispose = async (options?: { checkpoint?: "already_saved" }) => {
     let extensionCloseError: unknown
     try { sessionExtension?.close() } catch (error) { extensionCloseError = error }
     await Promise.all([heartbeatWorker?.shutdown(), runtimeCoordinator.shutdown()])
-    await persistSnapshot()
+    if (options?.checkpoint !== "already_saved") await persistSnapshot()
     runtimeCoordinator.dispose()
     eventBusConsumer.unsubscribe()
     runtimeCoordinationEmitterBySession.delete(sessionKey)
@@ -2125,35 +2203,40 @@ export async function createSessionRuntimeAssembly(
     }
   }
 
-  const conversationSessionForkCommandPort = runtimeSupport.persistence.conversationPersistenceRepositoryFactory
-    ? createConversationSessionForkPort({
-      owner: { sessionId: sessionKey, actorKey: actor.key, actorId: actor.id },
-      repositoryFactory: runtimeSupport.persistence.conversationPersistenceRepositoryFactory,
-      resolveSessionDir: (targetSessionId) => path.join(paths.WORKDIR, ".eidolon", "sessions", targetSessionId),
-      createChildActorId: ({ command, actorKey, actorId }) => `actor-fork-${digestProviderContextClosedValue({
-        sourceSessionId: command.sourceSessionId,
-        targetSessionId: command.targetSessionId,
-        actorKey,
-        actorId,
-      }).slice(7, 31)}`,
-      runExclusive: async (_sourceSessionId, action) => await runtimeCoordinator.enqueue(action),
-      beforeSourceRead: async () => {
-        // Seal only already-completed Conversation progress. No VM snapshot or
-        // surface projection participates in fork authority resolution.
-        await sealCompletedProgress()
-      },
-    })
-    : null
-  const conversationSessionForkPort = conversationSessionForkCommandPort
-    ? createConversationSessionForkActorPort({
-      identity: { sessionId: sessionKey, actorKey: actor.key, actorId: actor.id },
-      port: conversationSessionForkCommandPort,
-      senderId: "terminal-runtime-surface",
-    })
-    : null
+  const createActorConversationForkPort = (targetActor: AiAgentActor, invocation?: ConversationForkInvocation) => {
+    const conversationSessionForkCommandPort = runtimeSupport.persistence.conversationPersistenceRepositoryFactory
+      ? createConversationSessionForkPort({
+        owner: { sessionId: sessionKey, actorKey: targetActor.key, actorId: targetActor.id },
+        repositoryFactory: runtimeSupport.persistence.conversationPersistenceRepositoryFactory,
+        resolveSessionDir: (targetSessionId) => targetSessionId===sessionKey?sessionDir:path.join(paths.WORKDIR, ".eidolon", "sessions", targetSessionId),
+        createChildActorId: ({ command, actorKey, actorId }) => `actor-fork-${digestProviderContextClosedValue({
+          sourceSessionId: command.sourceSessionId,
+          targetSessionId: command.targetSessionId,
+          actorKey,
+          actorId,
+        }).slice(7, 31)}`,
+        runExclusive: async (_sourceSessionId, action) => await runtimeCoordinator.enqueue(action),
+        beforeSourceRead: async () => {
+          // Seal only already-completed Conversation progress. No VM snapshot or
+          // surface projection participates in fork authority resolution.
+          await sealCompletedProgress()
+          await invocation?.beforeSourceRead?.()
+        },
+        beforeCommit: invocation?.beforeCommit,
+      })
+      : null
+    return conversationSessionForkCommandPort
+      ? createConversationSessionForkActorPort({
+        identity: { sessionId: sessionKey, actorKey: targetActor.key, actorId: targetActor.id },
+        port: conversationSessionForkCommandPort,
+        senderId: "terminal-runtime-surface",
+      })
+      : null
+  }
 
   const forkConversationSession = async (
     command: ConversationSessionForkCommand,
+    target?: ConversationForkInvocation,
   ): Promise<ConversationSessionForkResult> => {
     if (command.sourceSessionId !== sessionKey) {
       return {
@@ -2164,6 +2247,12 @@ export async function createSessionRuntimeAssembly(
         },
       }
     }
+    const targetActor = target ? Object.values(vm.actors).find(candidate => candidate.id === target.actorId) : actor
+    if (!targetActor || (targetActor !== actor && targetActor.type !== "interactive")
+      || (command.actorKey != null && command.actorKey !== targetActor.key)) {
+      return { status: "rejected", rejection: { code: "SOURCE_ACTOR_NOT_FOUND", message: "fork requires its exact foreground Conversation Actor" } }
+    }
+    const conversationSessionForkPort = createActorConversationForkPort(targetActor, target)
     if (!conversationSessionForkPort) {
       return {
         status: "rejected",
@@ -2173,33 +2262,37 @@ export async function createSessionRuntimeAssembly(
     return await conversationSessionForkPort.fork(command)
   }
 
-  const conversationSessionRewindCommandPort = runtimeSupport.persistence.conversationPersistenceRepositoryFactory
-    ? createConversationSessionRewindPort({
-      owner: { sessionId: sessionKey, actorKey: actor.key, actorId: actor.id },
-      repositoryFactory: runtimeSupport.persistence.conversationPersistenceRepositoryFactory,
-      resolveSessionDir: (targetSessionId) => path.join(paths.WORKDIR, ".eidolon", "sessions", targetSessionId),
-      runExclusive: async (_sessionId, action) => await runtimeCoordinator.enqueue(action),
-      beforeSourceRead: async () => await sealCompletedProgress(),
-      afterCommit: async ({ repository }) => {
-        await synchronizeConversationDomainActorFromPersistence({
-          runtime: ensureVmConversationDomainRuntime(vm),
-          sessionDir: path.join(paths.WORKDIR, ".eidolon", "sessions", sessionKey),
-          actorKey: actor.key,
-          repository,
-        })
-      },
-    })
-    : null
-  const conversationSessionRewindPort = conversationSessionRewindCommandPort
-    ? createConversationSessionRewindActorPort({
-      identity: { sessionId: sessionKey, actorKey: actor.key, actorId: actor.id },
-      port: conversationSessionRewindCommandPort,
-      senderId: "terminal-runtime-surface",
-    })
-    : null
+  const createActorConversationRewindPort = (targetActor: AiAgentActor, invocation?: ConversationRewindInvocation) => {
+    const conversationSessionRewindCommandPort = runtimeSupport.persistence.conversationPersistenceRepositoryFactory
+      ? createConversationSessionRewindPort({
+        owner: { sessionId: sessionKey, actorKey: targetActor.key, actorId: targetActor.id },
+        repositoryFactory: runtimeSupport.persistence.conversationPersistenceRepositoryFactory,
+        resolveSessionDir: (targetSessionId) => path.join(paths.WORKDIR, ".eidolon", "sessions", targetSessionId),
+        runExclusive: async (_sessionId, action) => await runtimeCoordinator.enqueue(action),
+        beforeSourceRead: async () => { await sealCompletedProgress(); await invocation?.beforeSourceRead?.() },
+        beforeCommit: invocation?.beforeCommit,
+        afterCommit: async ({ repository }) => {
+          await synchronizeConversationDomainActorFromPersistence({
+            runtime: ensureVmConversationDomainRuntime(vm),
+            sessionDir,
+            actorKey: targetActor.key,
+            repository,
+          })
+        },
+      })
+      : null
+    return conversationSessionRewindCommandPort
+      ? createConversationSessionRewindActorPort({
+        identity: { sessionId: sessionKey, actorKey: targetActor.key, actorId: targetActor.id },
+        port: conversationSessionRewindCommandPort,
+        senderId: "terminal-runtime-surface",
+      })
+      : null
+  }
 
   const rewindConversationSession = async (
     command: ConversationSessionRewindCommand,
+    target?: ConversationRewindInvocation,
   ): Promise<ConversationSessionRewindResult> => {
     if (command.sessionId !== sessionKey) {
       return {
@@ -2210,6 +2303,12 @@ export async function createSessionRuntimeAssembly(
         },
       }
     }
+    const targetActor = target ? Object.values(vm.actors).find(candidate => candidate.id === target.actorId) : actor
+    if (!targetActor || (targetActor !== actor && targetActor.type !== "interactive")
+      || (command.actorKey != null && command.actorKey !== targetActor.key)) {
+      return { status: "rejected", rejection: { code: "ACTOR_NOT_FOUND", message: "rewind requires its exact foreground Conversation Actor" } }
+    }
+    const conversationSessionRewindPort = createActorConversationRewindPort(targetActor, target)
     if (!conversationSessionRewindPort) {
       return {
         status: "rejected",
@@ -2222,16 +2321,42 @@ export async function createSessionRuntimeAssembly(
   await options.onRuntimeReady?.({
     vm, actor, driver, mainFiberId, coordinator: runtimeCoordinator, eventBus, sessionDir,
     resolveActorModelConfig: (modelRef) => modelRef
-      ? runtimeSupport.resolveActorModelConfig({ workDir: paths.WORKDIR, agentKey: "main", modelRef,
+      ? runtimeSupport.resolveActorModelConfig({ workDir: configurationWorkDir, globalRoot: runtimeConfig.globalRoot, agentKey: "main", modelRef,
         strictModelRef: true, fallbackModelConfig: actor.modelConfig })
       : { ...actor.modelConfig },
     prepareActor: async (targetActor) => {
+      requireActiveActor(targetActor)
       applyActorModelConfigControlSignals(targetActor)
       await refreshActorAdapterForModelConfig(targetActor)
       await activateProviderEpochForActor(targetActor)
     },
     persistSnapshot,
+    checkpointWithoutExecution: async () => {
+      if (!persistSnapshots) throw new Error("checkpoint_storage_disabled")
+      activateSessionMaterialization()
+      return saveAiAgentRuntimeSnapshot({ sessionDir, sessionId: sessionKey, vm, driver })
+    },
     activateSessionMaterialization,
+    validateActorInput,
+    ...(runtimeSupport.persistence.conversationPersistenceRepositoryFactory ? { conversationPersistence: {
+      readForkCommit: (receipt: ConversationSessionForkReceipt) => readConversationForkCommitEvidence({
+        repositoryFactory: runtimeSupport.persistence.conversationPersistenceRepositoryFactory!,
+        resolveSessionDir: id => path.join(paths.WORKDIR, ".eidolon", "sessions", id),
+      }, receipt),
+      readRewindCommit: (receipt: ConversationSessionRewindReceipt) => readConversationRewindCommitEvidence({
+        repositoryFactory: runtimeSupport.persistence.conversationPersistenceRepositoryFactory!,
+        resolveSessionDir: id => path.join(paths.WORKDIR, ".eidolon", "sessions", id),
+      }, receipt),
+      synchronizeActor: (actorId: string, beforeRead: () => void) => runtimeCoordinator.enqueue(async () => {
+        beforeRead()
+        const targetActor = Object.values(vm.actors).find(candidate => candidate.id === actorId)
+        if (!targetActor) throw new Error("actor_not_found")
+        await synchronizeConversationDomainActorFromPersistence({
+          runtime: ensureVmConversationDomainRuntime(vm), sessionDir, actorKey: targetActor.key,
+          repository: runtimeSupport.persistence.conversationPersistenceRepositoryFactory!.createRepository(sessionDir),
+        })
+      }),
+    } } : {}),
   })
 
   return {

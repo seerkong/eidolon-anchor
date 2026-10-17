@@ -5,12 +5,14 @@
     "": {
       "name": "eidolon-anchor",
       "dependencies": {
+        "@a2a-js/sdk": "1.3.0",
         "@opencode-ai/sdk": "1.1.25",
         "eslint": "^9.39.2",
       },
       "devDependencies": {
         "@happy-dom/global-registrator": "^20.4.0",
         "concurrently": "^9.1.0",
+        "task-manager-logic": "0.1.7",
       },
     },
     "backend": {
@@ -69,7 +71,12 @@
       "name": "@backend/elysia-shell",
       "version": "0.1.0",
       "dependencies": {
+        "@a2a-js/sdk": "1.3.0",
         "@backend/composer": "workspace:*",
+        "@cell/ai-runtime-host-capsule": "workspace:*",
+        "@cell/ai-runtime-host-contract": "workspace:*",
+        "@cell/ai-runtime-host-logic": "workspace:*",
+        "@cell/ai-runtime-host-support": "workspace:*",
         "@shared/composer": "workspace:*",
         "elysia": "^0.8.0",
       },
@@ -183,7 +190,7 @@
       "dependencies": {
         "@cell/ai-core-contract": "workspace:*",
         "@shared/composer": "workspace:*",
-        "halfcode-compiler.xnl": "0.3.1",
+        "halfcode-compiler.xnl": "0.3.2",
         "holarchy-eidolon-adapter": "0.2.0",
         "task-manager-contract": "0.1.3",
       },
@@ -226,7 +233,7 @@
         "holarchy-file-xnl-capsule": "0.4.1",
         "instant-ctrl-flow-logic": "0.1.6",
         "task-manager-contract": "0.1.3",
-        "task-manager-file-support": "0.1.4",
+        "task-manager-file-support": "0.1.5",
         "task-manager-logic": "0.1.6",
         "typescript": "^5.4.0",
         "work-ctrl-flow-contract": "0.1.3",
@@ -234,7 +241,6 @@
         "xnl-core": "0.1.13",
       },
       "devDependencies": {
-        "depa-inference-capsule": "0.1.2",
         "holarchy-file-xnl-logic": "0.3.1",
         "holarchy-test-support": "0.1.1",
         "xnl-vfs": "0.2.0",
@@ -291,6 +297,52 @@
         "@cell/ai-runtime-control-contract": "workspace:*",
       },
     },
+    "cell/packages/ai-runtime-host-capsule": {
+      "name": "@cell/ai-runtime-host-capsule",
+      "version": "0.1.0",
+      "dependencies": {
+        "@cell/ai-core-contract": "workspace:*",
+        "@cell/ai-core-logic": "workspace:*",
+        "@cell/ai-organ-contract": "workspace:*",
+        "@cell/ai-organ-logic": "workspace:*",
+        "@cell/ai-runtime-host-contract": "workspace:*",
+        "@cell/ai-runtime-host-logic": "workspace:*",
+        "@cell/ai-runtime-host-support": "workspace:*",
+        "@cell/ai-support": "workspace:*",
+        "@cell/membrane": "workspace:*",
+        "@cell/mod-ai-coding": "workspace:*",
+        "@cell/mod-profiles": "workspace:*",
+        "@cell/symbiont-logic": "workspace:*",
+        "@shared/composer": "workspace:*",
+        "task-manager-contract": "0.1.4",
+        "task-manager-logic": "0.1.7",
+      },
+    },
+    "cell/packages/ai-runtime-host-contract": {
+      "name": "@cell/ai-runtime-host-contract",
+      "version": "0.2.3",
+    },
+    "cell/packages/ai-runtime-host-logic": {
+      "name": "@cell/ai-runtime-host-logic",
+      "version": "0.1.0",
+      "dependencies": {
+        "@cell/ai-runtime-host-contract": "workspace:*",
+        "task-manager-contract": "0.1.4",
+        "task-manager-logic": "0.1.7",
+      },
+    },
+    "cell/packages/ai-runtime-host-support": {
+      "name": "@cell/ai-runtime-host-support",
+      "version": "0.1.0",
+      "dependencies": {
+        "@cell/ai-runtime-host-contract": "workspace:*",
+        "task-manager-contract": "0.1.4",
+        "task-manager-file-support": "0.1.6",
+      },
+      "devDependencies": {
+        "bun-types": "1.3.14",
+      },
+    },
     "cell/packages/ai-support": {
       "name": "@cell/ai-support",
       "version": "0.1.0",
@@ -305,10 +357,10 @@
         "ai-ctrl-workflow-logic": "0.2.0",
         "ai-workflow-contract": "0.2.1",
         "ai-workflow-flow-dsl-reference": "0.2.0",
-        "halfcode-compiler.xnl": "0.3.1",
+        "halfcode-compiler.xnl": "0.3.2",
         "holarchy-eidolon-adapter": "0.2.0",
         "task-manager-contract": "0.1.3",
-        "task-manager-file-support": "0.1.4",
+        "task-manager-file-support": "0.1.5",
         "task-manager-logic": "0.1.6",
         "xnl-core": "0.1.13",
         "xnl-vfs": "0.2.0",
@@ -365,7 +417,7 @@
         "@cell/symbiont-contract": "workspace:*",
         "@cell/symbiont-logic": "workspace:*",
         "ai-workflow-contract": "0.2.1",
-        "halfcode-compiler.xnl": "0.3.1",
+        "halfcode-compiler.xnl": "0.3.2",
         "xnl-core": "0.1.13",
         "xnl-vfs": "0.2.0",
       },
@@ -423,7 +475,7 @@
       "dependencies": {
         "@cell/symbiont-contract": "workspace:*",
         "depa-data-graph-core": "^1.0.1",
-        "halfcode-compiler.xnl": "0.3.1",
+        "halfcode-compiler.xnl": "0.3.2",
         "xnl-core": "0.1.13",
         "xnl-vfs": "0.2.0",
         "xstream": "^11.14.0",
@@ -666,8 +718,10 @@
       "name": "@terminal/cli",
       "version": "0.2.0",
       "dependencies": {
+        "@backend/elysia-shell": "workspace:*",
         "@cell/ai-organ-contract": "workspace:*",
         "@cell/ai-runtime-control-composer": "workspace:*",
+        "@cell/ai-runtime-host-contract": "workspace:*",
         "@cell/ai-support": "workspace:*",
         "@terminal/organ": "workspace:*",
         "@terminal/organ-support": "workspace:*",
@@ -731,6 +785,8 @@
         "@cell/ai-core-contract": "workspace:*",
         "@cell/ai-core-logic": "workspace:*",
         "@cell/ai-organ-logic": "workspace:*",
+        "@cell/ai-runtime-host-capsule": "workspace:*",
+        "@cell/ai-runtime-host-support": "workspace:*",
         "@cell/ai-support": "workspace:*",
         "@cell/membrane": "workspace:*",
         "@cell/mod-ai-coding": "workspace:*",
@@ -812,15 +868,39 @@
       "name": "depa-actor-control",
       "version": "0.1.0",
     },
+    "vendor/task-manager/task-manager-contract": {
+      "name": "task-manager-contract",
+      "version": "0.1.4",
+    },
+    "vendor/task-manager/task-manager-file-support": {
+      "name": "task-manager-file-support",
+      "version": "0.1.6",
+      "dependencies": {
+        "task-manager-contract": "0.1.4",
+        "task-manager-logic": "0.1.7",
+      },
+    },
+    "vendor/task-manager/task-manager-logic": {
+      "name": "task-manager-logic",
+      "version": "0.1.7",
+      "dependencies": {
+        "task-manager-contract": "0.1.4",
+      },
+    },
   },
   "overrides": {
     "ai-workflow-contract": "0.2.1",
     "ai-workflow-logic": "0.2.1",
     "halfcode-compiler.xnl": "0.3.2",
     "node-gyp": "10.0.1",
+    "task-manager-contract": "workspace:*",
+    "task-manager-file-support": "workspace:*",
+    "task-manager-logic": "workspace:*",
     "test-exclude": "7.0.1",
   },
   "packages": {
+    "@a2a-js/sdk": ["@a2a-js/sdk@1.3.0", "https://registry.npmjs.com/@a2a-js/sdk/-/sdk-1.3.0.tgz", { "dependencies": { "jose": "^6.2.3" }, "peerDependencies": { "@bufbuild/protobuf": "^2.10.2", "@grpc/grpc-js": "^1.11.0", "better-sqlite3": "^12.0.0 || ^13.0.0", "express": "^4.21.2 || ^5.1.0", "kysely": "^0.28.17 || ^0.29.0", "mysql2": "^3.0.0", "pg": "^8.0.0" }, "optionalPeers": ["@bufbuild/protobuf", "@grpc/grpc-js", "better-sqlite3", "express", "kysely", "mysql2", "pg"], "bin": { "a2a-db": "dist/cli/a2a_db.js" } }, "sha512-OpK4nygUnLKlpTFZlM2IrYu7f3c/B7c4u4Z14+vgMq24lEINTVCxH/BqZx+GL92rNf7CoBL5oTP5UhNsl75yyg=="],
+
     "@acemir/cssom": ["@acemir/cssom@0.9.31", "https://registry.npmjs.com/@acemir/cssom/-/cssom-0.9.31.tgz", {}, "sha512-ZnR3GSaH+/vJ0YlHau21FjfLYjMpYVIzTD8M8vIEQvIGxeOXyXdzCI140rrCY862p/C/BbzWsjc1dgnM9mkoTA=="],
 
     "@ampproject/remapping": ["@ampproject/remapping@2.3.0", "https://registry.npmjs.com/@ampproject/remapping/-/remapping-2.3.0.tgz", { "dependencies": { "@jridgewell/gen-mapping": "^0.3.5", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw=="],
@@ -934,6 +1014,14 @@
     "@cell/ai-runtime-control-logic": ["@cell/ai-runtime-control-logic@workspace:cell/packages/ai-runtime-control-logic"],
 
     "@cell/ai-runtime-control-support": ["@cell/ai-runtime-control-support@workspace:cell/packages/ai-runtime-control-support"],
+
+    "@cell/ai-runtime-host-capsule": ["@cell/ai-runtime-host-capsule@workspace:cell/packages/ai-runtime-host-capsule"],
+
+    "@cell/ai-runtime-host-contract": ["@cell/ai-runtime-host-contract@workspace:cell/packages/ai-runtime-host-contract"],
+
+    "@cell/ai-runtime-host-logic": ["@cell/ai-runtime-host-logic@workspace:cell/packages/ai-runtime-host-logic"],
+
+    "@cell/ai-runtime-host-support": ["@cell/ai-runtime-host-support@workspace:cell/packages/ai-runtime-host-support"],
 
     "@cell/ai-support": ["@cell/ai-support@workspace:cell/packages/ai-support"],
 
@@ -1587,7 +1675,7 @@
 
     "@types/body-parser": ["@types/body-parser@1.19.6", "https://registry.npmjs.com/@types/body-parser/-/body-parser-1.19.6.tgz", { "dependencies": { "@types/connect": "*", "@types/node": "*" } }, "sha512-HLFeCYgz89uk22N5Qg3dvGvsv46B8GLvKKo1zKG4NybA8U2DiEO3w9lqGg29t/tfLRJpJ6iQxnVw4OnB7MoM9g=="],
 
-    "@types/bun": ["@types/bun@1.4.2", "https://registry.npmjs.com/@types/bun/-/bun-1.4.2.tgz", { "dependencies": { "bun-types": "1.4.2" } }, "sha512-GimotNn7+ZV0uVArItBbriZsR1oNf0+WTzPkdcFrzShI7k2norL0uzEaJT8T33dWr7O/c9ZDuAFQrctKCi72oQ=="],
+    "@types/bun": ["@types/bun@1.4.3", "https://registry.npmjs.com/@types/bun/-/bun-1.4.3.tgz", { "dependencies": { "bun-types": "1.4.3" } }, "sha512-N67Pqy8JXbAY/j0tNraS3V5mubGvc6rrrNDmDCtZLlFzccbUJPDb0tvgUBC5q4m8ybkP93Jcn1QB+RYQ6PvBhw=="],
 
     "@types/co-body": ["@types/co-body@6.1.3", "https://registry.npmjs.com/@types/co-body/-/co-body-6.1.3.tgz", { "dependencies": { "@types/node": "*", "@types/qs": "*" } }, "sha512-UhuhrQ5hclX6UJctv5m4Rfp52AfG9o9+d9/HwjxhVB5NjXxr5t9oKgJxN8xRHgr35oo8meUEHUPFWiKg6y71aA=="],
 
@@ -1905,7 +1993,7 @@
 
     "bun-ffi-structs": ["bun-ffi-structs@0.1.2", "https://registry.npmjs.com/bun-ffi-structs/-/bun-ffi-structs-0.1.2.tgz", { "peerDependencies": { "typescript": "^5" } }, "sha512-Lh1oQAYHDcnesJauieA4UNkWGXY9hYck7OA5IaRwE3Bp6K2F2pJSNYqq+hIy7P3uOvo3km3oxS8304g5gDMl/w=="],
 
-    "bun-types": ["bun-types@1.4.2", "https://registry.npmjs.com/bun-types/-/bun-types-1.4.2.tgz", { "dependencies": { "@types/node": "*" } }, "sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w=="],
+    "bun-types": ["bun-types@1.4.3", "https://registry.npmjs.com/bun-types/-/bun-types-1.4.3.tgz", { "dependencies": { "@types/node": "*", "undici-types": "*" } }, "sha512-tinRJNGOmUN+tEAsn2y2e942n9JHRHR42iUYzDH75NmhJqVBokGSQkkfSFdNWwsANIdrK6ACH9t01M452YyTwg=="],
 
     "bun-webgpu": ["bun-webgpu@0.1.5", "https://registry.npmjs.com/bun-webgpu/-/bun-webgpu-0.1.5.tgz", { "dependencies": { "@webgpu/types": "^0.1.60" }, "optionalDependencies": { "bun-webgpu-darwin-arm64": "^0.1.5", "bun-webgpu-darwin-x64": "^0.1.5", "bun-webgpu-linux-x64": "^0.1.5", "bun-webgpu-win32-x64": "^0.1.5" } }, "sha512-91/K6S5whZKX7CWAm9AylhyKrLGRz6BUiiPiM/kXadSnD4rffljCD/q9cNFftm5YXhx4MvLqw33yEilxogJvwA=="],
 
@@ -3133,11 +3221,11 @@
 
     "tar-stream": ["tar-stream@2.2.0", "https://registry.npmjs.com/tar-stream/-/tar-stream-2.2.0.tgz", { "dependencies": { "bl": "^4.0.3", "end-of-stream": "^1.4.1", "fs-constants": "^1.0.0", "inherits": "^2.0.3", "readable-stream": "^3.1.1" } }, "sha512-ujeqbceABgwMZxEJnk2HDY2DlnUZ+9oEcb1KzTVfYHio0UE6dG71n60d8D2I4qNvleWrrXpmjpt7vZeF1LnMZQ=="],
 
-    "task-manager-contract": ["task-manager-contract@0.1.3", "https://registry.npmjs.com/task-manager-contract/-/task-manager-contract-0.1.3.tgz", {}, "sha512-C9Z3Le3XEYzk0n8SYsCH4n3IHCjZrTojSYy1VwVPouMraeYHIqLAZlRlKVaUT7B1fqmCpaPKxsJCB2FQ2dTGDg=="],
+    "task-manager-contract": ["task-manager-contract@workspace:vendor/task-manager/task-manager-contract"],
 
-    "task-manager-file-support": ["task-manager-file-support@0.1.4", "https://registry.npmjs.com/task-manager-file-support/-/task-manager-file-support-0.1.4.tgz", { "dependencies": { "task-manager-contract": "0.1.3", "task-manager-logic": "0.1.6" } }, "sha512-EcSv7ZeEbjDbU3wjw215CFlcOsR/zHNgec8ys+NFT0VyKhmrkUgm6t/QDkE0ybFTw2yUndSqe6/hQsgLGfP/dA=="],
+    "task-manager-file-support": ["task-manager-file-support@workspace:vendor/task-manager/task-manager-file-support"],
 
-    "task-manager-logic": ["task-manager-logic@0.1.6", "https://registry.npmjs.com/task-manager-logic/-/task-manager-logic-0.1.6.tgz", { "dependencies": { "task-manager-contract": "0.1.3" } }, "sha512-KJQucUNNU4uHM+RVK+nFd/ifvrZx8XrL+zEBXV62h5Dg0leISZlBATItpZTVDYlADDXFpTKsoTFTI2n8laXqdQ=="],
+    "task-manager-logic": ["task-manager-logic@workspace:vendor/task-manager/task-manager-logic"],
 
     "test-exclude": ["test-exclude@7.0.1", "https://registry.npmjs.com/test-exclude/-/test-exclude-7.0.1.tgz", { "dependencies": { "@istanbuljs/schema": "^0.1.2", "glob": "^10.4.1", "minimatch": "^9.0.4" } }, "sha512-pFYqmTw68LXVjeWJMST4+borgQP2AyMNbg1BpZh9LbyhUeNkeaPF9gzfPGUAnSMV3qPYdWUwDIjjCLiSDOl7vg=="],
 
@@ -3201,7 +3289,7 @@
 
     "ufo": ["ufo@1.6.4", "https://registry.npmjs.com/ufo/-/ufo-1.6.4.tgz", {}, "sha512-JFNbkD1Svwe0KvGi8GOeLcP4kAWQ609twvCdcHxq1oSL8svv39ZuSvajcD8B+5D0eL4+s1Is2D/O6KN3qcTeRA=="],
 
-    "undici-types": ["undici-types@6.21.0", "https://registry.npmjs.com/undici-types/-/undici-types-6.21.0.tgz", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
+    "undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
 
     "unique-filename": ["unique-filename@3.0.0", "https://registry.npmjs.com/unique-filename/-/unique-filename-3.0.0.tgz", { "dependencies": { "unique-slug": "^4.0.0" } }, "sha512-afXhuC55wkAmZ0P18QsVE6kp8JaxrEokN2HGIoIVv2ijHQd419H0+6EigAFcIzXeMIkcIkNBpB3L/DXB3cTS/g=="],
 
@@ -3339,6 +3427,8 @@
 
     "@babel/helper-create-class-features-plugin/semver": ["semver@6.3.1", "https://registry.npmjs.com/semver/-/semver-6.3.1.tgz", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
 
+    "@cell/ai-runtime-host-support/bun-types": ["bun-types@1.3.14", "https://registry.npmjs.com/bun-types/-/bun-types-1.3.14.tgz", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
+
     "@eslint-community/eslint-utils/eslint-visitor-keys": ["eslint-visitor-keys@3.4.3", "https://registry.npmjs.com/eslint-visitor-keys/-/eslint-visitor-keys-3.4.3.tgz", {}, "sha512-wpc+LXeiyiisxPlEkUzU6svyS1frIO3Mgxj1fdy7Pm8Ygzguax2N3Fa/D/ag1WqbOprdI+uY6wMUl8/a2G+iag=="],
 
     "@eslint/eslintrc/ajv": ["ajv@6.15.0", "https://registry.npmjs.com/ajv/-/ajv-6.15.0.tgz", { "dependencies": { "fast-deep-equal": "^3.1.1", "fast-json-stable-stringify": "^2.0.0", "json-schema-traverse": "^0.4.1", "uri-js": "^4.2.2" } }, "sha512-fgFx7Hfoq60ytK2c7DhnF8jIvzYgOMxfugjLOSMHjLIPgenqa7S7oaagATUq99mV6IYvN2tRmC0wnTYX6iPbMw=="],
@@ -3384,6 +3474,8 @@
     "@types/iarna__toml/@types/node": ["@types/node@24.13.3", "https://registry.npmjs.com/@types/node/-/node-24.13.3.tgz", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q=="],
 
     "@types/koa/@types/node": ["@types/node@24.13.3", "https://registry.npmjs.com/@types/node/-/node-24.13.3.tgz", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q=="],
+
+    "@types/node/undici-types": ["undici-types@6.21.0", "https://registry.npmjs.com/undici-types/-/undici-types-6.21.0.tgz", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
 
     "@types/node-fetch/@types/node": ["@types/node@24.13.3", "https://registry.npmjs.com/@types/node/-/node-24.13.3.tgz", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q=="],
 
@@ -3595,43 +3687,13 @@
 
     "@babel/helper-compilation-targets/lru-cache/yallist": ["yallist@3.1.1", "https://registry.npmjs.com/yallist/-/yallist-3.1.1.tgz", {}, "sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g=="],
 
-    "@eslint/eslintrc/ajv/json-schema-traverse": ["json-schema-traverse@0.4.1", "https://registry.npmjs.com/json-schema-traverse/-/json-schema-traverse-0.4.1.tgz", {}, "sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg=="],
+    "@cell/ai-runtime-host-support/bun-types/@types/node": ["@types/node@24.13.3", "https://registry.npmjs.com/@types/node/-/node-24.13.3.tgz", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q=="],
 
-    "@happy-dom/global-registrator/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
+    "@eslint/eslintrc/ajv/json-schema-traverse": ["json-schema-traverse@0.4.1", "https://registry.npmjs.com/json-schema-traverse/-/json-schema-traverse-0.4.1.tgz", {}, "sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg=="],
 
     "@isaacs/cliui/string-width/emoji-regex": ["emoji-regex@9.2.2", "https://registry.npmjs.com/emoji-regex/-/emoji-regex-9.2.2.tgz", {}, "sha512-L18DaJsXSUk2+42pv8mLs5jJT2hqFkFE4j21wOmgbUqsZ2hL72NsUU785g9RXgo3s0ZNgVl42TiHp3ZtOv/Vyg=="],
 
     "@isaacs/cliui/wrap-ansi/ansi-styles": ["ansi-styles@6.2.3", "https://registry.npmjs.com/ansi-styles/-/ansi-styles-6.2.3.tgz", {}, "sha512-4Dj6M28JB+oAH8kFkTLUo+a2jwOFkuqb3yucU0CANcRRUbxS0cP0nZYCGjcc3BNXwRIsUVmDGgzawme7zvJHvg=="],
-
-    "@terminal/cli/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
-
-    "@terminal/tui/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
-
-    "@types/accepts/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
-
-    "@types/body-parser/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
-
-    "@types/co-body/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
-
-    "@types/connect/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
-
-    "@types/cookies/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
-
-    "@types/express-serve-static-core/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
-
-    "@types/formidable/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
-
-    "@types/iarna__toml/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
-
-    "@types/koa/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
-
-    "@types/node-fetch/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
-
-    "@types/send/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
-
-    "@types/serve-static/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
-
-    "@types/ws/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
 
     "@vitejs/plugin-vue-jsx/@babel/core/semver": ["semver@6.3.1", "https://registry.npmjs.com/semver/-/semver-6.3.1.tgz", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
 
@@ -3646,10 +3708,6 @@
     "babel-plugin-module-resolver/glob/minimatch": ["minimatch@8.0.7", "https://registry.npmjs.com/minimatch/-/minimatch-8.0.7.tgz", { "dependencies": { "brace-expansion": "^2.0.1" } }, "sha512-V+1uQNdzybxa14e/p00HZnQNNcTjnRJjDxg2V8wtkjFctq4M7hXFws4oekyTP0Jebeq7QYtpFyOeBAjc88zvYg=="],
 
     "babel-plugin-module-resolver/glob/minipass": ["minipass@4.2.8", "https://registry.npmjs.com/minipass/-/minipass-4.2.8.tgz", {}, "sha512-fNzuVyifolSLFL4NzpF+wEF4qrgqaaKX0haXPQEdQ7NKAN+WecoKMHV09YcuL/DHxrUsYQOK3MiuDf7Ip2OXfQ=="],
-
-    "buffer-image-size/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
-
-    "bun-types/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
 
     "cliui/strip-ansi/ansi-regex": ["ansi-regex@5.0.1", "https://registry.npmjs.com/ansi-regex/-/ansi-regex-5.0.1.tgz", {}, "sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ=="],
 
@@ -3687,8 +3745,6 @@
 
     "glob/minimatch/brace-expansion": ["brace-expansion@2.1.4", "https://registry.npmjs.com/brace-expansion/-/brace-expansion-2.1.4.tgz", { "dependencies": { "balanced-match": "^1.0.0" } }, "sha512-hGfVzPxthbf3+2yjg/RBs60cB0FhqBS/zvdV/4wn4/BmN0bNMMHPc4V/BbFieqf1TKAGGAHnY4eSjajCl0f2Xg=="],
 
-    "happy-dom/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
-
     "http-assert/http-errors/depd": ["depd@1.1.2", "https://registry.npmjs.com/depd/-/depd-1.1.2.tgz", {}, "sha512-7emPTl6Dpo6JRXOXjLRxck+FlLRX5847cLKEn00PLAgc3g2hTZZgr+e4c2v6QpSmLeFP3n5yUo7ft6avBK/5jQ=="],
 
     "http-assert/http-errors/statuses": ["statuses@1.5.0", "https://registry.npmjs.com/statuses/-/statuses-1.5.0.tgz", {}, "sha512-OpZ3zP+jT1PI7I8nemJX4AKmAX070ZkYPVWV/AaKTJl+tXCTGyVdC1a4SL8RUQYEwk/f34ZX8UTykN68FwrqAA=="],
@@ -3708,8 +3764,6 @@
     "p-locate/p-limit/yocto-queue": ["yocto-queue@0.1.0", "https://registry.npmjs.com/yocto-queue/-/yocto-queue-0.1.0.tgz", {}, "sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q=="],
 
     "pkg-up/find-up/locate-path": ["locate-path@3.0.0", "https://registry.npmjs.com/locate-path/-/locate-path-3.0.0.tgz", { "dependencies": { "p-locate": "^3.0.0", "path-exists": "^3.0.0" } }, "sha512-7AO748wWnIhNqAuaty2ZWHkQHRSNfPVIsPIfwEOWO22AmaoVrWavlOcMR5nzTLNYvp36X220/maaRsrec1G65A=="],
-
-    "protobufjs/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
 
     "resolve-path/http-errors/depd": ["depd@1.1.2", "https://registry.npmjs.com/depd/-/depd-1.1.2.tgz", {}, "sha512-7emPTl6Dpo6JRXOXjLRxck+FlLRX5847cLKEn00PLAgc3g2hTZZgr+e4c2v6QpSmLeFP3n5yUo7ft6avBK/5jQ=="],
 
@@ -3804,7 +3858,5 @@
     "scroll-prototype/@types/bun/bun-types/@types/node": ["@types/node@24.13.3", "https://registry.npmjs.com/@types/node/-/node-24.13.3.tgz", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q=="],
 
     "pkg-up/find-up/locate-path/p-locate/p-limit": ["p-limit@2.3.0", "https://registry.npmjs.com/p-limit/-/p-limit-2.3.0.tgz", { "dependencies": { "p-try": "^2.0.0" } }, "sha512-//88mFWSJx8lxCzwdAABTJL2MyWB12+eIY7MDL2SqLmAkeKU9qxRvWuSyTjm3FUmpBEMuFfckAIqEaVGUDxb6w=="],
-
-    "scroll-prototype/@types/bun/bun-types/@types/node/undici-types": ["undici-types@7.18.2", "https://registry.npmjs.com/undici-types/-/undici-types-7.18.2.tgz", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
   }
 }

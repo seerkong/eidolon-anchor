@@ -2,6 +2,7 @@ import { createActor, type AiAgentActor } from "@cell/ai-core-logic/runtime/acto
 import { AgentRegistry } from "@cell/ai-core-logic/runtime/AgentRegistry"
 import { ensureVmRuntimeContext, type AiAgentVm } from "@cell/ai-core-logic/runtime/runtime"
 import { createAiAgentOrchestratorDriverWithCooperative } from "../OrchestratorDriver"
+import {runAddressedExecutionDriver} from './AddressedExecutionActivation'
 import { seedConversationDomainFromActorSeedMessages } from "../exec/AiAgentExecutor"
 import {
   appendLiveHistoryMessageToConversationDomainRuntime,
@@ -44,6 +45,11 @@ export async function spawnChildExecutionActor(
     prompt: string
     agentType: string
     mode?: "sync_wait" | "detached"
+    /** Addressed effects await their own result; tool calls may suspend the active parent fiber. */
+    executionOwner?: 'parent_orchestrator' | 'isolated_driver'
+    allowHumanInput?: boolean
+    onExecutionPaused?: () => Promise<void>
+    signal?: AbortSignal
     taskKey?: string
     toolCallId?: string
     parentToolName?: string
@@ -58,7 +64,7 @@ export async function spawnChildExecutionActor(
     providerToolSurface?: { mode: "all" | "exact"; toolNames: readonly string[] }
     buildToolset?: AiAgentActor["callbacks"]["buildToolset"]
     validateBeforeRegistration?: (actor: AiAgentActor) => void
-    onActorCreated?: (actor: AiAgentActor) => void
+    onActorCreated?: (actor: AiAgentActor) => void | Promise<void>
   },
 ): Promise<string> {
   const config = params.resolvedConfig ?? AgentRegistry.get(vm.registries.agentRegistry, params.agentType)
@@ -200,7 +206,7 @@ export async function spawnChildExecutionActor(
   if (!vm.actorRuntime.has(actor.key)) {
     vm.actorRuntime.register(actor.key, actor)
   }
-  params.onActorCreated?.(actor)
+  const createdObservation=params.onActorCreated?.(actor)
   // Seed prompt into the conversation domains through the semantic injection
   // chain so the child's first provider materialization carries it (the raw
   // seed array is only the compatibility mirror).
@@ -208,7 +214,9 @@ export async function spawnChildExecutionActor(
   let cleanupMode: "immediate" | "orchestrator_managed" | "retain" = params.retainActor ? "retain" : "immediate"
   try {
     const context = ensureVmRuntimeContext(vm)
-    const orch = context.actorOrchestrators[parentActor.id] ?? context.currentOrchestrator
+    const orch = params.executionOwner === 'isolated_driver' ? undefined
+      : context.actorOrchestrators[parentActor.id] ?? context.currentOrchestrator
+    if(createdObservation)await createdObservation
 
     // If an orchestrator is active for this VM, spawn a child execution actor/fiber
     // and let the parent fiber decide whether to wait.
@@ -278,9 +286,8 @@ export async function spawnChildExecutionActor(
         },
       })
 
-    const now = Date.now()
-    driver.resumeFiber(fiberId, now)
-    await driver.tickUntilBlocked({ now, maxTicks: 500 })
+    if(params.executionOwner==='isolated_driver')await runAddressedExecutionDriver(vm,actor,driver,fiberId,params.allowHumanInput===true,params.signal,params.onExecutionPaused)
+    else {const now=Date.now();driver.resumeFiber(fiberId,now);await driver.tickUntilBlocked({now,maxTicks:500})}
 
     const terminalFiber = driver.getState().fibers[fiberId]
     if (terminalFiber?.status === "failed") {
@@ -341,7 +348,10 @@ export async function invokeAddressedChildExecutionActor(
     durableMaterials?: ActorDurableMaterialIndexInput
     buildToolset?: AiAgentActor["callbacks"]["buildToolset"]
     validateActor?: (actor: AiAgentActor) => void
-    onActorAdmitted?: (reference: AddressedChildExecutionReference) => void
+    onActorAdmitted?: (reference: AddressedChildExecutionReference) => void | Promise<void>
+    allowHumanInput?: boolean
+    onExecutionPaused?: () => Promise<void>
+    signal?: AbortSignal
   },
 ): Promise<{ output: string; reference: AddressedChildExecutionReference }> {
   if (params.target) {
@@ -359,14 +369,15 @@ export async function invokeAddressedChildExecutionActor(
       throw new Error("ADDRESSED_AGENT_OWNER_CONFLICT: target does not match the Agent definition")
     }
     params.validateActor?.(actor)
-    params.onActorAdmitted?.(params.target)
+    const admitted=params.onActorAdmitted?.(params.target)
+    if(admitted)await admitted
     appendLiveHistoryMessageToConversationDomainRuntime({
       vm,
       actorKey: actor.key,
       actorId: actor.id,
       message: { role: "user", content: params.prompt },
     })
-    const output = await runRetainedExecutionActor(vm, actor)
+    const output = await runRetainedExecutionActor(vm, actor, params.allowHumanInput===true, params.signal, params.onExecutionPaused)
     return { output, reference: params.target }
   }
   let created: AiAgentActor | undefined
@@ -376,6 +387,10 @@ export async function invokeAddressedChildExecutionActor(
     prompt: params.prompt,
     agentType: params.agentType,
     mode: "sync_wait",
+    executionOwner: 'isolated_driver',
+    allowHumanInput: params.allowHumanInput,
+    onExecutionPaused: params.onExecutionPaused,
+    signal: params.signal,
     toolCallId: params.toolCallId,
     resolvedConfig: params.resolvedConfig,
     origin: params.origin,
@@ -394,7 +409,7 @@ export async function invokeAddressedChildExecutionActor(
         ...(params.sessionId ? { sessionId: params.sessionId } : work.sessionId ? { sessionId: work.sessionId } : {}),
         agentDefinitionRef: params.agentType,
       })
-      params.onActorAdmitted?.(createdReference)
+      return params.onActorAdmitted?.(createdReference)
     },
   })
   if (!created || !createdReference) throw new Error("ADDRESSED_AGENT_OWNER_MISSING: generic actor owner was not created")
@@ -404,16 +419,14 @@ export async function invokeAddressedChildExecutionActor(
   }
 }
 
-async function runRetainedExecutionActor(vm: AiAgentVm, actor: AiAgentActor): Promise<string> {
-  const fiberId = `${actor.key}:${actor.id}:continued:${Date.now()}`
+async function runRetainedExecutionActor(vm: AiAgentVm, actor: AiAgentActor, allowHumanInput: boolean, signal?: AbortSignal, onExecutionPaused?: () => Promise<void>): Promise<string> {
+  const fiberId = `${actor.key}:${actor.id}`
   const messages = materializeConversationHistoryMessagesFromVm({ vm, actorKey: actor.key })
   const driver = createAiAgentOrchestratorDriverWithCooperative({
     fibers: [{ fiberId, vm, actor, messages, basePriority: 1 }],
     options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
   })
-  const now = Date.now()
-  driver.resumeFiber(fiberId, now)
-  await driver.tickUntilBlocked({ now, maxTicks: 500 })
+  await runAddressedExecutionDriver(vm,actor,driver,fiberId,allowHumanInput,signal,onExecutionPaused)
   const terminal = driver.getState().fibers[fiberId]
   if (terminal?.status !== "completed") {
     throw new Error(terminal?.lastError || `Addressed Agent ${actor.key} did not complete (${terminal?.status ?? "missing"})`)

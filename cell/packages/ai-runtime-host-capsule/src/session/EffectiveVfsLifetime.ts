@@ -1,5 +1,5 @@
 /** Transfers the prepared VFS lifetime to the completed bridge, or releases it on failed assembly. */
-export async function withEffectiveVfsLifetime<T extends { dispose(): void | Promise<void> }>(
+export async function withEffectiveVfsLifetime<T extends { dispose(options?: { checkpoint?: "already_saved" }): void | Promise<void> }>(
   prepared: { dispose(): void },
   assemble: () => Promise<T | null>,
 ): Promise<T | null> {
@@ -18,8 +18,8 @@ export async function withEffectiveVfsLifetime<T extends { dispose(): void | Pro
     let disposal: Promise<void> | undefined
     return {
       ...bridge,
-      dispose: () => disposal ??= (async () => {
-        try { await bridge.dispose() } finally { close() }
+      dispose: (options?: { checkpoint?: "already_saved" }) => disposal ??= (async () => {
+        try { await bridge.dispose(options) } finally { close() }
       })(),
     }
   } catch (error) {

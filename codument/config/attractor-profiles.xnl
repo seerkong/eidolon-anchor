@@ -1,4 +1,4 @@
-<AttractorProfiles #codument.config.attractor_profiles apiVersion="codument.tech/v1alpha1" version="1" (
+<AttractorProfiles #codument.config.attractor_profiles envelopeVersion="halfcode.resource-envelope/v1" specVersion =1 (
   <Profiles [
     <Profile #coding { enabled = true } (
       <Description ?01M05F1P4NN1ZM2PPH758C00HB>

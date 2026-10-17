@@ -60,6 +60,8 @@ export type WorkflowAgentResourceBinding = {
 export type WorkflowPublicEvidenceBinding = Readonly<{
   instanceId: string
   workflowForm: AiWorkflowForm
+  observeExecutions?: boolean
+  onExecutionPaused?: () => Promise<void>
 }>
 
 export type WorkflowMaterialWriteResult = Readonly<{ path: string; revision: string }>
@@ -165,7 +167,7 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
     actorId: string
     actorKey: string
     agentDefinitionRef: string
-  }>): void {
+  }>): void | Promise<void> {
     if (!this.publicEvidence) return
     recordWorkflowPublicNodeExecutionEvidence(this.runtime.vm, {
       kind: this.publicEvidence.workflowForm,
@@ -177,6 +179,14 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
       actorKey: input.actorKey,
       agentDefinitionRef: input.agentDefinitionRef,
     })
+    if (this.publicEvidence.observeExecutions) return (async()=>{
+      const {request,nodeId,actorId,actorKey,agentDefinitionRef}=input
+      const eventId='actor:'+createHash('sha256').update(JSON.stringify([request.run.runId,request.run.generation,request.effectId,actorId])).digest('hex')
+      if (!(await this.facts.readRunEvents(request.run.runId)).some(event=>event.eventId===eventId)) await this.appendEvent(request, {
+        eventId,runId:request.run.runId,generation:request.run.generation,nodeId,type:'workflow.actor.admitted',atMs:Date.now(),
+        payload:{instanceId:this.publicEvidence!.instanceId,effectId:request.effectId,actorId,actorKey,agentDefinitionRef},
+      })
+    })()
   }
 
   mutateRunStepExtension(
@@ -545,7 +555,7 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
           toolCallId: request.effectId,
           onActorCreated: (actor) => {
             childActor = actor
-            this.recordNodeEvidence({
+            return this.recordNodeEvidence({
               request,
               nodeId: request.nodeId ?? request.effectId,
               actorId: actor.id,
@@ -619,10 +629,12 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
         resolvedConfig: prepared.plan.agentConfig,
         origin,
         toolCallId: request.effectId,
+        allowHumanInput: this.publicEvidence?.observeExecutions === true,
+        onExecutionPaused: this.publicEvidence?.onExecutionPaused,
         buildToolset: resolveWorkflowLifecycleNodeChildToolset(this.runtime.actor),
         validateActor: assertWorkflowNodeActorIsolation,
         onActorAdmitted: (reference) => {
-          this.recordNodeEvidence({
+          return this.recordNodeEvidence({
             request,
             nodeId,
             actorId: reference.actorId,
@@ -659,12 +671,15 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
       resolvedConfig: prepared.plan.agentConfig,
       origin,
       mode: "sync_wait",
+      executionOwner: "isolated_driver",
+      allowHumanInput: this.publicEvidence?.observeExecutions === true,
+      onExecutionPaused: this.publicEvidence?.onExecutionPaused,
       toolCallId: request.effectId,
       buildToolset: resolveWorkflowLifecycleNodeChildToolset(this.runtime.actor),
       validateBeforeRegistration: assertWorkflowNodeActorIsolation,
       onActorCreated: (actor) => {
         childActor = actor
-        this.recordNodeEvidence({
+        return this.recordNodeEvidence({
           request,
           nodeId,
           actorId: actor.id,

@@ -11,6 +11,7 @@ import type {
   ConversationPromptIndexSnapshot,
   ConversationSessionForkCommand,
   ConversationSessionForkRejection,
+  ConversationSessionForkReceipt,
   ConversationSessionRepairCommand,
   ConversationSessionRepairEvidence,
   ConversationSessionIndexSnapshot,
@@ -25,6 +26,20 @@ import {
 import { resolveConversationHistoryLineage } from "@cell/ai-persistence-logic/ConversationHistoryLineage";
 
 export type ConversationForkSourceSnapshot = ConversationForkAuthoritySnapshot;
+
+/** One receipt projection for planned publication, commit and evidence reads. */
+export function projectConversationForkReceipt(generation: ConversationForkInitializationGeneration): ConversationSessionForkReceipt {
+  return {
+    schemaVersion: "conversation.session-fork-receipt/v1", mode: generation.mode,
+    sourceSessionId: generation.proof.sourceSessionId, targetSessionId: generation.sessionIndex.sessionId,
+    childActorKey: generation.providerEpoch.childActorKey, childActorId: generation.providerEpoch.childActorId,
+    proof: generation.proof, providerEpoch: generation.providerEpoch,
+    transactionId: generation.transactionId, targetAuthorityDigest: generation.targetAuthorityDigest,
+    preservedTargetTailMessageCount: generation.preservedTargetTailMessageCount,
+    ...(generation.repairEvidence ? { repairEvidence: generation.repairEvidence } : {}),
+    committedAt: generation.createdAt,
+  };
+}
 
 export type ConversationSessionForkPlanInput = Readonly<{
   command: ConversationSessionForkCommand;

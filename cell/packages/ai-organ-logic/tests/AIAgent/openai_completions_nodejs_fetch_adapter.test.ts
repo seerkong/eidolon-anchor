@@ -12,6 +12,36 @@ function sseResponse(): Response {
 }
 
 describe("OpenAICompletionsNodejsFetchLlmAdapter", () => {
+  it("retries one connection reset before any response with identical admitted bytes",async()=>{
+    const bodies:string[]=[];
+    const adapter=new OpenAICompletionsNodejsFetchLlmAdapter({apiKey:'test-key',providerOptions:{fetch:async(_url,init)=>{
+      bodies.push(String(init?.body));if(bodies.length===1)throw Object.assign(new TypeError('connection reset'),{code:'ECONNRESET'});return sseResponse();
+    }}});
+    await adapter.createStream({model:'fixture',messages:[{role:'user',content:'hello'}],tools:[]});
+    expect(bodies).toHaveLength(2);expect(bodies[0]).toBe(bodies[1]);
+  });
+  it("does not retry an abort, unclassified failure or HTTP refusal",async()=>{
+    for(const mode of ['abort','unknown','http']){
+      let calls=0;const controller=new AbortController();
+      const failure=Object.assign(new Error('controlled failure'),{code:mode==='abort'?'ECONNRESET':'unknown'});
+      const adapter=new OpenAICompletionsNodejsFetchLlmAdapter({apiKey:'test-key',providerOptions:{fetch:async()=>{
+        calls++;if(mode==='http')return new Response('denied',{status:403});if(mode==='abort')controller.abort();throw failure;
+      }}});
+      await expect(adapter.createStream({model:'fixture',messages:[{role:'user',content:'hello'}],tools:[],signal:controller.signal})).rejects.toThrow();
+      expect(calls).toBe(1);
+    }
+  });
+  it("bounds repeated connection resets and never retries a consumed response stream",async()=>{
+    let calls=0;const reset=Object.assign(new TypeError('connection reset'),{code:'ECONNRESET'});
+    const failed=new OpenAICompletionsNodejsFetchLlmAdapter({apiKey:'test-key',providerOptions:{fetch:async()=>{calls++;throw reset;}}});
+    await expect(failed.createStream({model:'fixture',messages:[],tools:[]})).rejects.toBe(reset);expect(calls).toBe(2);
+    calls=0;
+    const streaming=new OpenAICompletionsNodejsFetchLlmAdapter({apiKey:'test-key',providerOptions:{fetch:async()=>{
+      calls++;return new Response(new ReadableStream({start(c){c.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"partial"}}]}\n\n'));setTimeout(()=>c.error(reset),10);}}));
+    }}});
+    const result=await streaming.createStream({model:'fixture',messages:[],tools:[]});
+    await expect((async()=>{for await(const _ of result.stream){}})()).rejects.toThrow();expect(calls).toBe(1);
+  });
   it("serializes the real authoring-session ToolDef for DeepSeek with an object root", async () => {
     const workflowOpen = buildWorkflowNativeToolDefs().find(
       (definition) => definition.schema.function.name === "WorkflowOpenAuthoringSession",
@@ -298,6 +328,32 @@ describe("OpenAICompletionsNodejsFetchLlmAdapter", () => {
     expect(body.timeout).toBeUndefined();
     expect(body.first_event_timeout_seconds).toBeUndefined();
     expect(body.stream_idle_timeout_seconds).toBeUndefined();
+  });
+
+  it("bounds a silent stream after partial tool bytes without replaying it in the transport", async () => {
+    let calls=0, signal:AbortSignal|undefined, cancelled=false;
+    const adapter=new OpenAICompletionsNodejsFetchLlmAdapter({apiKey:'test-key',providerOptions:{fetch:async(_url,init)=>{
+      calls++;signal=init?.signal??undefined;
+      return new Response(new ReadableStream({start(c){c.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{"}}]}}]}\n\n'));},cancel(){cancelled=true;}}));
+    }}});
+    const result=await adapter.createStream({model:'fixture',messages:[],tools:[],extraBody:{stream_idle_timeout_seconds:0.02}});
+    const chunks:any[]=[];
+    await expect((async()=>{for await(const chunk of result.stream)chunks.push(chunk);})()).rejects.toThrow('stream exceeded timeout');
+    expect(chunks).toHaveLength(1);expect(calls).toBe(1);expect(signal?.aborted).toBe(true);expect(cancelled).toBe(true);
+  });
+
+  it("allows active reasoning beyond the idle window without requiring visible content", async () => {
+    let timer:ReturnType<typeof setInterval>|undefined, signal:AbortSignal|undefined;
+    const encoder=new TextEncoder();
+    const adapter=new OpenAICompletionsNodejsFetchLlmAdapter({apiKey:'test-key',providerOptions:{fetch:async(_url,init)=>{
+      signal=init?.signal??undefined;
+      return new Response(new ReadableStream({start(c){let count=0;timer=setInterval(()=>{c.enqueue(encoder.encode('data: {"choices":[{"delta":{"reasoning_content":"working"}}]}\n\n'));if(++count===8){clearInterval(timer);c.enqueue(encoder.encode('data: [DONE]\n\n'));c.close();}},10);},cancel(){clearInterval(timer);}}));
+    }}});
+    try{
+      const result=await adapter.createStream({model:'fixture',messages:[],tools:[],extraBody:{stream_idle_timeout_seconds:0.05}});
+      const chunks:any[]=[];for await(const chunk of result.stream)chunks.push(chunk);
+      expect(chunks).toHaveLength(8);expect(signal?.aborted).toBe(false);
+    }finally{clearInterval(timer);}
   });
 
   it("times out when response headers arrive but the first SSE event never does", async () => {

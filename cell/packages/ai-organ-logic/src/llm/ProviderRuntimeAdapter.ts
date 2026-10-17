@@ -413,6 +413,7 @@ function createProviderTransportRequestObserver(
               completenessSource: outcomeInput.completeness.source,
               completenessReason: outcomeInput.completeness.reason,
               responseId: outcomeInput.responseId,
+              ...(outcomeInput.timing ? { timing: outcomeInput.timing } : {}),
               capturedAt: Date.now(),
             };
             port.appendOutcome(outcome);

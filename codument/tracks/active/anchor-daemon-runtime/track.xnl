@@ -1,0 +1,32 @@
+<Track #anchor-daemon-runtime envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {
+  status = "completed"
+  goal = "一个全局 Daemon 管理多个工作区的独立 AI 对话"
+  description = "用户已授权 anchor-daemon-multi-workspace；本 Track 承载 Anchor runtime、协议和恢复验收，Bridge mission 负责跨项目收口。"
+  question_mode = "decision-tree"
+  question_severity = "auto"
+  commit_mode = "manual"
+  created_at = "2026-10-08T17:26:20.679Z"
+  updated_at = "2026-10-08T19:16:59.712Z"
+} (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_anchor-daemon-runtime {name="anchor-daemon-runtime" version="1"} (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Daemon runtime" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "目录与生命周期测试及实现" status = "DONE" order = 0 } (
+            <Acceptance [<Criterion #P1-T1-AC1 { checked = true } ?>隔离目录、单监听、worker 生命周期与 writer 冲突验收通过。</?>]>
+          )>
+          <Task #P1-T2 { name = "scoped 协议与恢复测试及实现" status = "DONE" order = 1 } (
+            <Acceptance [<Criterion #P1-T2-AC1 { checked = true } ?>跨区负例、共享效果、重启不执行与原 runtime 回归通过。</?>]>
+          )>
+          <Task #P1-T3 { name = "真实多工作区验收与方向审查" status = "DONE" order = 2 } (
+            <Acceptance [<Criterion #P1-T3-AC1 { checked = true } ?>真实模型三工作区、Bridge 两跳与 fresh coding 方向审查有证据。</?>]>
+          )>
+        ]>
+        <Hooks [<Hook { on = "phase:after" } (<AttractorCheck { use = "coding" }>)>]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

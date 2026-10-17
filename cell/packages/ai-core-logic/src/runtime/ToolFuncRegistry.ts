@@ -88,7 +88,9 @@ export class ToolFuncRegistry extends ToolFuncRegistryData {
       }
       const workDir = vm.outerCtx.workDir;
       if (typeof workDir !== "string" || !workDir) throw new Error("tool_resource_workdir_required");
-      const lease = await resources.acquire({ workDir, kind: policy, signal: meta?.signal });
+      let targets: readonly string[] | undefined
+      try { targets = tool.resourceTargets?.(args, workDir) } catch { /* Invalid/unbounded targets use the conservative lane. */ }
+      const lease = await resources.acquire({ workDir, kind: policy, targets, signal: meta?.signal });
       try {
         meta?.signal?.throwIfAborted();
         return await tool.run(extendedRuntime, args as any, {} as any);

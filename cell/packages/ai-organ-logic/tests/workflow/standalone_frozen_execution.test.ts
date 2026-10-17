@@ -168,6 +168,13 @@ it("restores byte-exact physical and Effective VFS deployment definitions throug
     const binary = new Uint8Array([255, 254, 0, 27, 128, 42])
     await writeFile(path.join(base.resources, "opaque.bin"), binary)
     const home = path.join(root, "home"); await mkdir(home)
+    if (mode === "effective") {
+      // Effective VFS imports these two kinds from its trusted builtin owner;
+      // the physical-only fixture declarations must not replace that authority.
+      for (const kind of ["AgentContextPipeline", "AgentMessageSource"]) {
+        await rm(path.join(base.resources, "KindDefinitions", kind), { recursive: true })
+      }
+    }
     const effective = mode === "effective" ? await prepareEffectiveEidolonVfs({ homeEidolonRoot: home, workspaceEidolonRoot: root }) : undefined
     const registry = new EidolonAppResourceRegistryAdapter({ workspaceRoot: root,
       ...(effective ? { effectiveVfs: () => effective.authoring.read().readPort } : { layers: [{ id: "workspace", rootDir: base.resources }] }) })

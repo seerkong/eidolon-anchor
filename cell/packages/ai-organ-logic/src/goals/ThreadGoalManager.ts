@@ -1,5 +1,5 @@
 import { ensureVmRuntimeContext, ensureVmSessionState, type AiAgentVm } from "@cell/ai-core-logic/runtime/runtime"
-import type { VmThreadGoalRecord, VmThreadGoalStatus } from "@cell/ai-core-contract/runtime/AiAgentVm"
+import type { VmThreadGoalActivation, VmThreadGoalRecord, VmThreadGoalStatus, VmThreadGoalSuspensionReason } from "@cell/ai-core-contract/runtime/AiAgentVm"
 
 const TERMINAL_STATUSES = new Set<VmThreadGoalStatus>(["blocked", "usage_limited", "budget_limited", "complete"])
 
@@ -25,7 +25,7 @@ function normalizeBudget(value: unknown): number | undefined {
 }
 
 function cloneGoal(goal: VmThreadGoalRecord | null): VmThreadGoalRecord | null {
-  return goal ? { ...goal } : null
+  return goal ? { ...goal, ...(goal.activation ? { activation: { ...goal.activation } } : {}) } : null
 }
 
 function isPersistedThread(vm: AiAgentVm): boolean {
@@ -91,27 +91,35 @@ export function setThreadGoal(params: {
   objective: unknown
   tokenBudget?: unknown
   status?: VmThreadGoalStatus
+  activation?: VmThreadGoalActivation
 }): { ok: true; goal: VmThreadGoalRecord } | { ok: false; error: string } {
   const ephemeral = rejectEphemeralThread(params.vm)
   if (ephemeral) return ephemeral
   const objective = normalizeObjective(params.objective)
   if (!objective) return { ok: false, error: "objective_required" }
+  if (getThreadGoalRuntime(params.vm).requireExplicitActivation) {
+    if (new TextEncoder().encode(objective).byteLength > 16 * 1024) return { ok: false, error: "objective_too_large" }
+    if (params.tokenBudget !== undefined && (!Number.isSafeInteger(params.tokenBudget) || Number(params.tokenBudget) <= 0)) return { ok: false, error: "invalid_token_budget" }
+  }
   const previousGoal = cloneGoal(getThreadGoal(params.vm))
   const now = nowMs()
+  const needsActivation = getThreadGoalRuntime(params.vm).requireExplicitActivation && !params.activation && (params.status ?? "active") === "active"
   const goal: VmThreadGoalRecord = {
     goalId: newGoalId(),
     objective,
-    status: params.status ?? "active",
+    status: needsActivation ? "paused" : params.status ?? "active",
     tokenBudget: normalizeBudget(params.tokenBudget),
     tokensUsed: 0,
     timeUsedSeconds: 0,
     createdAt: now,
     updatedAt: now,
     blockedTurnCount: 0,
+    ...(params.activation ? { activation: { ...params.activation } } : {}),
+    ...(needsActivation ? { suspensionReason: "explicit_activation_required" as const } : {}),
   }
   ensureVmSessionState(params.vm).threadGoal = goal
   const runtime = ensureVmRuntimeContext(params.vm).threadGoalRuntime
-  runtime.activeGoalId = goal.goalId
+  runtime.activeGoalId = goal.status === "active" ? goal.goalId : undefined
   runtime.turnSequence = 0
   runtime.turnStartedAt = undefined
   runtime.lastAccountedAt = now
@@ -143,6 +151,8 @@ export function updateThreadGoalStatus(params: {
   status: unknown
   reason?: unknown
   modelUpdate?: boolean
+  activation?: VmThreadGoalActivation
+  suspensionReason?: VmThreadGoalSuspensionReason
 }): { ok: true; goal: VmThreadGoalRecord } | { ok: false; error: string } {
   const ephemeral = rejectEphemeralThread(params.vm)
   if (ephemeral) return ephemeral
@@ -151,8 +161,14 @@ export function updateThreadGoalStatus(params: {
   if (!goal) return { ok: false, error: "goal_not_found" }
   if (!isGoalStatus(params.status)) return { ok: false, error: "invalid_goal_status" }
   const status = params.status
+  if (runtime.requireExplicitActivation && new TextEncoder().encode(normalizeObjective(params.reason)).byteLength > 16 * 1024) {
+    return { ok: false, error: "goal_reason_too_large" }
+  }
   if (params.modelUpdate && status !== "complete" && status !== "blocked") {
     return { ok: false, error: "model_can_only_mark_complete_or_blocked" }
+  }
+  if (status === "active" && runtime.requireExplicitActivation && !params.activation) {
+    return { ok: false, error: "explicit_activation_required" }
   }
   if (params.modelUpdate && status === "complete") {
     const audit = normalizeObjective(params.reason)
@@ -180,14 +196,21 @@ export function updateThreadGoalStatus(params: {
     }
   }
   if (status === "active") {
+    if (params.activation) goal.activation = { ...params.activation }
+    else delete goal.activation
+    delete goal.suspensionReason
     goal.blockedReason = undefined
     goal.blockedTurnCount = 0
     goal.blockedLastTurnKey = undefined
   }
+  if (status === "paused") {
+    if (params.suspensionReason) goal.suspensionReason = params.suspensionReason
+    else delete goal.suspensionReason
+  }
   goal.status = status
   goal.updatedAt = nowMs()
   runtime.continuationInFlight = false
-  if (TERMINAL_STATUSES.has(status)) {
+  if (TERMINAL_STATUSES.has(status) || status === "paused") {
     runtime.activeGoalId = undefined
   } else if (status === "active") {
     runtime.activeGoalId = goal.goalId
@@ -218,8 +241,19 @@ export function accountThreadGoalUsage(params: {
 }
 
 export function formatThreadGoalStatus(goal: VmThreadGoalRecord | null): string {
-  if (!goal) return JSON.stringify({ ok: true, goal: null })
-  return JSON.stringify({ ok: true, goal })
+  return formatThreadGoalToolResult({ ok: true, goal })
+}
+
+/** Model tools expose goal facts, never the shell's execution authorization. */
+export function formatThreadGoalToolResult(result: Record<string, unknown>): string {
+  const output = { ...result }
+  for (const field of ["goal", "previousGoal"]) {
+    const value = output[field]
+    if (!value || typeof value !== "object") continue
+    const { activation: _activation, ...goal } = value as VmThreadGoalRecord
+    output[field] = goal
+  }
+  return JSON.stringify(output)
 }
 
 export function buildGoalContinuationPrompt(goal: VmThreadGoalRecord): string {

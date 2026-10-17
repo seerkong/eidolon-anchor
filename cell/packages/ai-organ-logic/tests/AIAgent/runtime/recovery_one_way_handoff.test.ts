@@ -275,7 +275,7 @@ describe("recovery-one-way-handoff: single-recovery-source", () => {
       fs.rmSync(sessionDir, { recursive: true, force: true })
       fs.renameSync(fixture.sessionDir, sessionDir)
 
-      const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
+      const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir, sessionId)
       await writeConversationHistoryFixture({
         sessionId,
         actorKey: "main",
@@ -325,7 +325,7 @@ describe("recovery-one-way-handoff: single-recovery-source", () => {
       fs.rmSync(sessionDir, { recursive: true, force: true })
       fs.renameSync(fixture.sessionDir, sessionDir)
 
-      const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
+      const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir, sessionId)
       // Declare a history head whose generation payload is missing.
       await writeConversationHeadFixture({
         sessionId,
@@ -409,7 +409,7 @@ describe("recovery-one-way-handoff: hydrate-once-then-memory-only", () => {
       fs.rmSync(sessionDir, { recursive: true, force: true })
       fs.renameSync(fixture.sessionDir, sessionDir)
 
-      const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
+      const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir, sessionId)
       const generationId = await writeConversationHistoryFixture({
         sessionId,
         actorKey: "main",

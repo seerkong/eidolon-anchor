@@ -501,6 +501,10 @@ function countOperationLabel(ops: PatchOp[]): string {
   return `${ops.length} operation${ops.length === 1 ? "" : "s"}`
 }
 
+export function applyPatchResourceTargets(input: ApplyPatchInnerInput & { patch?: string }, workDir: string): readonly string[] {
+  return parsePatch(String(input?.patchText ?? input?.patch ?? ''), workDir).flatMap(op => op.kind === 'update' && op.moveTo ? [op.file.absolute, op.moveTo.absolute] : [op.file.absolute])
+}
+
 export const applyPatchCoreLogic: StdInnerLogic<
   ApplyPatchInnerRuntime,
   ApplyPatchInnerInput,

@@ -72,7 +72,9 @@ function permitted(runtime: ObservationRuntime, principal: Principal, actorId: s
 function validObserver(runtime: ObservationRuntime, observer: Pick<Observer, "request" | "actors">): boolean {
   return runtime.authorization.currentGrantsVersion(observer.request.principal.principalId) === observer.request.principal.grantsVersion
     && runtime.authorization.permits(observer.request.principal, { kind: "session", sessionId: runtime.sessionId, action: "open" })
-    && observer.actors.every(id => permitted(runtime, observer.request.principal, id, "observe"))
+    && observer.actors.every(id => runtime.state.closed
+      ? runtime.authorization.permits(observer.request.principal, { kind: "actor", sessionId: runtime.sessionId, actorId: id, action: "observe" })
+      : permitted(runtime, observer.request.principal, id, "observe"))
 }
 function pruneRing(runtime: ObservationRuntime): void {
   const s = runtime.state; const limits = limitsFor(runtime); const now = runtime.identity.now()
@@ -109,7 +111,8 @@ function activeCommand(p: Projection, status: CommandStatus): boolean {
   return status.state === "accepted" || status.state === "unknown" || !!turn && !terminalTurn(turn)
 }
 function retireControls(p: Projection): void {
-  for (const [id, record] of p.questions) if (record.state !== "pending" || (p.turns.get(record.turnId) && terminalTurn(p.turns.get(record.turnId)!))) p.questions.delete(id)
+  // Terminal questions are a bounded display history, separate from live control reservations.
+  for (const [id, record] of p.questions) if (record.state === "pending" && (p.turns.get(record.turnId) && terminalTurn(p.turns.get(record.turnId)!))) p.questions.delete(id)
   for (const [id, record] of p.commands) if (!activeCommand(p, record.value)) p.commands.delete(id)
   for (const [id, turn] of p.turns) if (terminalTurn(turn)) {
     p.turns.delete(id); p.turnOwners.delete(id)
@@ -123,7 +126,8 @@ function metadata(p: Projection): unknown {
 }
 function checkProjection(p: Projection, limits: ObservationLimits): void {
   if (p.actors.size > 64 || bytes(metadata(p)) > limits.metadataBytes) failure("snapshot_capacity")
-  for (const record of [...p.actors.values(), ...[...p.commands.values()].map(c => c.value), ...p.turns.values(), ...[...p.questions.values()].map(({ schema: _, ...q }) => q)]) if (bytes(record) > 2048) failure("snapshot_capacity")
+  for (const actor of p.actors.values()) if (bytes(actor) > (actor.executionKind === "primary" && actor.threadGoal ? 512 * 1024 : 2048)) failure("snapshot_capacity")
+  for (const record of [...[...p.commands.values()].map(c => c.value), ...p.turns.values(), ...[...p.questions.values()].map(({ schema: _, ...q }) => q)]) if (bytes(record) > 2048) failure("snapshot_capacity")
   if (p.questions.size > 64 || [...p.questions.values()].reduce((n, q) => n + (q.schema ? bytes(q.schema) : 0), 0) > limits.schemaBytes) failure("question_capacity", 429)
   for (const q of p.questions.values()) if (q.schema && bytes(q.schema) > 65536) failure("question_capacity", 429)
 }
@@ -163,6 +167,12 @@ function updateProjection(p: Projection, publication: ObservationPublication): r
   return callers
 }
 function boundedProjection(p: Projection, limits: ObservationLimits = defaultObservationLimits): void {
+  for (const [id, record] of p.questions) {
+    if (p.questions.size <= 64
+      && [...p.questions.values()].reduce((n, q) => n + (q.schema ? bytes(q.schema) : 0), 0) <= limits.schemaBytes
+      && bytes(metadata(p)) <= limits.metadataBytes) break
+    if (record.state !== "pending") p.questions.delete(id)
+  }
   for (const [actorId, history] of p.histories) {
     let available = 1024 * 1024; const messages = []
     for (const message of [...history.messages].reverse()) {
@@ -198,7 +208,7 @@ function redactTurn(runtime: ObservationRuntime, principal: Principal, turn: Ass
 function redactQuestion(runtime: ObservationRuntime, principal: Principal, question: QuestionRecord): QuestionRecord {
   const canAnswer = question.canAnswer && permitted(runtime, principal, question.actorId, "answer_question")
   const { schema, ...rest } = question
-  return { ...rest, canAnswer, ...(canAnswer && schema ? { schema } : {}) }
+  return { ...rest, canAnswer, ...(permitted(runtime, principal, question.actorId, "answer_question") && schema ? { schema } : {}) }
 }
 function eventFor(runtime: ObservationRuntime, observer: Observer, retained: Retained): ObservationEvent | undefined {
   const { publication, seq, callers } = retained; const principal = observer.request.principal
@@ -270,7 +280,7 @@ export function prepareObservationCommand(runtime: ObservationRuntime, command: 
     ? command.kind === "answer_question" ? { kind: "answer", turnId: status.turnId, questionnaireId: command.payload.questionnaireId }
       : { kind: "cancel", turnId: status.turnId } : undefined
   return prepareObservationReservation(runtime, {
-    ...(command.kind === "send_text" && reservation ? { reserve: [reservation] } : {}),
+    ...((command.kind === "send_text" || command.kind === "send_input" || command.kind === "continue_goal") && reservation ? { reserve: [reservation] } : {}),
     ...((command.kind === "cancel_turn" || command.kind === "answer_question") && reservation ? { consume: [reservation] } : {}),
   }, { kind: "command.updated", principalId, payload: status })
 }
@@ -433,7 +443,9 @@ export function captureObservation(runtime: ObservationRuntime, request: HostReq
   return { close: () => { observer.terminal = undefined; observer.queue.close() }, frames: { [Symbol.asyncIterator]() { return {
     async next(): Promise<IteratorResult<ObservationFrame>> {
       if (!validObserver(runtime, observer)) { observer.terminal = undefined; observer.queue.close() }
-      const item = await source.next()
+      let item = await source.next()
+      // close retires every captured backlog item; only its explicit terminal survives.
+      if (runtime.state.closed && !item.done) item = await source.next()
       if (!validObserver(runtime, observer)) { observer.terminal = undefined; observer.queue.close(); return { done: true, value: undefined } }
       if (item.done && observer.terminal) { const frame = observer.terminal; observer.terminal = undefined; return { done: false, value: frame } }
       return item
@@ -444,7 +456,13 @@ export function captureObservation(runtime: ObservationRuntime, request: HostReq
 export function revalidateObservations(runtime: ObservationRuntime): void {
   for (const observer of [...runtime.state.observers]) if (!validObserver(runtime, observer)) observer.queue.close()
 }
-export function closeObservations(runtime: ObservationRuntime): void {
+export function closeObservations(runtime: ObservationRuntime, reason?: ObservationPayloads["session.closing"]["reason"]): void {
+  if (runtime.state.closed) return
+  if (reason) {
+    const entry: Retained = { publication: { kind: "session.closing", payload: { reason } }, seq: ++runtime.state.seq,
+      time: runtime.identity.now(), bytes: 0, callers: [] }
+    for (const observer of runtime.state.observers) if (validObserver(runtime, observer)) observer.terminal = eventFor(runtime, observer, entry)
+  }
   runtime.state.controlReservations.clear()
   runtime.state.closed = true; runtime.state.pending.length = 0
   for (const observer of [...runtime.state.observers]) observer.queue.close()

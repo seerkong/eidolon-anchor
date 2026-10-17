@@ -4,6 +4,7 @@ import path from "node:path"
 
 import { afterEach, describe, expect, it } from "bun:test"
 import type { Event, Part } from "@terminal/core/AIAgent"
+import { projectInputContentText, type InputContent } from "@shared/composer"
 import { __setLlmAdapterFactoryForTest, configureTuiRuntime, disposeTuiRuntimeBridge } from "../src/runtime/bridge/TuiRuntime"
 import { createTuiRuntimeClient } from "../src/runtime/client/TuiRuntimeClient"
 
@@ -62,6 +63,10 @@ function findLastMessage(messages: any[], role: string) {
   return [...messages].reverse().find((message) => message?.role === role)
 }
 
+function messageText(message: { content?: InputContent } | undefined) {
+  return projectInputContentText(message?.content ?? "")
+}
+
 function findToolMessage(messages: any[], toolCallId: string) {
   return messages.find((message) => message?.role === "tool" && message?.tool_call_id === toolCallId)
 }
@@ -83,7 +88,7 @@ describe("TuiRuntimeClient local-runtime questionnaire e2e", () => {
       type: "openai" as const,
       async createStream(options: any) {
         const messages = Array.isArray(options?.messages) ? options.messages : []
-        const firstSystem = String(messages[0]?.content ?? "")
+        const firstSystem = messageText(messages[0])
 
         if (firstSystem.startsWith("QUESTIONNAIRE_ANSWER_PARSER_V2")) {
           async function* parserStream() {
@@ -104,7 +109,7 @@ describe("TuiRuntimeClient local-runtime questionnaire e2e", () => {
           return { stream: parserStream() }
         }
 
-        const lastUser = String(findLastMessage(messages, "user")?.content ?? "")
+        const lastUser = messageText(findLastMessage(messages, "user"))
         const questionnaireTool = findToolMessage(messages, "tc-q-1")
 
         async function* stream() {
@@ -221,7 +226,7 @@ describe("TuiRuntimeClient local-runtime questionnaire e2e", () => {
       type: "openai" as const,
       async createStream(options: any) {
         const messages = Array.isArray(options?.messages) ? options.messages : []
-        const firstSystem = String(messages[0]?.content ?? "")
+        const firstSystem = messageText(messages[0])
 
         if (firstSystem.startsWith("QUESTIONNAIRE_ANSWER_PARSER_V2")) {
           async function* parserStream() {
@@ -242,7 +247,7 @@ describe("TuiRuntimeClient local-runtime questionnaire e2e", () => {
           return { stream: parserStream() }
         }
 
-        const lastUser = String(findLastMessage(messages, "user")?.content ?? "")
+        const lastUser = messageText(findLastMessage(messages, "user"))
         const questionnaireTool = findToolMessage(messages, "tc-q-1")
 
         async function* stream() {
@@ -357,7 +362,7 @@ describe("TuiRuntimeClient local-runtime questionnaire e2e", () => {
       type: "openai" as const,
       async createStream(options: any) {
         const messages = Array.isArray(options?.messages) ? options.messages : []
-        const firstSystem = String(messages[0]?.content ?? "")
+        const firstSystem = messageText(messages[0])
 
         if (firstSystem.startsWith("QUESTIONNAIRE_ANSWER_PARSER_V2")) {
           const parserInput = JSON.parse(String(messages[1]?.content ?? "{}"))
@@ -382,7 +387,7 @@ describe("TuiRuntimeClient local-runtime questionnaire e2e", () => {
           return { stream: parserStream() }
         }
 
-        const lastUser = String(findLastMessage(messages, "user")?.content ?? "")
+        const lastUser = messageText(findLastMessage(messages, "user"))
         const questionnaireTool = findToolMessage(messages, "tc-travel-1")
         const toolContent = String(questionnaireTool?.content ?? "")
 

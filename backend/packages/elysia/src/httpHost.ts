@@ -25,7 +25,7 @@ export function createHttpHost(options: HttpListenOptions, configure: (app: Elys
       const port = options.port ?? 4001
       if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error("Invalid listen port")
       try {
-        app.listen({ hostname: options.hostname ?? "127.0.0.1", port, idleTimeout: 0, ...(options.tls ? { tls: options.tls } : {}) })
+        app.listen({ hostname: options.hostname ?? "127.0.0.1", port, reusePort: false, idleTimeout: 0, ...(options.tls ? { tls: options.tls } : {}) })
         started = true
       } catch (error) {
         closed = true

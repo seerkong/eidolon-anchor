@@ -35,7 +35,6 @@ Halfcode 已成为 XNL ResourcePackage、Catalog、KindDefinition、ResourceTree
 - 不复制 Fabric平台 的 ResourceRegistry、global/workspace overlay、Skill inventory 或安装器实现。
 - 不把 Halfcode 的通用 ResourcePackage/Catalog 重新定义在 depa-flows 或 Eidolon。
 - 不把 Flow DSL 手工复制到 Eidolon 作为第二 authoring authority。
-- 不修改 ACE Workbench；它只作为 DevOps Skill 与 authoring Skill 分离的参考证据。
 - 不把尚未确定 owner 项目的非 workflow 预制 App 内容塞入 depa-flows、Halfcode 或 Eidolon。
 - 不实现 workflow-specific history compactor、conversation store 或 Agent runner；跨节点复用只通过 Flow checkpoint 中的稳定 instance/session references 驱动 Eidolon 通用 actor runtime。
 - 不在 host 代码中通过正则、关键词、substring、模糊匹配或有序 heuristic 推断业务意图。

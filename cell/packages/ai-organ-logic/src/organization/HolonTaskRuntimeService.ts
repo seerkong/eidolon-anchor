@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import { deriveHolonTaskRequestIdentity } from './HolonTaskRequestIdentity'
 
 import {
   HOLON_TASK_COORDINATOR_WAKE_SCHEMA_VERSION,
@@ -178,17 +179,13 @@ export async function assignHolonTask(
   const admission = resolveHolonTaskRuntimeAdmission(await runtime.catalog.read(), selector)
   const deployment = await runtime.deployment.ensure({ admission })
   const deploymentId = exactText(deployment.deploymentId, "deployment.deploymentId")
-  const identity = createHash("sha256").update(JSON.stringify([
-    admission.admissionId,
-    invocation.requestId,
-    invocation.idempotencyKey,
-  ])).digest("hex").slice(0, 40)
+  const identity = deriveHolonTaskRequestIdentity(admission.admissionId,invocation.requestId,invocation.idempotencyKey)
   const taskId = invocation.taskRequest.kind === "exact"
     ? invocation.taskRequest.identity.taskId
-    : `holon-task-${identity}`
+    : identity.taskId
   const commandId = invocation.taskRequest.kind === "exact"
     ? invocation.taskRequest.identity.commandId
-    : `holon-task-submit-${identity}`
+    : identity.commandId
   // occurredAt records when a caller observed/issued an attempt. A retry with
   // the same durable request identity may observe a later wall-clock instant,
   // while the first accepted invocation remains authoritative in TaskSpace.
@@ -233,7 +230,7 @@ export async function assignHolonTask(
     task.snapshotReceipt,
     taskSpaceId,
   )
-  const messageId = `holon-task-wake-${identity}`
+  const messageId = identity.wakeMessageId
   const coordinatorWake = await runtime.coordinatorMailbox.sendWake(Object.freeze({
     kind: "holon-task.coordinator-wake",
     schemaVersion: HOLON_TASK_COORDINATOR_WAKE_SCHEMA_VERSION,

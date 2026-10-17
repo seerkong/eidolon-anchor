@@ -1,5 +1,5 @@
 import { createSyntheticTeamFixture } from "holarchy-test-support"
-import { afterEach, describe, expect, it } from "bun:test"
+import { afterEach, describe, expect, it, spyOn } from "bun:test"
 import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises"
 import { createHash } from "node:crypto"
 import os from "node:os"
@@ -1809,7 +1809,14 @@ describe("HolonExecutionBinding shared registry projection", () => {
       aiAgent: { executeIdempotent: async ({ invocation }) => {
         dispatches += 1
         if (invocation.taskRef === "heartbeat-review") {
-          await new Promise((resolve) => setTimeout(resolve, 220))
+          const deadline = performance.now() + 30_000
+          while (true) {
+            const history = await taskManager.owner.readHistory(snapshotReceipt.taskSpaceId)
+            if (history.filter((event) => event.kind === "task.claim-heartbeat-recorded"
+              && event.taskId === "heartbeat-review").length >= 3) break
+            if (performance.now() >= deadline) throw new Error("heartbeat_commit_timeout")
+            await Bun.sleep(10)
+          }
         }
         return { summary: "approved" }
       } },
@@ -1943,15 +1950,38 @@ describe("HolonExecutionBinding shared registry projection", () => {
       leaseDurationMs: 100,
     }, config)
     let heartbeatPumped: Awaited<ReturnType<typeof pumpHolonTaskSpace>> | undefined
-    for (let wake = 0; wake < 8; wake += 1) {
-      heartbeatPumped = await pumpHolonTaskSpace(processorRuntime, {
-        ...input,
-        leaseDurationMs: 100,
-        observedAt: `2026-01-01T00:00:05.${String(60 + wake * 10).padStart(3, "0")}Z`,
+    // Keep lease time independent of disk latency. The effect above is released
+    // only by committed owner facts, rather than a guessed wall-clock duration.
+    let heartbeatClock = 0
+    let heartbeatTicks = 0
+    const wallClock = spyOn(Date, "now").mockReturnValue(Date.parse("2026-01-01T00:00:05.060Z"))
+    const heartbeatRuntime = {
+      ...processorRuntime,
+      clock: { nowEpochMs: () => heartbeatClock },
+      timer: {
+        async wait(delayMs: number, signal: AbortSignal): Promise<boolean> {
+          if (signal.aborted) return false
+          if (heartbeatTicks++ < 3) {
+            heartbeatClock += delayMs
+            return true
+          }
+          return new Promise((resolve) => {
+            signal.addEventListener("abort", () => resolve(false), { once: true })
+          })
+        },
+      },
+    }
+    try {
+      heartbeatPumped = await pumpHolonTaskSpace(heartbeatRuntime, {
+        ...input, leaseDurationMs: 100, observedAt: "2026-01-01T00:00:05.060Z",
       }, config)
-      if (heartbeatPumped.status !== "yielded") break
+    } finally {
+      wallClock.mockRestore()
     }
     expect(heartbeatPumped.status).toBe("terminal")
+    expect(dispatches).toBe(3)
+    expect((await taskManager.owner.readSnapshot(snapshotReceipt.taskSpaceId))!
+      .tasks.find((task) => task.taskId === "heartbeat-review")!.status).toBe("Succeeded")
     const heartbeatHistory = await taskManager.owner.readHistory(snapshotReceipt.taskSpaceId)
     expect(heartbeatHistory.filter(({ kind }) => kind === "task.claim-heartbeat-recorded").length).toBeGreaterThan(2)
     expect(heartbeatClaim.receipt.claim.expiresAt).toBe("2026-01-01T00:00:05.100Z")
@@ -2108,7 +2138,7 @@ describe("HolonExecutionBinding shared registry projection", () => {
       }),
       actor,
     } as any
-    ensureVmRuntimeContext(runtime.vm).driver = createAiAgentOrchestratorDriver({
+    const driver = createAiAgentOrchestratorDriver({
       fibers: [{
         fiberId: `${actor.key}:${actor.id}`,
         vm: runtime.vm,
@@ -2119,6 +2149,8 @@ describe("HolonExecutionBinding shared registry projection", () => {
       runStep: async () => ({ kind: "yield" as const }),
       options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
     })
+    // Driver construction registers VM facets; bind against the resulting context.
+    ensureVmRuntimeContext(runtime.vm).driver = driver
     bindWorkflowComponentToRuntime(runtime, component)
     const service = new WorkflowRuntimeService(runtime)
     const instance = await service.createInstance({

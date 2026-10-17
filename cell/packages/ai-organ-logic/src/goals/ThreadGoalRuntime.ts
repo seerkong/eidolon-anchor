@@ -3,12 +3,16 @@ import { hasPendingAiAgentWakeMailbox } from "@cell/ai-core-logic/runtime/actor"
 import type { AiAgentOrchestratorDriver } from "../OrchestratorDriver"
 import { buildGoalContinuationPrompt, getThreadGoal } from "./ThreadGoalManager"
 import { createRuntimeHookHandlerComponent, type RuntimeHookHandlerComponent } from "../hooks/RuntimeHookDispatcher"
+import type { VmThreadGoalRecord } from "@cell/ai-core-contract/runtime/AiAgentVm"
+
+export type ThreadGoalContinuationAdmission = (input: { goal: VmThreadGoalRecord; actorId: string; fiberId: string; now: number }) => boolean
 
 export function maybeStartThreadGoalContinuation(params: {
   vm: AiAgentVm
   driver: AiAgentOrchestratorDriver
   now: number
   mainFiberId?: string
+  admit?: ThreadGoalContinuationAdmission
 }): boolean {
   const runtime = ensureVmRuntimeContext(params.vm)
   if (runtime.interactiveTurnActive) return false
@@ -22,21 +26,26 @@ export function maybeStartThreadGoalContinuation(params: {
   const fiberId = params.mainFiberId ?? `${actor.key}:${actor.id}`
   const fiber = (params.driver.getState().fibers as any)?.[fiberId]
   if (!fiber || (fiber.status !== "suspended" && fiber.status !== "ready")) return false
+  if (goal.activation?.source === "web" && !params.admit) return false
 
-  params.driver.emitFiberSignal({
-    fiberId,
-    signalKind: "mailbox_enqueue",
-    mailbox: {
-      kind: "heartbeat",
-      payload: {
-        heartbeatKind: "runtime_internal_context",
-        source: "goal",
-        text: buildGoalContinuationPrompt(goal),
+  if (params.admit) {
+    if (!params.admit({ goal, actorId: actor.id, fiberId, now: params.now })) return false
+  } else {
+    params.driver.emitFiberSignal({
+      fiberId,
+      signalKind: "mailbox_enqueue",
+      mailbox: {
+        kind: "heartbeat",
+        payload: {
+          heartbeatKind: "runtime_internal_context",
+          source: "goal",
+          text: buildGoalContinuationPrompt(goal),
+        },
       },
-    },
-    idempotencyKey: `${fiberId}:threadGoal:${goal.goalId ?? "active"}:${params.now}`,
-    createdAt: params.now,
-  })
+      idempotencyKey: `${fiberId}:threadGoal:${goal.goalId ?? "active"}:${params.now}`,
+      createdAt: params.now,
+    })
+  }
   goalRuntime.continuationInFlight = true
   goalRuntime.continuationTurns = (goalRuntime.continuationTurns ?? 0) + 1
   goalRuntime.lastContinuationAt = params.now
@@ -44,7 +53,7 @@ export function maybeStartThreadGoalContinuation(params: {
   return true
 }
 
-export function createGoalContinuationHookHandlerComponent(): RuntimeHookHandlerComponent {
+export function createGoalContinuationHookHandlerComponent(options: { admit?: ThreadGoalContinuationAdmission } = {}): RuntimeHookHandlerComponent {
   return createRuntimeHookHandlerComponent({
     coreLogic: async (runtime) => {
       const vm = runtime.data?.vm as AiAgentVm | undefined
@@ -66,6 +75,8 @@ export function createGoalContinuationHookHandlerComponent(): RuntimeHookHandler
       const fiberId = payload?.mainFiberId ?? `${actor.key}:${actor.id}`
       const fiber = (driver.getState().fibers as any)?.[fiberId]
       if (!fiber || (fiber.status !== "suspended" && fiber.status !== "ready")) return { action: "continue" }
+      if (goal.activation?.source === "web" && !options.admit) return { action: "continue" }
+      if (options.admit && !options.admit({ goal, actorId: actor.id, fiberId, now })) return { action: "continue" }
 
       goalRuntime.continuationInFlight = true
       goalRuntime.continuationTurns = (goalRuntime.continuationTurns ?? 0) + 1
@@ -78,7 +89,7 @@ export function createGoalContinuationHookHandlerComponent(): RuntimeHookHandler
           source: "goal",
           goalId: goal.goalId,
         },
-        effects: [
+        effects: options.admit ? [] : [
           {
             type: "mailbox_enqueue",
             fiberId,

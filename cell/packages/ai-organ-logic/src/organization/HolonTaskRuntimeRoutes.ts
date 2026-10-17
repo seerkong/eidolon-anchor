@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import { deriveHolonTaskRequestIdentity } from './HolonTaskRequestIdentity'
 
 import {
   HOLON_TASK_SNAPSHOT_RECEIPT_SCHEMA_VERSION,
@@ -91,11 +92,7 @@ function taskSpaceId(
   invocation: HolonTaskRuntimeInvocation,
 ): string {
   if (invocation.taskRequest.kind === "exact") return invocation.taskRequest.identity.taskSpaceId
-  return `holon-task-space-${digest([
-    admission.admissionId,
-    invocation.requestId,
-    invocation.idempotencyKey,
-  ]).slice("sha256:".length, "sha256:".length + 40)}`
+  return deriveHolonTaskRequestIdentity(admission.admissionId,invocation.requestId,invocation.idempotencyKey).taskSpaceId
 }
 
 function exactAdmission(
@@ -153,7 +150,7 @@ async function taskResult(owner: TaskSpaceOwnerPort, task: TaskRecord): Promise<
 export type HolonTaskRuntimeCoordinatorPort = Pick<
   HolonTaskSpaceCoordinatorActor,
   "actorId" | "wake" | "scheduleWake" | "close"
->
+> & Partial<Pick<HolonTaskSpaceCoordinatorActor, 'isBusy'>>
 
 /** Live correlations are reconstructible; TaskSpace remains the task authority. */
 export interface HolonTaskRuntimeRouteState {
@@ -439,8 +436,8 @@ function createRoute(runtime: HolonTaskRuntimeRoutesRuntime, admission: FrozenHo
   })
 }
 
-async function openCanonicalTask(
-  runtime: HolonTaskRuntimeRoutesRuntime,
+export async function openCanonicalTask(
+  runtime: Pick<HolonTaskRuntimeRoutesRuntime,'taskManager'>,
   input: LocalHolonTaskRuntimeOpenInput,
 ): Promise<LocalHolonTaskRuntimeOpenResult> {
   const snapshotReceipt = canonicalSnapshotReceipt(input.admission, input.taskSpaceId, input.snapshotReceiptId)
@@ -462,6 +459,7 @@ async function openCanonicalTask(
     if (!receipt || receipt.kind !== "task-transition-receipt") {
       throw new Error("EIDOLON_HOLON_TASK_SUPPORT_CREATE_RECEIPT_MISSING")
     }
+    if(task.preparationReceiptId&&(receipt.receiptId!==task.preparationReceiptId||receipt.taskId!==task.taskId))throw new Error('EIDOLON_HOLON_TASK_SUPPORT_PREPARATION_RECEIPT_MISMATCH')
     return Object.freeze({ replayed: true, snapshotReceipt })
   }
   try {
@@ -509,7 +507,7 @@ async function openCanonicalTask(
   }
 }
 
-function canonicalSnapshotReceipt(admission: FrozenHolonTaskRuntimeAdmission, taskSpaceId: string, receiptId: `sha256:${string}`) {
+export function canonicalSnapshotReceipt(admission: FrozenHolonTaskRuntimeAdmission, taskSpaceId: string, receiptId: `sha256:${string}`) {
   return Object.freeze({
     kind: "holon-task-snapshot-receipt" as const,
     schemaVersion: HOLON_TASK_SNAPSHOT_RECEIPT_SCHEMA_VERSION,
@@ -688,6 +686,12 @@ export function createHolonTaskRuntimeRoutes(
     scheduleSubscription: (subscription: HolonTaskPumpSubscription, afterWake?: () => void | Promise<void>) =>
       scheduleHolonTaskRuntimeSubscription(configured, subscription, afterWake),
     terminalSettlement: (taskSpaceId: string, taskId: string) => readHolonTaskRuntimeTerminalSettlement(configured, taskSpaceId, taskId),
+    async terminalResult(taskSpaceId: string, taskId: string) {
+      const terminal = await terminalTaskSettlement(configured.taskManager.owner, taskSpaceId, taskId)
+      if (!terminal) return undefined
+      return { ...terminal, result: await taskResult(configured.taskManager.owner, terminal.task) }
+    },
+    isBusy: () => [...runtime.coordinators.values()].some(coordinator => coordinator.isBusy?.()),
     close: () => closeHolonTaskRuntimeRoutes(configured),
   })
 }

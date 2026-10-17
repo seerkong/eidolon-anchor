@@ -4,7 +4,7 @@
 
 ## 背景和动机 (Context And Why)
 
-tool-result 压缩管线的各阈值目前是**代码内隐式硬编码**，没有显式配置文件承载，用户无法调整。参照 ace-runtime-3 的 `micro-compact-options.json` VFS 加载机制，建立 eidolon 通用配置机制：terminal 构造 VFS，cell 从 VFS 读取 typed options，压缩阈值参数化进 `runtime-config.json`。
+tool-result 压缩管线的各阈值目前是**代码内隐式硬编码**，没有显式配置文件承载，用户无法调整。建立 eidolon 通用配置机制：terminal 构造 VFS，cell 从 VFS 读取 typed options，压缩阈值参数化进 `runtime-config.json`。
 
 ## 已收集的隐式默认值位置（完整清单）
 

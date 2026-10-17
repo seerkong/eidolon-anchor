@@ -1,5 +1,6 @@
 import { mkdirSync } from "node:fs"
 import path from "node:path"
+import type {WorkflowCheckpointObserver} from './WorkflowCheckpointEvents'
 
 import type {
   AIWorkflowNodeResult,
@@ -51,6 +52,7 @@ export class WorkflowDepaPersistence {
   constructor(
     readonly supportRoot: string,
     extensionCodecs: DefinitionStepExtensionCodecRegistryPort = Object.freeze({ resolve: () => undefined }),
+    checkpointObserver?:WorkflowCheckpointObserver,
   ) {
     mkdirSync(supportRoot, { recursive: true })
     this.extensionCodecs = extensionCodecs
@@ -76,9 +78,17 @@ export class WorkflowDepaPersistence {
       profileAuthority: this.profileAuthority,
       extensionCodecs,
     })
-    this.checkpointRuntime = { checkpointStore: this.checkpointStore }
+    const checkpointStore=checkpointObserver?{
+      load:this.checkpointStore.load.bind(this.checkpointStore),
+      commit:async(input:Parameters<FlowRunCheckpointRuntime['checkpointStore']['commit']>[0])=>{
+        const committed=await this.checkpointStore.commit(input)
+        await checkpointObserver(committed)
+        return committed
+      },
+    }:this.checkpointStore
+    this.checkpointRuntime = { checkpointStore }
     this.stepExtensionRuntime = Object.freeze({
-      checkpointStore: this.checkpointStore,
+      checkpointStore,
       profileAuthority: this.profileAuthority,
       extensionCodecs,
     })

@@ -263,6 +263,7 @@ export type RuntimeAgentLoader = {
 
 export type RuntimeModelConfigResolverParams = {
   workDir: string;
+  globalRoot?: string;
   agentKey: string;
   modelRef?: string;
   fallbackModelConfig: ActorModelConfig;

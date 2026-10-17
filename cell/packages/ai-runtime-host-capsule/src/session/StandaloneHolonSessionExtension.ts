@@ -2,12 +2,32 @@ import { createHash } from "node:crypto"
 import path from "node:path"
 import type { AiAgentActor } from "@cell/ai-core-logic/runtime/actor"
 import { getActorWorkContext, invokeAddressedChildExecutionActor, type HolonGenericActorOwnerPort } from "@cell/ai-organ-logic"
-import { openLocalHolonTaskRuntime } from "./LocalHolonTaskRuntimeBootstrap"
-import { createStandaloneHolonExecutionAdapters } from "./StandaloneHolonExecutionAdapters"
+import { openLocalHolonTaskRuntime,type OpenLocalHolonTaskRuntimeInput } from "./LocalHolonTaskRuntimeBootstrap"
+import type {EidolonAppResourceRegistryAdapter} from '@cell/ai-organ-logic/resources'
+import { createStandaloneHolonExecutionAdapters, type StandaloneHolonExecutionRuntime } from "./StandaloneHolonExecutionAdapters"
 import type { SessionRuntimeExtensionContext } from "./SessionRuntimeAssembly"
+import type { HolonExecutionAdapterInput } from '@cell/ai-organ-logic/organization/HolonLocalActorRuntime'
+import { executeAdmittedLeaderLedHolon } from '@cell/ai-organ-logic/organization/AdmittedLeaderLedHolonExecution'
+import type { ParticipantConversation } from '../participantConversation'
+
+export type StandaloneHolonSessionOptions = Readonly<{
+  supportRoot?:string
+  resourceRegistry?:EidolonAppResourceRegistryAdapter
+  storageFactory?:OpenLocalHolonTaskRuntimeInput['storageFactory']
+  automaticPump?:OpenLocalHolonTaskRuntimeInput['automaticPump']
+  prepareManagedTask?:OpenLocalHolonTaskRuntimeInput['prepareManagedTask']
+  recoverPending?: boolean
+  allowHumanInput?: boolean
+  /** Trusted execution container shutdown; preserve unresolved task/journal facts. */
+  executionInterrupted?: () => boolean
+  executionConversation?: (input: HolonExecutionAdapterInput) => ParticipantConversation
+  prepareRetainedActor?:(actorId:string)=>Promise<void>
+  onActorAdmitted?: (input: HolonExecutionAdapterInput, reference: Awaited<ReturnType<typeof invokeAddressedChildExecutionActor>>['reference']) => void
+  onExecutionCompleted?: (input: HolonExecutionAdapterInput) => Promise<void>
+}>
 
 // Optional composition extension. Ordinary sessions do not import or open it.
-export async function openStandaloneHolonSessionExtension(context: SessionRuntimeExtensionContext) {
+export async function openStandaloneHolonSessionExtension(context: SessionRuntimeExtensionContext, options: StandaloneHolonSessionOptions = {}) {
   const { vm, actor, sessionDir, workDir, workflowComponent, activateSessionMaterialization } = context
   const holonActorReferences = new Map<
     string,
@@ -34,13 +54,53 @@ export async function openStandaloneHolonSessionExtension(context: SessionRuntim
     }
     return undefined
   }
+  async function executeOriginalAddressedAgent(input: Parameters<StandaloneHolonExecutionRuntime['executeAddressedAgent']>[0]): Promise<string> {
+    const { agentDefinitionRef, resolvedConfig, invocation, sessionRef, idempotencyKey } = input
+    // Child execution owns its own driver even when the invoking tool owns the interactive turn.
+    const target = holonActorReferences.get(sessionRef) ?? recoveredHolonActorReference(sessionRef, agentDefinitionRef)
+    if (target) await options.prepareRetainedActor?.(target.actorId)
+    const conversation = target ? undefined : options.executionConversation?.(input)
+    const executionConfig = conversation?.messages.length ? {
+      ...resolvedConfig,
+      seedMessages: [...(resolvedConfig.seedMessages ?? resolvedConfig.prompt.map(content => ({ role: 'system' as const, content }))), ...conversation.messages],
+    } : resolvedConfig
+    try {
+      const invoked = await invokeAddressedChildExecutionActor(vm, actor, {
+        description: `Holon task ${invocation.taskRef}`,
+        prompt: JSON.stringify(invocation.input),
+        agentType: agentDefinitionRef,
+        resolvedConfig: executionConfig,
+        ...(conversation ? { durableMaterials: conversation.durableMaterials } : {}),
+        toolCallId: idempotencyKey,
+        allowHumanInput: options.allowHumanInput,
+        signal: input.signal,
+        onActorAdmitted(reference) {
+          holonActorReferences.set(sessionRef, reference)
+          options.onActorAdmitted?.(input, reference)
+        },
+        ...(target ? { target } : { sessionId: sessionRef }),
+      })
+      holonActorReferences.set(sessionRef, invoked.reference)
+      activateSessionMaterialization()
+      return invoked.output
+    } catch(error) {
+      if(options.executionInterrupted?.())throw Object.assign(new Error('Owned execution container interrupted'),{code:'EIDOLON_HOLON_EXECUTION_INTERRUPTED'})
+      throw error
+    } finally {
+      await options.onExecutionCompleted?.(input)
+    }
+  }
   return await openLocalHolonTaskRuntime({
     vm,
-    supportRoot: path.join(sessionDir, "holon-task-runtime"),
+    supportRoot: options.supportRoot??path.join(sessionDir, "holon-task-runtime"),
     registryRef: `resource://eidolon.effective-resource-registry/${createHash("sha256")
       .update(workDir)
       .digest("hex")}`,
-    resourceRegistry: workflowComponent.resourceRegistry,
+    resourceRegistry: options.resourceRegistry??workflowComponent.resourceRegistry,
+    recoverPending: options.recoverPending,
+    storageFactory:options.storageFactory,
+    automaticPump:options.automaticPump,
+    prepareManagedTask:options.prepareManagedTask,
     createGenericActorOwner: ({ admission }) => {
       const owner: HolonGenericActorOwnerPort = {
         ensureActor: ({ address }) => Object.freeze({
@@ -71,25 +131,31 @@ export async function openStandaloneHolonSessionExtension(context: SessionRuntim
       }
       return Object.freeze(owner)
     },
-    createExecutionAdapters: ({ deployment }) => createStandaloneHolonExecutionAdapters({
-      deployment,
-      executeAddressedAgent: async ({ agentDefinitionRef, resolvedConfig, invocation, sessionRef, idempotencyKey }) => {
-        // The invoking tool may already own the interactive turn. Child execution
-        // runs through its actor boundary, not behind that same turn's queue.
-        const target = holonActorReferences.get(sessionRef)
-          ?? recoveredHolonActorReference(sessionRef, agentDefinitionRef)
-        const invoked = await invokeAddressedChildExecutionActor(vm, actor, {
-          description: `Holon task ${invocation.taskRef}`,
-          prompt: JSON.stringify(invocation.input),
-          agentType: agentDefinitionRef,
-          resolvedConfig,
-          toolCallId: idempotencyKey,
-          ...(target ? { target } : { sessionId: sessionRef }),
-        })
-        holonActorReferences.set(sessionRef, invoked.reference)
-        activateSessionMaterialization()
-        return invoked.output
-      },
-    }),
+    createExecutionAdapters: async ({ deployment }) => {
+      const frozen = await deployment.resourceRegistry.snapshot()
+      const definitions = frozen.holonTaskRuntimeDefinitions.filter(p => p.bindingProjection.binding.bindingRef === deployment.definition.bindingRef)
+      const policy = definitions.find(p => p.governance)?.governance
+      if (policy && definitions.some(p => JSON.stringify(p.governance) !== JSON.stringify(policy))) {
+        throw new Error('EIDOLON_HOLON_GOVERNANCE_BINDING_AMBIGUOUS')
+      }
+      return createStandaloneHolonExecutionAdapters({
+        deployment,
+        executeAddressedAgent(input) {
+          if (!policy) return executeOriginalAddressedAgent(input)
+          return executeAdmittedLeaderLedHolon({
+            vm, initiator: actor, policy, execution: input,
+            proof: {
+              bindingRef: deployment.definition.bindingRef,
+              semanticFingerprint: deployment.bindingFreezeReceipt.semanticFingerprint,
+            },
+            executeLeader: () => executeOriginalAddressedAgent(input),
+            checkpoint: async () => {
+              activateSessionMaterialization()
+              await context.persistSnapshot()
+            },
+          })
+        },
+      })
+    },
   })
 }

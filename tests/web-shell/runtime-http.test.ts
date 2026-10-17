@@ -1,5 +1,5 @@
 import { afterEach, expect, spyOn, test } from "bun:test"
-import { mkdtemp, mkdir, rm, readFile } from "node:fs/promises"
+import { mkdtemp, mkdir, rm, readFile, realpath } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { installBundledSystemSkills } from "@cell/ai-support/system-skill/SystemSkillInstaller"
@@ -10,6 +10,17 @@ import { createMockProviderCacheCostObservation } from "../../cell/packages/ai-o
 import { serveRuntime, bearerAuthentication } from "../../backend/packages/elysia/src/runtimeServe"
 import { getOrganizationManager } from "@cell/ai-organ-logic/organization/OrganizationManager"
 import { getMemberManager } from "@cell/ai-organ-logic/organization/MemberManager"
+import { createHttpHost } from '../../backend/packages/elysia/src/httpHost'
+
+test('runtime HTTP listener never shares an occupied Anchor port', async () => {
+  const first = createHttpHost({ port: 0 }, app => { app.get('/alive', () => 'first') })
+  await first.start()
+  const second = createHttpHost({ port: Number(new URL(first.address!).port) }, app => { app.get('/alive', () => 'second') })
+  try {
+    await expect(second.start()).rejects.toThrow()
+    expect(await (await fetch(`${first.address}/alive`)).text()).toBe('first')
+  } finally { await second.close(); await first.close() }
+})
 
 afterEach(() => __setLlmAdapterFactoryForTest(null))
 async function until(check: () => boolean | Promise<boolean>) {
@@ -67,6 +78,9 @@ test("real RuntimeHost capsule and HTTP/SSE preserve execution after disconnect,
     server = await serveRuntime(options)
     let c = client(server.address!, token)
     const cap = parseWireResponse(await (await c.request("/capabilities")).json(), parseHostCapabilities)
+    const canonicalWorkDir = await realpath(f.workDir)
+    expect(await (await c.request('/workspace')).json()).toMatchObject({ workDir: canonicalWorkDir, workspaceId: canonicalWorkDir, serverInstanceId: cap.serverInstanceId })
+    expect((await c.request('/sessions')).status).toBe(200)
     const create = { commandId: "create", expectedServerInstanceId: cap.serverInstanceId, profileId: "ai-coding" }
     const session = parseWireResponse(await (await c.post("/sessions", create)).json(), parseSessionSummary)
     const directory = parseWireResponse(await (await c.request(`/sessions/${session.sessionId}/actors`)).json(), parseActorDirectory)

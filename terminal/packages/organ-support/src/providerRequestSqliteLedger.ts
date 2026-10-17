@@ -10,7 +10,7 @@ import type {
 
 export const PROVIDER_REQUEST_LEDGER_RELATIVE_PATH = path.join("observability", "provider-requests.sqlite")
 
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 4
 
 export type ProviderRequestSqliteLedgerDiagnostic = Readonly<{
   eventType: "provider_request_sqlite_ledger_diagnostic"
@@ -74,6 +74,7 @@ function openProviderRequestSqliteLedger(
       if (version === 1) migrateSchemaV1ToV2(db)
       if (version <= 2) migrateSchemaV2ToV3(db)
     }
+    if (version < 4) db.transaction(() => db.exec("ALTER TABLE provider_request_outcomes ADD COLUMN timing_json TEXT; PRAGMA user_version = 4;"))()
     chmodLedgerFiles(databasePath)
 
     const insertRequest = db.query(`
@@ -103,8 +104,8 @@ function openProviderRequestSqliteLedger(
         provider_call_id, provider_call_ordinal, attempt_ordinal, provider_attempt_ordinal,
         transport_attempt_ordinal, transport_type, provider_id, model,
         terminal_state, fallback_used, completeness_status, completeness_source,
-        completeness_reason, response_id, captured_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        completeness_reason, response_id, captured_at, timing_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const appendTransaction = db.transaction(
       (data: Parameters<ProviderRequestObservationBinding["port"]["append"]>[0]) => {
@@ -181,6 +182,7 @@ function openProviderRequestSqliteLedger(
           data.completenessReason,
           data.responseId,
           data.capturedAt,
+          data.timing ? JSON.stringify(data.timing) : null,
         )
         chmodLedgerFiles(databasePath)
       },

@@ -50,10 +50,10 @@
     安装 `sys-eidolon-anchor-devops`、`sys-eidolon-anchor-authoring`、`sys-eidolon-anchor-run`；DevOps 的 Code 阶段引用 authoring，Deploy/Operate/Monitor 阶段引用 run。
     </?01M05F1P506EXRVHCRT75Q9VCF>
     <rationale ?01M05F1P506EXRVHCRT75Q9VCG>
-    对齐 ACE Workbench 的生命周期路由与独立 authoring 结构，同时保留 develop/run 的产品阶段隔离。
+    采用生命周期路由与独立 authoring 结构，保留 develop/run 的产品阶段隔离。
     </?01M05F1P506EXRVHCRT75Q9VCG>
     <evidence ?01M05F1P506EXRVHCRT75Q9VCH>
-    用户确认的名称和职责；ACE sibling Skill delegation；Fabric平台 develop/run skills。
+    用户确认的名称和职责；独立 authoring 职责；Fabric平台 develop/run skills。
     </?01M05F1P506EXRVHCRT75Q9VCH>
   )>
 )>

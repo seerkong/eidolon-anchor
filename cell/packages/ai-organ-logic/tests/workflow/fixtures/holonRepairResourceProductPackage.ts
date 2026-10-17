@@ -26,6 +26,10 @@ const policy = "resource://eidolon.product.RuntimePolicy"
 const capability = "resource://eidolon.product.Capability"
 const xnl = stringifyLiteral
 
+export async function writeProductLeaderLedPolicy(resources: string, declaration: unknown) {
+  await writeFile(path.join(resources, 'context/RuntimePolicy.xnl'), `<ContextMaterial #eidolon.product.RuntimePolicy envelopeVersion="halfcode.resource-envelope/v1" specVersion=1 {lifecycle="Active" value=${xnl({ holonGovernance: declaration })}}>`)
+}
+
 export function productWorkerSource(version: 1 | 2, workflowMaterial = false) {
   const source = childWorkerSource(version)
     .replace('ref="resource://eidolon.child.Input"', `ref="${productRefs.input}"`)

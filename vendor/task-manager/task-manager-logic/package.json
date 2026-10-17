@@ -1,0 +1,20 @@
+{
+  "name": "task-manager-logic",
+  "version": "0.1.7",
+  "private": false,
+  "description": "Runtime-first TaskSpace transition processors and backend-neutral in-memory owner",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "task-manager-contract": "0.1.4"
+  },
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -124,11 +124,19 @@ async function initializeEffectiveEidolonVfs(
   })
   await materializer.restore()
   const loadOverlays = () => loadConfiguredOverlays(input)
-  const overlays = await loadOverlays()
-  const result = await materializer.materialize({
+  let result = await materializer.materialize({
     expectedCurrentRevision: materializer.read().snapshot.revision,
-    overlays,
+    overlays: await loadOverlays(),
   })
+  // Concurrent consumers can initialize the same physical authority. Re-observe
+  // its head and rebuild only an unadmitted initialization candidate; never replay
+  // an authored mutation or overwrite another writer's revision.
+  for (let attempt = 0; attempt < 8 && result.status !== "admitted"; attempt++) {
+    const diagnostics = result.status === "planning_rejected" ? result.diagnostics : result.receipt.diagnostics
+    if (!diagnostics.length || diagnostics.some(item => item.code !== "publish_conflict")) break
+    await materializer.restore()
+    result = await materializer.materialize({ expectedCurrentRevision: materializer.read().snapshot.revision, overlays: await loadOverlays() })
+  }
   if (result.status !== "admitted") {
     const diagnostics = result.status === "planning_rejected"
       ? result.diagnostics

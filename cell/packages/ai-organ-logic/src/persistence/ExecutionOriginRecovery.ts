@@ -15,6 +15,19 @@ export function quarantineWebExecutionOnRecovery(material: RecoveryMaterial, evi
   executionOrigin?: Readonly<Record<string, unknown>>; originSchemaVersion?: number; payload?: unknown;
 }[] = []): Set<string> {
   const quarantined = new Set<string>();
+  const goal = material.vm.sessionState?.threadGoal;
+  if (goal?.activation?.source === "web") {
+    if (goal.status === "active") {
+      goal.status = "paused";
+      goal.suspensionReason = "runtime_restarted";
+    }
+    // Retired goal wakes are diagnostic recovery material, never runnable work.
+    for (const actor of Object.values(material.actors)) {
+      const heartbeats = actor.mailboxes.heartbeat;
+      if (!heartbeats) continue;
+      actor.mailboxes.heartbeat = heartbeats.filter(wake => !wake || typeof wake !== "object" || (wake as { source?: string }).source !== "goal");
+    }
+  }
   const requiredIds = new Set(material.vm.executionOrigins?.webActorIds ?? []);
   const newerWebOrigins = new Map<string, NonNullable<ReturnType<typeof decodeExecutionOrigin>>>();
   for (const event of evidence) {

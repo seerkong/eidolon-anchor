@@ -1,6 +1,8 @@
-import { link, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises"
+import { link, mkdir, open, readFile, readdir, rename, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { randomUUID } from "node:crypto"
+import {canonicalOwnDataDigest,deepFrozenCanonicalOwnDataClone} from 'task-manager-contract'
+import type {WorkflowTaskTreeNodeIdentity,WorkflowTaskTreeIntentFact} from '@cell/ai-organ-contract/workflow/WorkflowTaskTree'
 
 import type {
   AIDataWorkflowChildFreezeReceipt,
@@ -59,13 +61,15 @@ async function writeJsonAtomic(filePath: string, value: unknown): Promise<void> 
   }
 }
 
-async function writeJsonExclusiveAtomic(filePath: string, value: unknown): Promise<boolean> {
+async function writeJsonExclusiveAtomic(filePath: string, value: unknown,durable=false): Promise<boolean> {
   await mkdir(path.dirname(filePath), { recursive: true })
   const temporary = `${filePath}.tmp-${randomUUID()}`
   try {
     await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, "utf8")
+    if(durable){const file=await open(temporary,'r');try{await file.sync()}finally{await file.close()}}
     try {
       await link(temporary, filePath)
+      if(durable){const directory=await open(path.dirname(filePath),'r');try{await directory.sync()}finally{await directory.close()}}
       return true
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "EEXIST") return false
@@ -82,6 +86,34 @@ function safeId(value: string): string {
 
 export class WorkflowFactStore implements WorkCtrlFlowStore, AIWorkflowStateStore {
   constructor(readonly rootPath: string) {}
+  private taskTreeIntentPath(identity:WorkflowTaskTreeNodeIdentity,phase:WorkflowTaskTreeIntentFact['phase']):string{
+    return path.join(this.rootPath,'tasktree-intents',canonicalOwnDataDigest(identity).slice(7),`${phase}.json`)
+  }
+  readTaskTreeIntent(identity:WorkflowTaskTreeNodeIdentity,phase:WorkflowTaskTreeIntentFact['phase']):Promise<WorkflowTaskTreeIntentFact|undefined>{
+    return readJson(this.taskTreeIntentPath(identity,phase))
+  }
+  async listTaskTreeNodeBindings(runId:string):Promise<WorkflowTaskTreeIntentFact[]>{
+    const root=path.join(this.rootPath,'tasktree-intents');
+    let entries:string[];
+    try{entries=await readdir(root)}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return [];throw error}
+    if(entries.length>2048)throw new Error('workflow_tasktree_binding_capacity');
+    const result:WorkflowTaskTreeIntentFact[]=[];
+    for(const id of entries){
+      if(!/^[a-f0-9]{64}$/.test(id))throw new Error('workflow_tasktree_binding_invalid');
+      const fact=await readJson<WorkflowTaskTreeIntentFact>(path.join(root,id,'node-bound.json'));
+      if(fact?.identity.runId!==runId)continue;
+      if(result.length>=128||fact.schemaVersion!=='eidolon.workflow-tasktree-intent/v1'||fact.phase!=='node-bound'||canonicalOwnDataDigest(fact.identity).slice(7)!==id)throw new Error('workflow_tasktree_binding_invalid');
+      result.push(fact);
+    }
+    return result;
+  }
+  async recordTaskTreeIntent(fact:WorkflowTaskTreeIntentFact):Promise<boolean>{
+    const frozen=deepFrozenCanonicalOwnDataClone(fact)
+    if(Buffer.byteLength(JSON.stringify(frozen))>131072)throw new Error('workflow_tasktree_intent_capacity')
+    const file=this.taskTreeIntentPath(fact.identity,fact.phase),created=await writeJsonExclusiveAtomic(file,frozen,true)
+    if(!created&&canonicalOwnDataDigest(await readJson(file))!==canonicalOwnDataDigest(frozen))throw new Error('workflow_tasktree_intent_identity_conflict')
+    return created
+  }
 
   private ctrlPath(treeId: string): string {
     return path.join(this.rootPath, "ctrl", `${safeId(treeId)}.json`)

@@ -193,13 +193,18 @@ describe("official Chat Completions effect bundles", () => {
     const terminalRuntime = source(
       "terminal/packages/organ/src/AIAgent/TerminalRuntime.ts",
     );
+    const sessionRuntime = source(
+      "cell/packages/ai-runtime-host-capsule/src/session/SessionRuntimeAssembly.ts",
+    );
 
     expect(fetchAdapter).not.toContain("function isDeepseekRequest");
     expect(openAIDriver).toContain("openAIOfficialChatEffectBundle");
     expect(deepSeekDriver).toContain("deepSeekOfficialChatEffectBundle");
     expect(executor).toContain("llmAdapter");
-    expect(terminalRuntime).toContain("options?.llmAdapter");
+    expect(terminalRuntime).toContain("createSessionRuntimeAssembly");
+    expect(sessionRuntime).toContain("options?.llmAdapter");
     expect(terminalRuntime).not.toContain("actor.llmClient as any");
+    expect(sessionRuntime).not.toContain("actor.llmClient as any");
   });
 
   it("uses the selected driver's bundle for normalized ingress", async () => {

@@ -108,7 +108,7 @@ test("combined question/turn/command metadata reservation rejects before owner m
   expect(f.observations.state.seq).toBe(seq)
 })
 
-test("Web questionnaire waits only its actor; real owner answer routing is exact and releases schema", async () => {
+test("Web questionnaire waits only its actor; answer routing releases control schema and retains bounded display details", async () => {
   const f = fixture()
   await f.invoke(f.a); await f.invoke(f.b)
   expect(f.a.pendingQuestionnaires["question-A"].suspendPolicy).toBe("continue_others")
@@ -125,8 +125,9 @@ test("Web questionnaire waits only its actor; real owner answer routing is exact
   expect(ensureVmSessionState(f.vm).questionnaires["question-A"].status).toBe("answered")
   expect(f.commands.index.questions.get("question-A")!.record).toMatchObject({ state: "answered", canAnswer: false })
   expect(f.commands.index.questions.get("question-A")!.record.schema).toBeUndefined()
+  expect(f.observations.state.projection.questions.get("question-A")).toMatchObject({ state: "answered", canAnswer: false, schema: { questions: [{ id: "q", prompt: "Continue?" }] } })
   expect(f.commands.index.questions.get("question-B")!.answerReserved).toBe(true)
-  expect(f.observations.state.projection.questions.has("question-A")).toBe(false)
+  expect(f.observations.state.projection.questions.has("question-A")).toBe(true)
   expect(f.observations.state.projection.questions.has("question-B")).toBe(true)
 })
 

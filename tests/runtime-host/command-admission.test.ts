@@ -72,6 +72,25 @@ describe("host command admission and reserved controls", () => {
     expect(admitHostCommand(f.runtime, request, { commandId: "late", surfaceId: "pane", expectedEpoch: "epoch", kind: "cancel_turn", payload: { actorId: "actor", turnId: second.turnId! } })).toMatchObject({ status: "already_terminal", associatedTurn: { state: "succeeded" } })
     expect(f.runtime.index.entries.size).toBe(count)
   })
+  test("goal continuation uses the same bounded work and reserved cancel slots without losing goal identity", async () => {
+    const f = fixture()
+    const actor = f.runtime.effects.actor('actor')!
+    f.runtime.effects.actor = actorId => actorId === actor.actorId ? { ...actor, executionKind: 'primary', allowedActions: [...actor.allowedActions, 'set_goal', 'continue_goal'] } : undefined
+    const limits = { receipts: 2, identities: 2, terminalTtlMs: 100 }
+    const command: CommandEnvelope = { commandId: 'goal-step', surfaceId: 'runtime-goal', expectedEpoch: 'epoch', kind: 'continue_goal', payload: { actorId: actor.actorId, goalId: 'goal-one' } }
+    const receipt = admitHostCommand(f.runtime, request, command, limits) as CommandReceipt
+    expect(readHostCommand(f.runtime, request, { commandId: command.commandId, expectedEpoch: 'epoch' }, limits).associatedTurn).toMatchObject({ source: 'goal', goalId: 'goal-one', turnId: receipt.turnId, state: 'queued' })
+    errorCode(() => admitHostCommand(f.runtime, request, { ...command, commandId: 'overflow' }, limits), 429, 'command_capacity')
+    expect(f.runtime.index.entries.size).toBe(1)
+    expect(admitHostCommand(f.runtime, request, { ...command, surfaceId: 'another-observer' }, limits)).toEqual(receipt)
+    errorCode(() => admitHostCommand(f.runtime, request, { ...command, payload: { actorId: actor.actorId, goalId: 'other-goal' } }, limits), 409, 'idempotency_conflict')
+    const cancel: CommandEnvelope = { commandId: 'cancel-goal', surfaceId: 'web', expectedEpoch: 'epoch', kind: 'cancel_turn', payload: { actorId: actor.actorId, turnId: receipt.turnId! } }
+    expect(admitHostCommand(f.runtime, request, cancel, limits).status).toBe('accepted')
+    command.payload.goalId = 'caller-mutated'
+    await f.flush()
+    expect(f.executed[0]).toMatchObject({ kind: 'continue_goal', payload: { actorId: actor.actorId, goalId: 'goal-one' } })
+    expect(f.runtime.index.reserved).toBe(0)
+  })
   test("a question reserves answer capacity before publication; conflicting answers cannot reuse the slot", () => {
     const f = fixture()
     const limits = { receipts: 3, identities: 3, terminalTtlMs: 100 }

@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
+import { constants } from "node:fs";
 import { lstat, mkdir, open, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { buildActorDirName } from "@cell/ai-core-contract/runtime/ActorDirectory";
 import type { RuntimeSnapshotRepositoryFactory } from "@cell/ai-core-contract/runtime/RuntimeSnapshotStore";
 import type { RuntimeSnapshotImporter } from "@cell/ai-core-contract/runtime/RuntimeSnapshotStore";
+import type {ActorRuntimeFacetIndex} from '@cell/ai-core-contract/runtime/ActorRuntimeFacet';
 import {
   RUNTIME_SNAPSHOT_SCHEMA_VERSION,
   type RuntimeSnapshotActor,
@@ -56,7 +58,19 @@ export type LocalFileRuntimeSnapshotRepositoryOptions = Readonly<{
   migrationFaultInjector?: (point: RuntimeSnapshotMigrationFaultPoint) => void | Promise<void>;
 }>;
 
+export type RuntimeSnapshotInspection = Readonly<{
+  version: number;
+  manifestDigest: string;
+  treeDigest: string;
+  sourceDigest: string;
+  controlActorKey: string;
+  actorCount: number;
+  hasPersistentIdentity: boolean;
+  migrationRequired: boolean;
+}>;
+
 type RuntimeSnapshotWriteInput = RuntimeSnapshotPersistedState & RuntimeSnapshotWriteSelection;
+type ActorDirectoryEntry = Pick<RuntimeSnapshotActor,'id'|'key'|'type'|'identity'|'agentName'> & {runtimeFacets:ActorRuntimeFacetIndex};
 
 function isProviderSecretKey(key: string): boolean {
   const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -338,6 +352,20 @@ export class LocalFileRuntimeSnapshotRepository {
     }
   }
 
+  /** Read the committed head's bounded question material without hydration or migration. */
+  async inspectQuestionnaires(expectedSessionId: string): Promise<RuntimeSnapshotLoadResult["questionnaires"]> {
+    const manifestBytes = await this.readTrustedSnapshotFile(MANIFEST_FILE, this.rootDir, 1024 * 1024);
+    const manifest = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(manifestBytes)) as RuntimeSnapshotManifest;
+    assertManifestShape(manifest, RUNTIME_SNAPSHOT_SCHEMA_VERSION);
+    if (manifest.sessionId !== expectedSessionId) failUnsupportedSnapshot("question inspection session mismatch");
+    const bytes = await this.readTrustedSnapshotFile(manifest.questionnairesFile ?? QUESTIONNAIRES_FILE, this.rootDir, 1024 * 1024);
+    const rows = parseQuestionnaireRowsXnl(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    if (rows.length > 512) failUnsupportedSnapshot("question inspection row budget exceeded");
+    const after = await this.readTrustedSnapshotFile(MANIFEST_FILE, this.rootDir, 1024 * 1024);
+    if (sha256Bytes(after) !== sha256Bytes(manifestBytes)) failUnsupportedSnapshot("question inspection head changed");
+    return rows;
+  }
+
   private splitActorSnapshot(actor: RuntimeSnapshotActor): {
     actorMeta: Record<string, unknown>;
     actorState: Record<string, unknown>;
@@ -370,6 +398,7 @@ export class LocalFileRuntimeSnapshotRepository {
         shutdownCoordination: actor.shutdownCoordination,
         taskTree: actor.taskTree,
         toolCallStreamState: actor.toolCallStreamState,
+        workContext: actor.workContext,
         continuationBaseline: actor.continuationBaseline,
         lastMemberResultNotifiedAt: actor.lastMemberResultNotifiedAt,
         detachedTask: actor.detachedTask,
@@ -452,6 +481,7 @@ export class LocalFileRuntimeSnapshotRepository {
         heartbeat: [],
       },
       toolCallStreamState: stateJson.toolCallStreamState ?? { toolCalls: [] },
+      workContext: stateJson.workContext,
       continuationBaseline: stateJson.continuationBaseline,
       lastMemberResultNotifiedAt: stateJson.lastMemberResultNotifiedAt,
       detachedTask: stateJson.detachedTask,
@@ -469,7 +499,7 @@ export class LocalFileRuntimeSnapshotRepository {
     if (expectedVersion === 3) {
       const knownStateFields = new Set([
         "version", "planApproval", "shutdownCoordination", "taskTree", "toolCallStreamState",
-        "continuationBaseline", "lastMemberResultNotifiedAt", "detachedTask", "runtimeFacets", "durableMaterials",
+        "workContext", "continuationBaseline", "lastMemberResultNotifiedAt", "detachedTask", "runtimeFacets", "durableMaterials",
         "holonState", "updatedAt", "recovery",
       ]);
       const migrationView = snapshot as unknown as Record<string, unknown>;
@@ -667,7 +697,7 @@ export class LocalFileRuntimeSnapshotRepository {
     return [...files].sort();
   }
 
-  private async readTrustedSnapshotFile(relativeFile: string, allowedRoot: string): Promise<Uint8Array> {
+  private async readTrustedSnapshotFile(relativeFile: string, allowedRoot: string, maximumBytes = Infinity): Promise<Uint8Array> {
     if (!relativeFile || path.isAbsolute(relativeFile) || relativeFile.includes("\0")) {
       failUnsupportedSnapshot(`unsafe snapshot path ${JSON.stringify(relativeFile)}`);
     }
@@ -697,7 +727,21 @@ export class LocalFileRuntimeSnapshotRepository {
     if (resolved !== resolvedAllowed && !resolved.startsWith(`${resolvedAllowed}${path.sep}`)) {
       failUnsupportedSnapshot(`snapshot path traverses a symlink: ${relativeFile}`);
     }
-    return new Uint8Array(await readFile(absolute));
+    if (!Number.isFinite(maximumBytes)) return new Uint8Array(await readFile(absolute));
+    const handle = await open(absolute, constants.O_RDONLY | constants.O_NOFOLLOW);
+    try {
+      const stat = await handle.stat();
+      if (!stat.isFile() || stat.size > maximumBytes) failUnsupportedSnapshot("snapshot inspection byte budget exceeded");
+      const bytes = new Uint8Array(stat.size + 1);
+      let received = 0;
+      while (received < bytes.length) {
+        const next = await handle.read(bytes, received, bytes.length - received, received);
+        if (!next.bytesRead) break;
+        received += next.bytesRead;
+      }
+      if (received !== stat.size) failUnsupportedSnapshot("snapshot changed during inspection");
+      return bytes.subarray(0, received);
+    } finally { await handle.close(); }
   }
 
   private async computeTreeDigest(
@@ -858,14 +902,21 @@ export class LocalFileRuntimeSnapshotRepository {
   private async migrateLegacyV3(
     sourceManifest: RuntimeSnapshotManifest,
     sourceManifestBytes: string,
+    expectedSourceDigest?: string,
   ): Promise<RuntimeSnapshotLoadResult> {
     assertManifestShape(sourceManifest, 3);
     const sourceAllowedRoot = path.dirname(this.rootDir);
     const sourceManifestDigest = sha256Bytes(sourceManifestBytes);
     const sourceTreeDigest = await this.computeTreeDigest(sourceManifest, sourceAllowedRoot);
+    if (expectedSourceDigest && sha256Bytes(`${sourceManifestDigest}\0${sourceTreeDigest}`) !== expectedSourceDigest) {
+      failUnsupportedSnapshot("snapshot preparation digest changed");
+    }
     const sourceSnapshot = await this.loadSnapshotAtManifest(sourceManifest, 3);
     if (!sourceSnapshot || sourceSnapshot.corruptions.length > 0) {
       failUnsupportedSnapshot("schema-v3 source is incomplete or corrupt");
+    }
+    if (expectedSourceDigest && sourceTreeDigest !== await this.computeTreeDigest(sourceManifest, sourceAllowedRoot)) {
+      failUnsupportedSnapshot("snapshot changed while preparing migration");
     }
     const importers = (this.options.importers ?? []).filter((entry) =>
       entry.sourceVersion === 3 && entry.targetVersion === RUNTIME_SNAPSHOT_SCHEMA_VERSION);
@@ -1002,6 +1053,149 @@ export class LocalFileRuntimeSnapshotRepository {
     const loaded = await this.loadSnapshotAtManifest(head, RUNTIME_SNAPSHOT_SCHEMA_VERSION);
     if (!loaded) failUnsupportedSnapshot("admitted v4 generation cannot be loaded");
     return loaded;
+  }
+
+  /** Read-only directory query: never migrates a snapshot or assembles a VM. */
+  async hasPersistentActorIdentity(): Promise<boolean> {
+    let bytes: string;
+    try { bytes = await readFile(this.manifestPath, "utf8"); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+      throw error;
+    }
+    const manifest = JSON.parse(bytes) as RuntimeSnapshotManifest;
+    // A legacy root needs explicit recovery; browsing must not perform migration.
+    if (manifest.version !== RUNTIME_SNAPSHOT_SCHEMA_VERSION) return true;
+    assertCurrentManifestShape(manifest);
+    await this.validateAdmittedGeneration(manifest);
+    if (manifest.legacyRootReadOnly) return true;
+    const files = Object.values(manifest.actorFiles);
+    if (files.length > 1000) throw new Error("snapshot_identity_query_budget");
+    const corruptions: RuntimeSnapshotCorruption[] = [];
+    for (const file of files) {
+      const actor = await this.readActorSnapshotFromPath(file, corruptions, RUNTIME_SNAPSHOT_SCHEMA_VERSION);
+      if (!actor || corruptions.length || actor.identity) return true;
+    }
+    return false;
+  }
+
+  /** Explicit bounded read-only preparation. Unlike loadSnapshot, this never
+   * runs an importer, publishes a generation, or swaps the manifest head. */
+  async preflightSnapshot(): Promise<RuntimeSnapshotInspection> {
+    const manifestBytes = await this.readTrustedSnapshotFile(MANIFEST_FILE, this.rootDir, 1024 * 1024);
+    const manifest = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(manifestBytes)) as RuntimeSnapshotManifest;
+    if (manifest.version !== 3 && manifest.version !== RUNTIME_SNAPSHOT_SCHEMA_VERSION) failUnsupportedSnapshot("unsupported snapshot inspection version");
+    assertManifestShape(manifest, manifest.version);
+    const files = this.referencedSnapshotFiles(manifest);
+    if (files.length > 1000) failUnsupportedSnapshot("snapshot inspection file budget exceeded");
+    // Normal current checkpoints, as well as v3, reference session/actors.
+    // The original Session remains the authority root; admitted generations
+    // additionally retain their own stricter validation below.
+    const allowedRoot = path.dirname(this.rootDir);
+    const digestTree = async () => {
+      let remaining = 64 * 1024 * 1024;
+      const facts: string[] = [];
+      for (const relativeFile of files) {
+        const bytes = await this.readTrustedSnapshotFile(relativeFile, allowedRoot, remaining);
+        remaining -= bytes.byteLength;
+        facts.push(`${relativeFile}\0${sha256Bytes(bytes)}`);
+      }
+      return sha256Bytes(facts.join("\n"));
+    };
+    const manifestDigest = sha256Bytes(manifestBytes), treeDigest = await digestTree();
+    if (manifest.version === RUNTIME_SNAPSHOT_SCHEMA_VERSION) await this.validateAdmittedGeneration(manifest);
+    const loaded = await this.loadSnapshotAtManifest(manifest, manifest.version);
+    if (!loaded || loaded.corruptions.length || !loaded.actors[manifest.controlActorKey]) failUnsupportedSnapshot("snapshot inspection found incomplete or corrupt state");
+    if (treeDigest !== await digestTree()
+      || manifestDigest !== sha256Bytes(await this.readTrustedSnapshotFile(MANIFEST_FILE, this.rootDir, 1024 * 1024))) {
+      failUnsupportedSnapshot("snapshot changed during inspection");
+    }
+    return {
+      version: manifest.version, manifestDigest, treeDigest,
+      sourceDigest: sha256Bytes(`${manifestDigest}\0${treeDigest}`),
+      controlActorKey: manifest.controlActorKey, actorCount: Object.keys(loaded.actors).length,
+      hasPersistentIdentity: Object.values(loaded.actors).some(actor => Boolean(actor.identity)),
+      migrationRequired: manifest.version === 3,
+    };
+  }
+
+  /** Caller must hold the original Session writer lease. A prepared digest is
+   * explicit acceptance of this source, never permission to upgrade any head. */
+  async upgradePreparedSnapshot(expectedSourceDigest: string): Promise<Readonly<{
+    inspection: RuntimeSnapshotInspection; migrated: boolean; backupFile?: string;
+  }>> {
+    const prepared = await this.preflightSnapshot();
+    if (prepared.sourceDigest !== expectedSourceDigest) {
+      // A fault after the atomic head swap may lose the caller's receipt. Verify
+      // the original admitted migration proof rather than running it twice.
+      const head = await this.readManifest();
+      if (!prepared.migrationRequired && head?.generation) {
+        const receipt = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(
+          await this.readTrustedSnapshotFile(head.generation.receiptFile, this.rootDir, 1024 * 1024)));
+        if (receipt.schemaVersion === "runtime-snapshot-migration-receipt/v1" && receipt.source?.schemaVersion === 3
+          && /^sha256:[a-f0-9]{64}$/.test(receipt.source.manifestDigest)
+          && sha256Bytes(`${receipt.source.manifestDigest}\0${receipt.source.treeDigest}`) === expectedSourceDigest) {
+          const backupFile = path.posix.join("migration-backups", `v3-${receipt.source.manifestDigest.slice(7)}.json`);
+          if (sha256Bytes(await this.readTrustedSnapshotFile(backupFile, this.rootDir, 1024 * 1024)) === receipt.source.manifestDigest) {
+            return { inspection: prepared, migrated: true, backupFile };
+          }
+        }
+      }
+      failUnsupportedSnapshot("snapshot preparation digest changed");
+    }
+    if (!prepared.migrationRequired) return { inspection: prepared, migrated: false };
+    const sourceBytes = await this.readTrustedSnapshotFile(MANIFEST_FILE, this.rootDir, 1024 * 1024);
+    if (sha256Bytes(sourceBytes) !== prepared.manifestDigest) failUnsupportedSnapshot("snapshot manifest changed before backup");
+    const backupRoot = path.join(this.rootDir, "migration-backups");
+    const backupStat = await lstat(backupRoot).catch(() => null);
+    if (backupStat && (!backupStat.isDirectory() || backupStat.isSymbolicLink())) failUnsupportedSnapshot("snapshot backup root is not a no-symlink directory");
+    await mkdir(backupRoot, { recursive: true, mode: 0o700 });
+    const backupFile = path.posix.join("migration-backups", `v3-${prepared.manifestDigest.slice(7)}.json`);
+    let backup;
+    try {
+      backup = await open(path.join(this.rootDir, backupFile), constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW, 0o600);
+      await backup.writeFile(sourceBytes); await backup.sync();
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      const existing = await this.readTrustedSnapshotFile(backupFile, this.rootDir, 1024 * 1024);
+      if (sha256Bytes(existing) !== prepared.manifestDigest) failUnsupportedSnapshot("snapshot backup differs from original head");
+    } finally { await backup?.close(); }
+    await fsyncDirectory(backupRoot);
+    const sourceText = new TextDecoder("utf-8", { fatal: true }).decode(sourceBytes);
+    await this.migrateLegacyV3(JSON.parse(sourceText), sourceText, expectedSourceDigest);
+    return { inspection: await this.preflightSnapshot(), migrated: true, backupFile };
+  }
+
+  /** Stable identity metadata for a collapsed navigation tree; no writer or execution state. */
+  async readActorDirectory(): Promise<ActorDirectoryEntry[] | undefined> {
+    const headStat = await lstat(this.manifestPath).catch(error => {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+      throw error;
+    });
+    if (!headStat) return undefined;
+    const head = await this.readTrustedSnapshotFile(MANIFEST_FILE, this.rootDir, 1024 * 1024);
+    const manifest = JSON.parse(Buffer.from(head).toString('utf8')) as RuntimeSnapshotManifest;
+    if (manifest.version !== RUNTIME_SNAPSHOT_SCHEMA_VERSION) return undefined;
+    assertCurrentManifestShape(manifest);
+    await this.validateAdmittedGeneration(manifest);
+    const files = Object.values(manifest.actorFiles);
+    if (files.length > 1000) throw new Error("snapshot_identity_query_budget");
+    const result: ActorDirectoryEntry[] = [];
+    let remaining = 64 * 1024 * 1024;
+    for (const file of files) {
+      const metadataBytes = await this.readTrustedSnapshotFile(file, path.dirname(this.rootDir), Math.min(remaining, 1024 * 1024));
+      remaining -= metadataBytes.byteLength;
+      const actor = JSON.parse(Buffer.from(metadataBytes).toString('utf8')) as RuntimeSnapshotActor;
+      if (actor.version !== RUNTIME_SNAPSHOT_SCHEMA_VERSION || !actor.id || !actor.key) throw new Error("invalid_actor_directory");
+      const stateBytes = await this.readTrustedSnapshotFile(buildActorSiblingFile(file, 'state.json'), path.dirname(this.rootDir), Math.min(remaining, 16 * 1024 * 1024));
+      remaining -= stateBytes.byteLength;
+      const state = JSON.parse(Buffer.from(stateBytes).toString('utf8'));
+      if (state.version !== RUNTIME_SNAPSHOT_SCHEMA_VERSION) throw new Error('invalid_actor_directory');
+      result.push({ id: actor.id, key: actor.key, type: actor.type, identity: actor.identity, agentName: actor.agentName,
+        runtimeFacets: normalizeActorRuntimeFacetIndex(state.runtimeFacets) });
+    }
+    if (sha256Bytes(head) !== sha256Bytes(await this.readTrustedSnapshotFile(MANIFEST_FILE, this.rootDir, 1024 * 1024))) throw new Error('snapshot_changed_during_identity_query');
+    return result;
   }
 
   async loadSnapshot(): Promise<RuntimeSnapshotLoadResult | null> {

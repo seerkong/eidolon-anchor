@@ -3,6 +3,7 @@ import type { ToolDef } from "@cell/ai-core-contract/types"
 import { fileToolScopeIntentSchema, readPromptFromDir } from "../_shared"
 import {
   makeApplyPatchOuterComputed,
+  applyPatchResourceTargets,
   makeApplyPatchInnerRuntime,
   makeApplyPatchInnerInput,
   makeApplyPatchInnerConfig,
@@ -14,6 +15,7 @@ import type { ApplyPatchOuterConfig, ApplyPatchOuterInput, ApplyPatchOuterOutput
 export function buildApplyPatchToolDef(): ToolDef<ApplyPatchOuterInput, ApplyPatchOuterOutput, ApplyPatchOuterConfig> {
   return {
     resourceEffect: "workspace_mutation",
+    resourceTargets: applyPatchResourceTargets,
     schema: {
       type: "function" as const,
       function: {

@@ -6,6 +6,7 @@ import type {
   ConversationSessionRewindCommand,
   ConversationSessionRewindPort,
   ConversationSessionRewindResult,
+  ConversationSessionRewindPlan,
 } from "@cell/ai-organ-contract";
 import { planConversationSessionRewind } from "./ConversationSessionRewind";
 
@@ -15,6 +16,11 @@ export type ConversationSessionRewindRuntimeEffects = Readonly<{
   resolveSessionDir: (sessionId: string) => string;
   runExclusive: <T>(sessionId: string, action: () => Promise<T>) => Promise<T>;
   beforeSourceRead?: (sessionId: string) => Promise<void>;
+  /** Records owner-planned proof before any durable transition is attempted. */
+  beforeCommit?: (input: Readonly<{
+    command: ConversationSessionRewindCommand;
+    plan: ConversationSessionRewindPlan;
+  }>) => Promise<void>;
   afterCommit?: (input: Readonly<{
     command: ConversationSessionRewindCommand;
     repository: ConversationPersistenceRepository;
@@ -111,6 +117,7 @@ async function execute(
         source: loaded.snapshot,
       });
       if (planned.status === "rejected") return planned;
+      await effects.beforeCommit?.({ command, plan: { transition: planned.transition, receipt: planned.receipt } });
       await commitTransition.call(repository, planned.transition);
       const committed = await repository.loadSessionIndex();
       if (committed.session.actorBindings[loaded.actorKey]?.providerEpochReceiptV2?.receiptDigest
@@ -143,11 +150,10 @@ export function createConversationSessionRewindPort(
         || (command.actorKey != null && command.actorKey !== effects.owner.actorKey)) {
         return rejected("ACTOR_NOT_FOUND", "rewind command must be dispatched to its owning Conversation Actor");
       }
-      await effects.beforeSourceRead?.(command.sessionId);
-      return await effects.runExclusive(command.sessionId, async () => await execute({
-        ...command,
-        actorKey: effects.owner.actorKey,
-      }, effects));
+      return await effects.runExclusive(command.sessionId, async () => {
+        await effects.beforeSourceRead?.(command.sessionId);
+        return await execute({ ...command, actorKey: effects.owner.actorKey }, effects);
+      });
     },
   };
 }

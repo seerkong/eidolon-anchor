@@ -1,5 +1,8 @@
 import path from "node:path"
+import { projectParticipantTextInput } from '../participantInput'
 import { createHash } from "node:crypto"
+import {cancelInspectedHolonTask} from '@cell/ai-organ-logic/organization/HolonTaskCancellation'
+import type {HostParticipantTaskRef} from '@cell/ai-runtime-host-contract'
 
 import {
   registerHolonTaskRuntimeCapabilityBinding,
@@ -33,6 +36,8 @@ import {
 } from "@cell/ai-organ-logic/organization/HolonTaskRuntimeComposition"
 import { createLocalHolonTaskRuntimeStorage } from "@cell/ai-support/organization/LocalHolonTaskRuntimeSupport"
 import type { HolonTaskPumpSubscription } from "@cell/ai-organ-contract/organization/HolonTaskPumpJournal"
+import {openCanonicalTask,type LocalHolonTaskRuntimeOpenInput} from '@cell/ai-organ-logic/organization/HolonTaskRuntimeRoutes'
+import type {HolonTaskRuntimeStorageFactory} from '@cell/ai-organ-logic/organization/HolonTaskRuntimeCapability'
 
 export interface LocalHolonTaskActorRuntimeFactoryInput {
   readonly admission: EidolonHolonTaskRuntimeDefinitionProjection
@@ -53,13 +58,25 @@ export interface OpenLocalHolonTaskRuntimeInput {
   ) => HolonExecutionAdapterPorts | Promise<HolonExecutionAdapterPorts>
   readonly supportOptions?: LocalHolonTaskRuntimeSupportOptions
   readonly processorConfig?: Readonly<{ readonly leaseDurationMs: number; readonly maxSteps: number }>
+  /** A shell may restore observations without authorizing old tool work to run. */
+  readonly recoverPending?: boolean
+  /** Trusted application composition only; not a public request field. */
+  readonly storageFactory?:HolonTaskRuntimeStorageFactory
+  readonly automaticPump?:()=>boolean
+  readonly prepareManagedTask?:(input:LocalHolonTaskRuntimeOpenInput,projection:EidolonHolonTaskRuntimeDefinitionProjection)=>Promise<void>
 }
 
 export interface OpenedLocalHolonTaskRuntime {
+  permitsResourceHolonAdoption(input: Readonly<{holonRef:string;bindingRef:string;semanticFingerprint:string}>): boolean
   readonly capability: HolonTaskRuntimeCapabilityHandle
   readonly support: LocalHolonTaskRuntimeSupport
   readonly registryRevision: string
   readonly admissionIds: readonly string[]
+  readonly deploymentIds:readonly string[]
+  projectTextInput(admissionId: string, text: string): unknown
+  inputSchema(admissionId:string):unknown
+  outputSchema(admissionId:string):unknown
+  cancelTask(selector:HostParticipantTaskRef,input:{controlId:string;expectedRevision:number;occurredAt:string;reason:string}):Promise<void>
   readonly recovery: Readonly<{
     readonly recovered: number
     readonly scheduled: number
@@ -105,7 +122,7 @@ export async function openLocalHolonTaskRuntime(
   const supportRoot = path.resolve(input.supportRoot)
   const scope = Object.freeze({ supportRoot, registryRef: input.registryRef })
   const capability = bootstrapLocalHolonTaskRuntime({ vm: input.vm, ...scope }, {
-    storageFactory: createLocalHolonTaskRuntimeStorage,
+    storageFactory: input.storageFactory??createLocalHolonTaskRuntimeStorage,
     now: Date.now,
   })
   const support = mountLocalHolonTaskRuntimeSupport({
@@ -136,11 +153,21 @@ export async function openLocalHolonTaskRuntime(
     maxSteps: input.processorConfig?.maxSteps ?? 1_024,
   })
   const admissionIds: string[] = []
+  const deploymentIds=new Set<string>()
+  // Historical schemas belong to the frozen deployment, not the live resource directory.
+  const schemas = new Map<string, unknown>()
+  const outputSchemas = new Map<string, unknown>()
   const mountedContexts = new Set<string>()
   async function mountDeployment(projection: EidolonHolonTaskRuntimeDefinitionProjection,
     deployment: MaterializedHolonDeploymentDefinition, currentAssignment: boolean,
     subscription?: HolonTaskPumpSubscription): Promise<void> {
     const deploymentId = deployment.definition.deploymentId
+    deploymentIds.add(deploymentId)
+    const frozen = await deployment.resourceRegistry.snapshot()
+    const schema = frozen.registry.byId.get(projection.definition.input.schemaRef.slice('resource://'.length))?.resource?.node.properties.schema
+    schemas.set(projection.admission.admissionId, schema)
+    outputSchemas.set(projection.admission.admissionId,
+      frozen.registry.byId.get(projection.definition.output.schemaRef.slice('resource://'.length))?.resource?.node.properties.schema)
     const processorConfig = subscription?.processorConfig ?? config
     const recoveryScope = subscription?.recoveryScope ?? Object.freeze({ kind: "standalone" as const, scopeRef: projection.admission.admissionId })
     if (subscription && (subscription.bindingRef !== deployment.definition.bindingRef
@@ -163,6 +190,8 @@ export async function openLocalHolonTaskRuntime(
     const route = support.bind({
       admission: projection.admission, processorConfig, deploymentId, contextRef, recoveryScope, currentAssignment,
       snapshotReceiptId: deployment.definition.snapshotReceiptDigest,
+      ...(input.automaticPump?{automaticPump:input.automaticPump}:{}),
+      ...(input.prepareManagedTask?{openTask:async(value:LocalHolonTaskRuntimeOpenInput)=>{await input.prepareManagedTask!(value,projection);return openCanonicalTask(support,value)}}:{}),
       resolveMemberIdentity: (sub, claim) => resolveHolonTaskMemberIdentity({ store }, { subscription: sub, claim }),
       prepareProcessorRuntime: () => createHolonTaskProcessorRuntime({ store: actorRuntime!.store,
         taskManager: support.taskManager, actorRuntime: actorRuntime!, journal: support.journal }, { deploymentId }),
@@ -205,12 +234,37 @@ export async function openLocalHolonTaskRuntime(
     if (!historical) throw new Error("EIDOLON_HOLON_TASK_HISTORICAL_ADMISSION_MISSING")
     await mountDeployment(historical, deployment, false, subscription)
   }
-  const recovery = await support.recoverPending()
+  const recovery = input.recoverPending === false ? Object.freeze({ recovered: 0, scheduled: 0, terminal: 0 }) : await support.recoverPending()
   return Object.freeze({
     capability,
     support,
     registryRevision: snapshot.registryRevision,
+    permitsResourceHolonAdoption(candidate: Parameters<OpenedLocalHolonTaskRuntime['permitsResourceHolonAdoption']>[0]) {
+      return snapshot.holonTaskRuntimeDefinitions.some(p => p.governance?.holonRef === candidate.holonRef
+        && p.bindingProjection.binding.bindingRef === candidate.bindingRef
+        && p.bindingFreezeReceipt.semanticFingerprint === candidate.semanticFingerprint)
+    },
     admissionIds: Object.freeze(admissionIds.sort()),
+    deploymentIds:Object.freeze([...deploymentIds].sort()),
+    inputSchema(admissionId:string){
+      if(!schemas.has(admissionId))throw new Error('participant_admission_mismatch')
+      if(schemas.get(admissionId)===undefined)throw new Error('participant_admitted_input_schema_missing')
+      return schemas.get(admissionId)
+    },
+    projectTextInput(admissionId: string, text: string) {
+      const projection = snapshot.holonTaskRuntimeDefinitions.find(p => p.admission.admissionId === admissionId)
+      if (!projection) throw new Error('participant_admission_mismatch')
+      const schema = snapshot.registry.byId.get(projection.definition.input.schemaRef.slice('resource://'.length))?.resource?.node.properties.schema
+      return projectParticipantTextInput(schema, text)
+    },
+    outputSchema(admissionId:string){
+      if(!outputSchemas.has(admissionId))throw new Error('participant_admission_mismatch')
+      if(outputSchemas.get(admissionId)===undefined)throw new Error('participant_admitted_output_schema_missing')
+      return outputSchemas.get(admissionId)
+    },
+    async cancelTask(selector:HostParticipantTaskRef,input:Parameters<OpenedLocalHolonTaskRuntime['cancelTask']>[1]){
+      await cancelInspectedHolonTask({owner:support.taskManager.owner,inspection:capability.service},selector,input)
+    },
     recovery,
     close: () => support.close(),
   })

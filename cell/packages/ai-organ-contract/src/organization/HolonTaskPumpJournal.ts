@@ -67,6 +67,8 @@ export interface HolonTaskPumpJournalPort {
     effect: (idempotencyKey: string) => Promise<ClosedValue>,
   ): Promise<Readonly<{ readonly receipt: HolonTaskPumpResultReceipt; readonly replayed: boolean }>>
   readResult(intentId: string): Promise<HolonTaskPumpResultReceipt | undefined>
+  /** Read-only original intent inspection for explicit recovery admission. */
+  listDispatchIntents?(): Promise<readonly HolonTaskPumpDispatchIntent[]>
 }
 
 export class HolonTaskPumpJournalError extends Error {

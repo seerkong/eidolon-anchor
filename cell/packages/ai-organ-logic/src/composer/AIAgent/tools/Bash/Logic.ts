@@ -17,6 +17,7 @@ import {
   executeSandboxedBashCommandResult,
   executeStreamingSandboxedBashCommand,
   resolveSandboxBackendSelectionFromRuntime,
+  privateReadExecutionBoundary,
   type SpawnSyncLike,
   type StreamingBashResult,
 } from "@cell/ai-organ-logic/sandbox"
@@ -78,15 +79,16 @@ export function mapBashProcessResultToToolExecutionResult(
 export const bashCoreLogic: StdInnerLogic<BashInnerRuntime, BashInnerInput, BashInnerConfig, BashInnerOutput> = async (runtime, input, _config) => {
   const command = String(input?.command ?? "")
   if (!command.trim()) return "Error: command required"
+  const workdirRaw = typeof input?.workdir === "string" && input.workdir.trim() ? input.workdir : runtime.vm.outerCtx.workDir
+  if (typeof workdirRaw !== "string" || !workdirRaw.trim()) return "Error: workDir not configured"
+  const cwd = path.isAbsolute(workdirRaw) ? workdirRaw : path.resolve(String(runtime.vm.outerCtx.workDir ?? process.cwd()), workdirRaw)
+  const selection = resolveSandboxBackendSelectionFromRuntime(runtime, cwd, typeof _config?.platform === "string" ? String(_config.platform) : undefined)
   const permission = authorizeLocalToolCall(runtime, "bash", {
     command,
     workdir: typeof input?.workdir === "string" ? input.workdir : undefined,
     timeoutSeconds: input?.timeoutSeconds,
-  })
+  }, privateReadExecutionBoundary(selection))
   if (!permission.ok) return permission.output
-  const workdirRaw = typeof input?.workdir === "string" && input.workdir.trim() ? input.workdir : runtime.vm.outerCtx.workDir
-  if (typeof workdirRaw !== "string" || !workdirRaw.trim()) return "Error: workDir not configured"
-  const cwd = path.isAbsolute(workdirRaw) ? workdirRaw : path.resolve(String(runtime.vm.outerCtx.workDir ?? process.cwd()), workdirRaw)
   const timeoutMs = resolveTimeoutMs(input?.timeoutSeconds)
   try {
     // yolo removes only the explicit sudo guard. All other tool-level safety
@@ -94,7 +96,6 @@ export const bashCoreLogic: StdInnerLogic<BashInnerRuntime, BashInnerInput, Bash
     if (isToolGuardedBashCommand(runtime, command)) {
       return "Error: Dangerous command blocked"
     }
-    const selection = resolveSandboxBackendSelectionFromRuntime(runtime, cwd, typeof _config?.platform === "string" ? String(_config.platform) : undefined)
     const context = ensureVmRuntimeContext(runtime.vm)
     const actorOrchestrator = runtime.actor ? context.actorOrchestrators[runtime.actor.id] : undefined
     const currentFiberId = (actorOrchestrator ?? context.currentOrchestrator)?.parentFiberId

@@ -1,4 +1,6 @@
 import type { AiAgentOneActorRuntime } from "@cell/ai-core-contract/types"
+import type {WorkflowTaskTreeNodePort} from '@cell/ai-organ-contract/workflow/WorkflowTaskTree'
+import {bindWorkflowTaskTreeNodeRuntime} from './WorkflowTaskTreeNodeRuntime'
 import type {
   AIDataWorkflowChildInvocationRuntimePort,
   AIDataWorkflowGraphPatch,
@@ -144,7 +146,44 @@ function workflowRef(
   }
 }
 
+/** Read projection of the original graph; no driver restore, preparation or execution. */
+function aiDataWorkflowStatus(graph: AIDataWorkflowRunGraph): string {
+    const nodes = Object.values(graph.nodes).filter((node) => node.status !== "Removed")
+    if (nodes.some((node) => node.status === "Failed")) return "Failed"
+    if (nodes.some((node) => node.nodeType === "manual" && node.result?.status === "Waiting")) return "Waiting"
+    if (nodes.length > 0 && nodes.every((node) => node.status === "Succeeded" || node.status === "Reused")) return "Succeeded"
+    if (nodes.some((node) => node.status === "Running")) return "Running"
+    return "Pending"
+  }
+
+
+export function projectAIDataWorkflowCheckpointGraph(graph: AIDataWorkflowRunGraph, descriptor: WorkflowRunDescriptor, kind: DataRunProjection["kind"]): DataRunProjection {
+    const status = aiDataWorkflowStatus(graph)
+    const returnNode = Object.values(graph.nodes).find((node) => node.tag === "ReturnNode")
+    return JSON.parse(canonicalJson({
+      ok: true,
+      kind,
+      runtime: "depa-flows.AIDataWorkflow",
+      form: "AIDataWorkflow",
+      workflow_ref: descriptor.workflowRef,
+      run_id: descriptor.runId,
+      generation: graph.currentGeneration,
+      status,
+      terminal: status === "Succeeded" || status === "Failed",
+      nodes: graph.declarationOrder.map((nodeId) => graph.nodes[nodeId]).filter(Boolean),
+      graph: {
+        declarationOrder: graph.declarationOrder,
+        patchHistory: graph.patchHistory,
+        invalidations: graph.invalidations,
+      },
+      ...(returnNode?.result?.output === undefined ? {} : { output: returnNode.result.output }),
+    })) as DataRunProjection
+  }
+
+
 export class AIDataWorkflowRuntimeDriver {
+  private readonly taskTreeJobs=new Map<string,Promise<void>>()
+  private taskTreeCompletionLane:Promise<void>=Promise.resolve()
   private graph?: AIDataWorkflowRunGraph
   private autonomousControlPhase?: AIDataAutonomousControlPhase
   private activeRunAuthority: AIWorkflowRunRef
@@ -170,6 +209,9 @@ export class AIDataWorkflowRuntimeDriver {
     private readonly holonTasks?: AIDataWorkflowHolonTaskFacade,
     private readonly preparedAgents: readonly AIDataPreparedAgentResource[] = [],
     private readonly childInvocations?: AIDataWorkflowChildInvocationRuntimePort,
+    publicEvidenceOptions?: Pick<NonNullable<ConstructorParameters<typeof EidolonWorkflowEffectProvider>[7]>, "observeExecutions" | "onExecutionPaused">,
+    private readonly taskTrees?:WorkflowTaskTreeNodePort,
+    private readonly onTaskTreeCompleted?:(result:DataRunProjection)=>Promise<void>,
   ) {
     this.activeRunAuthority = this.runRef(descriptor.generation)
     const agentEffects = new EidolonWorkflowEffectProvider(
@@ -180,7 +222,7 @@ export class AIDataWorkflowRuntimeDriver {
       () => this.activeRunAuthority,
       resourceRegistry ? { workflowForm: descriptor.form, resourceRegistry } : undefined,
       stepExtensions,
-      { instanceId: descriptor.instanceId, workflowForm: descriptor.form },
+      { instanceId: descriptor.instanceId, workflowForm: descriptor.form, ...publicEvidenceOptions },
     )
     this.agentEffects = agentEffects
     this.aiRuntime = createAIDataWorkflowRuntime({
@@ -354,7 +396,23 @@ export class AIDataWorkflowRuntimeDriver {
     return this.project("workflow.runStatus")
   }
 
-  async resumeManual(nodeId: string, output: unknown): Promise<DataRunProjection> {
+  async manualResumeContract(nodeId:string) {
+    await this.requireGraph()
+    const node=this.graph!.nodes[nodeId]
+    if(!node||node.nodeType!=="manual")return undefined
+    const control=await this.loadAutonomousControlState()
+    const unavailableReason=control?.binding.controlNodeId===nodeId?"autonomous_control_barrier":node.config.taskTree===true?"workflow_tasktree_result_required":node.result?.status!=="Waiting"?"node_not_waiting":undefined
+    return {nodeId,outputs:[...node.outputs],canResume:unavailableReason===undefined,...(unavailableReason?{unavailableReason}:{})}
+  }
+
+  async validateManualResume(nodeId:string,output:unknown,managed=false) {
+    if(managed){const node=this.graph?.nodes[nodeId];if(!node||node.config.taskTree!==true||node.nodeType!=='manual'||node.result?.status!=='Waiting')throw new Error('workflow_tasktree_wait_not_found');return exactOutput(output,node.outputs,nodeId)}
+    const contract=await this.manualResumeContract(nodeId)
+    if(!contract?.canResume)throw new Error(contract?.unavailableReason??"manual_node_not_found")
+    return exactOutput(output,contract.outputs,nodeId)
+  }
+
+  async resumeManual(nodeId: string, output: unknown,managed=false): Promise<DataRunProjection> {
     await this.requireGraph()
     const control = await this.loadAutonomousControlState()
     if (control?.binding.controlNodeId === nodeId) {
@@ -364,10 +422,10 @@ export class AIDataWorkflowRuntimeDriver {
     if (!node || node.nodeType !== "manual" || node.result?.status !== "Waiting") {
       throw new Error(`AIDataWorkflow node ${nodeId} is not a waiting manual node`)
     }
-    const normalized = exactOutput(output, node.outputs, nodeId)
+    const normalized = await this.validateManualResume(nodeId,output,managed)
     this.graph = recordAIDataWorkflowNodeResult(this.graph!, nodeId, {
       nodeId,
-      generation: this.graph!.currentGeneration,
+      generation: managed?node.generation:this.graph!.currentGeneration,
       status: "Succeeded",
       output: normalized,
       semanticFingerprint: node.semanticFingerprint,
@@ -519,7 +577,7 @@ export class AIDataWorkflowRuntimeDriver {
       materialRevisions: record(node.config.material_revisions) as Record<string, string>,
       effectPolicy: { operation: node.config.operation, nodeType: node.nodeType },
     })
-    const reusable = node.tag === "SubFlowNode"
+    const reusable = node.tag === "SubFlowNode"||node.config.taskTree===true
       ? undefined
       : findReusableAIDataWorkflowNodeResult({
           runId: this.descriptor.runId,
@@ -551,6 +609,10 @@ export class AIDataWorkflowRuntimeDriver {
         semanticFingerprint: fingerprint,
       })
       await this.persist()
+      if(node.config.taskTree===true){
+        if(!this.taskTrees)throw new Error('workflow_tasktree_owner_unavailable')
+        void this.launchTaskTreeManual(node,input,generation)
+      }
       return
     }
 
@@ -792,6 +854,28 @@ export class AIDataWorkflowRuntimeDriver {
     return fn(this.runtimeForGeneration(generation, node.id), input, node.config)
   }
 
+  private launchTaskTreeManual(node:AIDataWorkflowRunNode,input:Record<string,unknown>,generation:number):Promise<void>{
+    const key=`${node.id}#${generation}`,prior=this.taskTreeJobs.get(key);if(prior)return prior
+    const pending=(async()=>{
+      const output=await this.executeCodeNode(node,input,generation)
+      const complete=this.taskTreeCompletionLane.then(async()=>{
+        if(this.graph?.nodes[node.id]?.generation!==generation)throw new Error('workflow_tasktree_wait_identity_changed')
+        const result=await this.resumeManual(node.id,output,true);await this.onTaskTreeCompleted?.(result)
+      });this.taskTreeCompletionLane=complete.catch(()=>{});await complete
+    })().catch(async(error)=>{
+      await this.facts.appendRunEvent(this.runRef(generation),{eventId:`tasktree-paused:${crypto.randomUUID()}`,runId:this.descriptor.runId,generation,nodeId:node.id,type:'workflow.tasktree.wait-paused',atMs:Date.now(),payload:{invocationKey:key,reason:error instanceof Error?error.message:'workflow_tasktree_wait_unknown'}})
+    }).finally(()=>{if(this.taskTreeJobs.get(key)===pending)this.taskTreeJobs.delete(key)})
+    this.taskTreeJobs.set(key,pending);return pending
+  }
+
+  async continueTaskTreeNode(nodeId:string,invocationKey:string,controlKey:string){
+    await this.requireGraph();const node=this.graph!.nodes[nodeId]
+    if(!node||node.nodeType!=='manual'||node.config.taskTree!==true||node.result?.status!=='Waiting'||invocationKey!==`${nodeId}#${node.generation}`||!this.taskTrees?.control)throw new Error('workflow_tasktree_wait_not_found')
+    await this.taskTrees.control({workflowRef:this.descriptor.workflowRef,instanceId:this.descriptor.instanceId,runId:this.descriptor.runId,nodeId,invocationKey,generation:node.generation},controlKey)
+    void this.launchTaskTreeManual(node,this.effectiveInput(node),node.generation)
+    return this.project('workflow.runStatus')
+  }
+
   private effectiveInput(node: AIDataWorkflowRunNode): Record<string, unknown> {
     return Object.fromEntries(Object.entries(node.inputs).map(([name, binding]) => {
       if (binding && typeof binding === "object" && !Array.isArray(binding)
@@ -830,9 +914,11 @@ export class AIDataWorkflowRuntimeDriver {
       },
     }
     const bound = this.bindAgentNode && nodeId ? this.bindAgentNode(runtime, { nodeId }) : runtime
-    return this.holonTasks
+    const withHolon=this.holonTasks
       ? Object.freeze({ ...bound, holonTasks: this.holonTasks })
       : bound
+    const node=nodeId&&this.graph?.nodes[nodeId]
+    return nodeId&&node&&node.nodeType==='manual'&&node.config.taskTree===true?bindWorkflowTaskTreeNodeRuntime(withHolon,{workflowRef:this.descriptor.workflowRef,instanceId:this.descriptor.instanceId,runId:this.descriptor.runId,nodeId,invocationKey:`${nodeId}#${generation}`,generation},this.taskTrees):withHolon
   }
 
   private async persist(): Promise<void> {
@@ -891,36 +977,10 @@ export class AIDataWorkflowRuntimeDriver {
     return returnNode?.result?.output as FlowClosedValue ?? null
   }
 
-  private statusValue(): string {
-    const nodes = Object.values(this.graph!.nodes).filter((node) => node.status !== "Removed")
-    if (nodes.some((node) => node.status === "Failed")) return "Failed"
-    if (nodes.some((node) => node.nodeType === "manual" && node.result?.status === "Waiting")) return "Waiting"
-    if (nodes.length > 0 && nodes.every((node) => node.status === "Succeeded" || node.status === "Reused")) return "Succeeded"
-    if (nodes.some((node) => node.status === "Running")) return "Running"
-    return "Pending"
-  }
+  private statusValue(): string { return aiDataWorkflowStatus(this.graph!) }
 
   private project(kind: DataRunProjection["kind"]): DataRunProjection {
-    const status = this.statusValue()
-    const returnNode = Object.values(this.graph!.nodes).find((node) => node.tag === "ReturnNode")
-    return JSON.parse(canonicalJson({
-      ok: true,
-      kind,
-      runtime: "depa-flows.AIDataWorkflow",
-      form: "AIDataWorkflow",
-      workflow_ref: this.descriptor.workflowRef,
-      run_id: this.descriptor.runId,
-      generation: this.graph!.currentGeneration,
-      status,
-      terminal: status === "Succeeded" || status === "Failed",
-      nodes: this.graph!.declarationOrder.map((nodeId) => this.graph!.nodes[nodeId]).filter(Boolean),
-      graph: {
-        declarationOrder: this.graph!.declarationOrder,
-        patchHistory: this.graph!.patchHistory,
-        invalidations: this.graph!.invalidations,
-      },
-      ...(returnNode?.result?.output === undefined ? {} : { output: returnNode.result.output }),
-    })) as DataRunProjection
+    return projectAIDataWorkflowCheckpointGraph(this.graph!, this.descriptor, kind)
   }
 
   private async requireGraph(): Promise<void> {

@@ -56,6 +56,7 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.4.0",
+    "task-manager-logic": "0.1.7",
     "concurrently": "^9.1.0"
   },
   "workspaces": [
@@ -69,13 +70,18 @@
     "desktop",
     "frontend/packages/*",
     "terminal",
-    "terminal/packages/*"
+    "terminal/packages/*",
+    "vendor/task-manager/*"
   ],
   "dependencies": {
+    "@a2a-js/sdk": "1.3.0",
     "@opencode-ai/sdk": "1.1.25",
     "eslint": "^9.39.2"
   },
   "overrides": {
+    "task-manager-contract": "workspace:*",
+    "task-manager-logic": "workspace:*",
+    "task-manager-file-support": "workspace:*",
     "ai-workflow-contract": "0.2.1",
     "ai-workflow-logic": "0.2.1",
     "node-gyp": "10.0.1",

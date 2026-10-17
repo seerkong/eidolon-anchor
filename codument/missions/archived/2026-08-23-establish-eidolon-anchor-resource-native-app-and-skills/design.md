@@ -9,7 +9,7 @@
 3. Eidolon 消费上述公开 API，拥有 global/workspace root binding、App resource registry adapter、actor/effect/session runtime、global init、TUI/CLI/native tools。
 4. 具体 App ResourcePackage 组合 workflow、agent、skill、prompt、schema 和 material；非 workflow 内容必须留在其 owner 项目。
 
-实际态由三个可写 ProjectRef 对应项目中的代码、published package API、canonical docs、tests、track 状态，以及本 mission 的 analysis/reports 投影构成。`sparrow-python-reference` 只绑定 Python workflow fixture 与 host persistence 作为历史证据，不接受写入；其他翻译项目不参与本轮判据。ACE Workbench 只提供系统 Skill 分层证据，不成为新的 authoring authority。
+实际态由三个可写 ProjectRef 对应项目中的代码、published package API、canonical docs、tests、track 状态，以及本 mission 的 analysis/reports 投影构成。`sparrow-python-reference` 只绑定 Python workflow fixture 与 host persistence 作为历史证据，不接受写入；其他翻译项目不参与本轮判据。系统 Skill 分层与 authoring authority 以本项目职责定义为准。
 
 ## 历史纠偏证据与不可回退约束
 

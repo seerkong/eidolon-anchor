@@ -25,8 +25,10 @@ import {
 
 import { parseHolonTaskRuntimeDefinitionBytes } from "../organization/HolonTaskRuntimeContract"
 import { EidolonResourceRegistryError } from "./EidolonResourceRegistryError"
+import { projectHolonGovernancePolicy, type AdmittedLeaderLedHolonPolicy } from './HolonGovernancePolicy'
 
 export interface EidolonHolonTaskRuntimeDefinitionProjection {
+  readonly governance?: AdmittedLeaderLedHolonPolicy
   readonly schemaVersion: "eidolon.holon-task-runtime-definition-projection/v1"
   readonly resource: ResourceRecord
   readonly definition: HolonTaskRuntimeDefinition
@@ -243,6 +245,7 @@ export async function projectHolonTaskRuntimeDefinitions(
         `Definition '${resource.resourceId}' declares output material ports outside its frozen binding: ${unauthorizedMaterials.join(", ")}.`,
       )
     }
+    const governance = projectHolonGovernancePolicy(input.registry, definition, bindingProjection)
     const bindingFreezeReceipt = freezeBinding(bindingProjection)
     if (bindingFreezeReceipt.bindingRef !== bindingProjection.binding.bindingRef
       || bindingFreezeReceipt.snapshotRef !== bindingProjection.binding.snapshotRef
@@ -287,6 +290,7 @@ export async function projectHolonTaskRuntimeDefinitions(
       }),
     }) satisfies FrozenHolonTaskRuntimeAdmission
     projections.push(Object.freeze({
+      ...(governance ? { governance } : {}),
       schemaVersion: "eidolon.holon-task-runtime-definition-projection/v1" as const,
       resource,
       definition,

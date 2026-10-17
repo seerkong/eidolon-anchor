@@ -32,6 +32,8 @@ export function createPublicHistoryReader(options: {
   vm: AiAgentVm; sessionId: string; epoch: string; authorization: HostAuthorizationEffects; identity: HostIdentityEffects
   limits?: HistoryReadRuntime["limits"]
   onCommitted?: (payload: ObservationPayloads["history.committed"]) => void
+  /** Internal canonical record notification; never a pending provider delta. */
+  onCommittedRecord?: (actorId:string,record:ActorCommittedMessageRef)=>void
   onHistoryReset?: (actorId: string, window: HistoryWindow) => void
   onError?: (error: unknown) => void
 }) {
@@ -103,6 +105,7 @@ export function createPublicHistoryReader(options: {
           // Retain only a revision handle; the contentRef can resolve without retaining the message here.
           capturePublicHistory(runtime, state.actorId)
           const origin = record.message.executionOrigin
+          options.onCommittedRecord?.(state.actorId,record)
           options.onCommitted?.({ actorId: state.actorId, historyRevision: revision,
             message: { ...read.preview(256 * 1024, read.totalBytes()), contentRef: { messageId: read.messageId, historyRevision: revision } },
             ...(typeof origin?.turnId === "string" ? { turnId: origin.turnId } : {}),

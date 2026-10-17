@@ -1,0 +1,1 @@
+{"extends":"../../cell/tsconfig.json","compilerOptions":{"noEmit":true},"include":["../../cell/packages/ai-runtime-host-contract/src/GlobalTaskSpace.ts","../../cell/packages/ai-runtime-host-contract/src/Schema.ts","../../cell/packages/ai-runtime-host-logic/src/globalTaskSpaces.ts","../../cell/packages/ai-runtime-host-support/src/globalTaskSpaces.ts"]}

@@ -215,6 +215,8 @@ export type LeaderLedHolonRouteState = {
 };
 
 export type LeaderLedHolonState = {
+  /** Explicit resource adoption proof; legacy VM organizations have no workspace admission. */
+  resourceAdmission?: Readonly<{ bindingRef: string; semanticFingerprint: string }>
   governance: "leader_led";
   holonId: string;
   name: string;

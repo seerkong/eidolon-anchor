@@ -375,5 +375,6 @@ export function createHolonTaskPumpJournal(runtime: HolonTaskPumpJournalRuntime)
     listSubscriptions: (runId) => listSubscriptions(runtime, runId),
     dispatch: (intent, effect) => dispatch(runtime, intent, effect),
     readResult: (intentId) => readResult(runtime, intentId),
+    async listDispatchIntents() { return Object.freeze((await runtime.store.list('intents')).map(parseIntent)) },
   } satisfies HolonTaskPumpJournalPort)
 }

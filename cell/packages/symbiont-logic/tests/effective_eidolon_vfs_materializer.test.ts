@@ -73,6 +73,7 @@ describe("physical Eidolon directory overlay", () => {
     const root = await temporaryEidolonRoot()
     await mkdir(path.join(root, "sessions", "active"), { recursive: true })
     await mkdir(path.join(root, "projects", "legacy-session"), { recursive: true })
+    await mkdir(path.join(root, "global-taskspaces", "executions"), { recursive: true })
     await mkdir(path.join(root, "skills"), { recursive: true })
     await mkdir(path.join(root, "commands"), { recursive: true })
     await mkdir(path.join(root, "resources"), { recursive: true })
@@ -85,6 +86,8 @@ describe("physical Eidolon directory overlay", () => {
     await writeFile(path.join(root, "commands", "command.md"), "managed elsewhere")
     await writeFile(path.join(root, "resources", ".tmp-authoring"), "volatile")
     await writeFile(path.join(root, "resources", "Stable.xnl"), "<Stable #resource>")
+    await writeFile(path.join(root, "global-taskspaces", "executions", "snapshot.json"), "private runtime snapshot")
+    await symlink(path.join(path.dirname(root), "outside.txt"), path.join(root, "global-taskspaces", "must-not-be-traversed"))
 
     const overlay = await loadPhysicalEidolonDirectoryOverlay({
       id: "workspace", kind: "workspace", order: 0, rootDir: root,
@@ -93,10 +96,14 @@ describe("physical Eidolon directory overlay", () => {
 
     expect(vfs.exists("vfs:///.eidolon/sessions")).toBe(false)
     expect(vfs.exists("vfs:///.eidolon/projects")).toBe(false)
+    expect(vfs.exists("vfs:///.eidolon/global-taskspaces")).toBe(false)
     expect(vfs.exists("vfs:///.eidolon/skills")).toBe(false)
     expect(vfs.exists("vfs:///.eidolon/commands")).toBe(false)
     expect(vfs.exists("vfs:///.eidolon/resources/.tmp-authoring")).toBe(false)
     expect(vfs.readFile("vfs:///.eidolon/resources/Stable.xnl")).toBe("<Stable #resource>")
+    await writeFile(path.join(root, "global-taskspaces", "executions", "snapshot.json"), "new settled task and runtime snapshot")
+    const changed = await loadPhysicalEidolonDirectoryOverlay({ id: "workspace", kind: "workspace", order: 0, rootDir: root })
+    expect(changed.descriptor.intentRevision).toBe(overlay.descriptor.intentRevision)
   })
 })
 

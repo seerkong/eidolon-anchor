@@ -49,11 +49,14 @@ export type RuntimeStorageOptions = {
 export type RuntimeEffects = {
   /** Synchronous host admission before either owner registry is mutated. */
   actorRegistration?: {
-    beforeRegister: (actor: { actorId: string; actorKey: string; actorType: string; identity?: { kind: string } }) => void;
+    beforeRegister: (actor: { actorId: string; actorKey: string; actorType: string;
+      identity?: { kind: string; holonId?: string; governance?: string };
+      resourceAdmission?: Readonly<{ bindingRef: string; semanticFingerprint: string }>
+    }) => void;
   };
   questionnaires?: QuestionnairePublicationEffects;
   toolResources?: {
-    acquire: (input: { workDir: string; kind: "read_only" | "workspace_mutation" | "unclassified"; signal?: AbortSignal }) => Promise<{ release: () => void; invalidate?: () => void }>;
+    acquire: (input: { workDir: string; kind: "read_only" | "workspace_mutation" | "unclassified"; targets?: readonly string[]; signal?: AbortSignal }) => Promise<{ release: () => void; invalidate?: () => void }>;
   };
   log?: (level: "info" | "warn" | "error" | "debug", message: string, context?: Record<string, unknown>) => void;
   orchestrationHistory?: {
@@ -159,6 +162,19 @@ export type VmThreadGoalStatus =
   | "budget_limited"
   | "complete";
 
+/** Private execution authorization; never project this into provider prompts or public DTOs. */
+export type VmThreadGoalActivation = {
+  source: "web";
+  sessionId: string;
+  actorId: string;
+  epoch: string;
+  principalId: string;
+  grantsVersion: string;
+  commandId: string;
+};
+
+export type VmThreadGoalSuspensionReason = "explicit_activation_required" | "runtime_restarted" | "cancelled" | "authorization_revoked" | "continuation_failed" | "checkpoint_failed" | "closed";
+
 export type VmThreadGoalRecord = {
   goalId: string;
   objective: string;
@@ -173,9 +189,12 @@ export type VmThreadGoalRecord = {
   blockedTurnCount?: number;
   blockedLastTurnKey?: number;
   lastContinuationAt?: number;
+  activation?: VmThreadGoalActivation;
+  suspensionReason?: VmThreadGoalSuspensionReason;
 };
 
 export type VmSessionState = {
+  hostInteractions?: import('./HostInteractions').RuntimeHostInteractionState;
   memberRoster: Record<string, VmMemberRosterEntry>;
   holons: Record<string, VmHolonRecord>;
   detachedActors: Record<string, VmDetachedActorRecord>;
@@ -186,6 +205,8 @@ export type VmSessionState = {
 };
 
 export type VmThreadGoalRuntimeState = {
+  /** Capsule-installed runtime policy, not durable authorization. */
+  requireExplicitActivation?: boolean;
   activeGoalId?: string;
   turnSequence?: number;
   turnStartedAt?: number;

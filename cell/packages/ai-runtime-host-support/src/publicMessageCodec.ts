@@ -4,7 +4,7 @@ import type { MessagePreview, PublicMessage, PublicMessagePart } from "@cell/ai-
 export type PublicMessageSource = {
   recordId: string
   message: { messageId?: string; role: string; content: unknown; reasoningContent?: string; toolCallId?: string; tool_call_id?: string;
-    toolCalls?: readonly { id: string; name: string; input: Record<string, unknown> }[] }
+    resultMetadata?: { isError?: unknown }; toolCalls?: readonly { id: string; name: string; input: Record<string, unknown> }[] }
 }
 export type PublicMessageRead = {
   messageId: string; role: PublicMessage["role"]
@@ -45,11 +45,34 @@ function* textContent(content: unknown): Generator<string> {
   if (typeof content === "string") yield content
   else if (Array.isArray(content)) for (const part of content) if (part && part.type === "text" && typeof part.text === "string") yield part.text
 }
-type Part = { kind: "text" | "reasoning"; values: Iterable<string> } | { kind: "tool_call"; id: string; name: string; input: unknown } | { kind: "tool_result"; id: string; values: Iterable<string> }
+type Part = { kind: "text" | "reasoning"; values: Iterable<string>; filename?: string; sourceDigest?: string }
+  | { kind: "image"; value: Extract<PublicMessagePart, { kind: "image" }> }
+  | { kind: "tool_call"; id: string; name: string; input: unknown } | { kind: "tool_result"; id: string; values: Iterable<string>; isError: boolean }
+function attachmentMetadata(part: { filename?: unknown; sourceDigest?: unknown }) {
+  return {
+    ...(typeof part.filename === "string" && part.filename && encoder.encode(part.filename).byteLength <= 256 && !/[/\\\0\r\n]/.test(part.filename) ? { filename: part.filename } : {}),
+    ...(typeof part.sourceDigest === "string" && /^sha256:[a-f0-9]{64}$/.test(part.sourceDigest) ? { sourceDigest: part.sourceDigest } : {}),
+  }
+}
+function toolResultIsError(message: PublicMessageSource["message"]): boolean {
+  if (typeof message.resultMetadata?.isError === "boolean") return message.resultMetadata.isError
+  // Pre-outcome conversation records used the same Error: convention as the
+  // runtime's legacy tool adapter. New records always carry the typed outcome.
+  return typeof message.content === "string" && message.content.startsWith("Error:")
+}
 function* publicParts(source: PublicMessageSource): Generator<Part> {
   const m = source.message
-  if (m.role === "tool") yield { kind: "tool_result", id: m.toolCallId ?? m.tool_call_id ?? source.recordId, values: textContent(m.content) }
-  else for (const text of textContent(m.content)) yield { kind: "text", values: [text] }
+  if (m.role === "tool") yield { kind: "tool_result", id: m.toolCallId ?? m.tool_call_id ?? source.recordId, values: textContent(m.content), isError: toolResultIsError(m) }
+  else if (typeof m.content === "string") yield { kind: "text", values: [m.content] }
+  else if (Array.isArray(m.content)) for (const part of m.content) {
+    if (!part || typeof part !== "object") continue
+    if (part.type === "text" && typeof part.text === "string") yield { kind: "text", values: [part.text], ...attachmentMetadata(part) }
+    else if (part.type === "image" && typeof part.mime === "string" && encoder.encode(part.mime).byteLength <= 128) {
+      const dataUrl = typeof part.dataUrl === "string" && /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]*={0,2}$/.test(part.dataUrl) ? part.dataUrl : undefined
+      yield { kind: "image", value: { kind: "image", mime: part.mime, ...attachmentMetadata(part),
+        ...(Number.isSafeInteger(part.size) && part.size >= 0 ? { size: part.size } : {}), ...(dataUrl ? { dataUrl } : {}) } }
+    }
+  }
   if (m.reasoningContent) yield { kind: "reasoning", values: [m.reasoningContent] }
   for (const tool of m.toolCalls ?? []) yield { kind: "tool_call", id: tool.id, name: tool.name, input: tool.input }
 }
@@ -57,13 +80,23 @@ function* quotedFragments(fragments: Iterable<string>): Generator<string> {
   yield '"'; for (const text of fragments) { const q = quoted(text); q.next(); let previous = q.next(); for (let next = q.next(); !next.done; next = q.next()) { yield previous.value!; previous = next } }; yield '"'
 }
 function* encodePart(part: Part): Generator<string> {
-  if (part.kind === "tool_call") {
+  if (part.kind === "image") { yield* json(part.value) }
+  else if (part.kind === "tool_call") {
     yield '{"kind":"tool_call","toolCallId":'; yield* quoted(part.id); yield ',"name":'; yield* quoted(part.name); yield ',"input":'; yield* quotedFragments(json(part.input)); yield "}"
   } else if (part.kind === "tool_result") {
-    yield '{"kind":"tool_result","toolCallId":'; yield* quoted(part.id); yield ',"output":'; yield* quotedFragments(part.values); yield ',"isError":false}'
-  } else { yield `{"kind":"${part.kind}","text":`; yield* quotedFragments(part.values); yield "}" }
+    yield '{"kind":"tool_result","toolCallId":'; yield* quoted(part.id); yield ',"output":'; yield* quotedFragments(part.values); yield `,"isError":${part.isError}}`
+  } else {
+    yield `{"kind":"${part.kind}","text":`; yield* quotedFragments(part.values)
+    if (part.filename) { yield ',"filename":'; yield* quoted(part.filename) }
+    if (part.sourceDigest) { yield ',"sourceDigest":'; yield* quoted(part.sourceDigest) }
+    yield "}"
+  }
 }
 function truncatedPart(part: Part, budget: number): PublicMessagePart | undefined {
+  if (part.kind === "image") {
+    const { dataUrl: _dataUrl, ...metadata } = part.value
+    return encoder.encode(JSON.stringify(metadata)).byteLength <= budget ? metadata : undefined
+  }
   const values = part.kind === "tool_call" ? json(part.input) : part.values
   let text = ""; let remaining = Math.max(0, Math.floor((budget - 2048) / 6))
   for (const value of values) {
@@ -73,7 +106,8 @@ function truncatedPart(part: Part, budget: number): PublicMessagePart | undefine
   }
   if (text.length && text.charCodeAt(text.length - 1) >= 0xd800 && text.charCodeAt(text.length - 1) <= 0xdbff) text = text.slice(0, -1)
   const result: PublicMessagePart = part.kind === "tool_call" ? { kind: "tool_call", toolCallId: part.id, name: part.name, input: text }
-    : part.kind === "tool_result" ? { kind: "tool_result", toolCallId: part.id, output: text, isError: false } : { kind: part.kind, text }
+    : part.kind === "tool_result" ? { kind: "tool_result", toolCallId: part.id, output: text, isError: part.isError }
+    : { kind: part.kind, text, ...(part.filename ? { filename: part.filename } : {}), ...(part.sourceDigest ? { sourceDigest: part.sourceDigest } : {}) }
   return encoder.encode(JSON.stringify(result)).byteLength <= budget ? result : undefined
 }
 export function createPublicMessageRead(source: PublicMessageSource): PublicMessageRead {

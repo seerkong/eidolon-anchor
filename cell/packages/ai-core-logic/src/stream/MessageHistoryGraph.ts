@@ -885,7 +885,9 @@ function reduceOneActorCommittedHistoryProjection(
           name: ev.tool_call.tool_name,
           content: ev.output_text,
           toolCallId: ev.tool_call.tool_call_id,
-          resultMetadata: ev.output_metadata ? { ...ev.output_metadata } : undefined,
+          // Preserve the semantic outcome in the durable conversation record;
+          // ToolCallDomain may prune terminal records and output text is ambiguous.
+          resultMetadata: { ...ev.output_metadata, isError: ev.is_error },
           startAt: emittedAt,
           endAt: emittedAt,
         } as ChatMessage,

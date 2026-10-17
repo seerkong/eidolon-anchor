@@ -23,8 +23,7 @@
   "devDependencies": {
     "xnl-vfs": "0.2.0",
     "holarchy-test-support": "0.1.1",
-    "holarchy-file-xnl-logic": "0.3.1",
-    "depa-inference-capsule": "0.1.2"
+    "holarchy-file-xnl-logic": "0.3.1"
   },
   "dependencies": {
     "@cell/ai-support": "workspace:*",

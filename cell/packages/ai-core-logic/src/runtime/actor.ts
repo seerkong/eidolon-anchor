@@ -212,6 +212,7 @@ function cloneHolonState(holonState: HolonActorState): HolonActorState {
 
   return {
     governance: "leader_led",
+    ...(holonState.resourceAdmission ? { resourceAdmission: { ...holonState.resourceAdmission } } : {}),
     holonId: holonState.holonId,
     name: holonState.name,
     memberIds: [...holonState.memberIds],

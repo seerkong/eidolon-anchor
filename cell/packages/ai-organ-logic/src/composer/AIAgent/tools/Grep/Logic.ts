@@ -35,10 +35,14 @@ export const grepCoreLogic: StdInnerLogic<
     scopeIntent: input?.scopeIntent,
   })
   if (!permission.ok) return permission.output
-  const cwd = resolveToolPath(workdir, base)
-  const args = ['-n', '--no-heading', pattern]
+  const target = resolveToolPath(workdir, base)
+  const args = ['-n', '--no-heading', '-e', pattern]
   if (typeof input?.include === 'string' && input.include.trim()) args.push('-g', input.include)
-  args.push('.')
-  const res = spawnSync('rg', args, { cwd, encoding: 'utf-8' })
-  return `${res.stdout || ''}${res.stderr || ''}`.trim() || '(no matches)'
+  args.push('--', target)
+  const res = spawnSync('rg', args, { cwd: workdir, encoding: 'utf-8' })
+  if (res.error) return `Error: grep failed: ${res.error.message}`
+  const output = `${res.stdout || ''}${res.stderr || ''}`.trim()
+  if (res.status === 1) return '(no matches)'
+  if (res.status !== 0) return `Error: grep failed (${res.signal ?? res.status}): ${output}`
+  return output || '(no matches)'
 }

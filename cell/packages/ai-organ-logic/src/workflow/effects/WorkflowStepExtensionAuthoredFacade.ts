@@ -34,10 +34,17 @@ export function bindWorkflowStepExtensionAuthoredRuntime(
   runtime: AIWorkflowAuthoredRuntimeContext,
   facade: WorkflowStepExtensionAuthoredFacade,
 ): AIWorkflowStepExtensionAuthoredRuntimeContext {
+  // Native providers may implement capabilities on their prototype. Spreading
+  // the provider loses those methods and copies its private storage/runtime fields.
+  const provider=runtime.effects
+  const native=provider as unknown as {invoke?:(...args:unknown[])=>unknown;writeMaterial?:(...args:unknown[])=>unknown}
   return Object.freeze({
     ...runtime,
     effects: Object.freeze({
-      ...runtime.effects,
+      runAgent:provider.runAgent.bind(provider),
+      runTargetedAgent:provider.runTargetedAgent.bind(provider),
+      ...(typeof native.invoke==='function'?{invoke:native.invoke.bind(provider)}:{}),
+      ...(typeof native.writeMaterial==='function'?{writeMaterial:native.writeMaterial.bind(provider)}:{}),
       mutateRunStepExtension: facade.mutateRunStepExtension,
     }),
   })

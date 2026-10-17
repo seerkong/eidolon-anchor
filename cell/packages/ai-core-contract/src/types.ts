@@ -48,6 +48,7 @@ export type ToolDef<
 > = {
   schema: ToolSchema;
   resourceEffect?: "read_only" | "workspace_mutation" | "unclassified" | "orchestration";
+  resourceTargets?: (input: TOuterInput, workDir: string) => readonly string[];
   briefPromptXnl: string;
   detailPromptXnl?: string;
   run: (runtime: TOuterRuntime, input: TOuterInput, config: TOuterConfig) => Promise<TOuterOutput>;

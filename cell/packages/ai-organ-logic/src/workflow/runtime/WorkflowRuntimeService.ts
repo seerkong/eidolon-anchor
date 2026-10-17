@@ -18,6 +18,7 @@ import {
   createAICtrlWorkflowAgentNodeRuntimeBinder,
   createAICtrlWorkflowCheckpointStore,
   createAICtrlWorkflowController,
+  createAICtrlWorkflowRuntime,
   getAICtrlWorkflowRunRecord,
   observeAICtrlHolonTask,
   openAICtrlHolonTask,
@@ -56,7 +57,7 @@ import type {
   FrozenAIAgentTaskBinding,
 } from "ai-workflow-contract"
 import type { DefinitionStepExtensionCodecRegistryPort } from "flow-step-space-contract"
-import { createFilesystemFlowCodeResolver } from "instant-ctrl-flow-logic"
+import { createFilesystemFlowCodeResolver, FLOW_STATE_KEY } from "instant-ctrl-flow-logic"
 import type { ResumeSignal } from "work-ctrl-flow-contract"
 import { hashWorkflowSources, type WorkflowAuthoringWorkspace } from "../authoring"
 import { createWorkflowComponentForRuntime } from "../component"
@@ -77,7 +78,12 @@ import {
   bindWorkflowStepExtensionAuthoredRuntime,
   createWorkflowStepExtensionAuthoredFacade,
 } from "../effects/WorkflowStepExtensionAuthoredFacade"
-import { AIDataWorkflowRuntimeDriver } from "./AIDataWorkflowRuntimeDriver"
+import { AIDataWorkflowRuntimeDriver, projectAIDataWorkflowCheckpointGraph } from "./AIDataWorkflowRuntimeDriver"
+import type {WorkflowTaskTreeNodePort} from '@cell/ai-organ-contract/workflow/WorkflowTaskTree'
+import {bindWorkflowTaskTreeNodeRuntime} from './WorkflowTaskTreeNodeRuntime'
+import {createWorkflowTaskTreeCtrlWaitHandler,type WorkflowTaskTreeCtrlWait} from './WorkflowTaskTreeCtrlWait'
+import type {WaitHandle} from 'work-ctrl-flow-contract'
+import {createWorkflowCheckpointObserver,type WorkflowCheckpointObserver} from './WorkflowCheckpointEvents'
 import {
   createAIDataChildAgentPreparationExtensionCodecRegistry,
   readAIDataChildAgentPreparationDeclaration,
@@ -103,7 +109,7 @@ import type {
   WorkflowRunReceipt,
 } from "./WorkflowLifecycleFacts"
 import { WorkflowMaterialService } from "./WorkflowMaterialService"
-import { createAIDataAutonomousControlExtensionCodecRegistry } from "./AIDataAutonomousControlLoop"
+import { createAIDataAutonomousControlExtensionCodecRegistry, findAIDataAutonomousControlStateInExtensions } from "./AIDataAutonomousControlLoop"
 import {
   AIDataAgentResourcePreparationService,
   EidolonFixedAgentExecutionRegistry,
@@ -215,6 +221,11 @@ export type WorkflowRunProjection = {
 }
 
 export type WorkflowRuntimeServiceOptions = Readonly<{
+  taskTrees?:WorkflowTaskTreeNodePort
+  /** Hosted workbench opts into derived observations after original checkpoint commits. */
+  observeCheckpoints?:boolean
+  onExecutionPaused?:()=>Promise<void>
+  onCheckpointObserved?:WorkflowCheckpointObserver
   holonJournalFaults?: HolonTaskPumpJournalFaultObserver
   holonEffectFaults?: EidolonWorkflowEffectProviderFaultObserver
   holonPumpMaxSteps?: number
@@ -596,6 +607,8 @@ export class WorkflowRuntimeService {
   private readonly controllers = new Map<string, CtrlController>()
   private readonly ctrlNodeOrder = new Map<string, ReadonlyMap<string, number>>()
   private readonly dataDrivers = new Map<string, AIDataWorkflowRuntimeDriver>()
+  private readonly taskTreeContinuations=new Map<string,Promise<void>>()
+  private readonly taskTreeCtrlRuntimes=new Map<string,object>()
   private readonly holonContexts = new Map<string, WorkflowHolonTaskContext>()
   private readonly workspace: WorkflowAuthoringWorkspace
   private readonly catalog: ReturnType<typeof createWorkflowComponentForRuntime>["catalog"]
@@ -624,7 +637,11 @@ export class WorkflowRuntimeService {
       path.join(this.supportRoot, "agent-preparations"),
     )
     this.facts = new WorkflowFactStore(this.supportRoot)
-    this.depa = new WorkflowDepaPersistence(this.supportRoot, stepExtensionCodecs(runtime))
+    const observeCheckpoint=options.observeCheckpoints?createWorkflowCheckpointObserver(this.facts):undefined
+    this.depa = new WorkflowDepaPersistence(this.supportRoot, stepExtensionCodecs(runtime),observeCheckpoint||options.onCheckpointObserved?async checkpoint=>{
+      await observeCheckpoint?.(checkpoint)
+      await options.onCheckpointObserved?.(checkpoint)
+    }:undefined)
     this.legacyMigration = new WorkflowLegacyMigration(this.supportRoot, this.depa)
     this.materials = new WorkflowMaterialService(component.authoring, this.facts)
   }
@@ -635,6 +652,20 @@ export class WorkflowRuntimeService {
 
   async listTypes(): Promise<WorkflowDefinitionRevision[]> {
     return Promise.all((await this.repository.listResourceRefs()).map((ref) => this.repository.capture(ref)))
+  }
+
+  /** Read-only preview uses the same transitive resource freeze as instance admission. */
+  async previewInstanceDefinition(workflowRef: string) {
+    const frozen = await this.captureInstanceDefinition(workflowRef)
+    const resolved = await this.repository.resolve(workflowRef)
+    return { frozen, definition: resolved.binding.definition }
+  }
+
+  async instanceDefinition(instanceId: string) {
+    const instance = await this.requireInstance(instanceId)
+    const frozen = await this.facts.loadDefinitionRevision(instance.definitionRevision)
+    if (!frozen) throw new Error(`Frozen definition revision not found: ${instance.definitionRevision}`)
+    return { frozen, definition: this.repository.resolveFrozen(frozen, this.depa.load(instanceId).definitionDir).binding.definition }
   }
 
   async observeAIDataAgentDefinition(input: Readonly<{
@@ -701,8 +732,12 @@ export class WorkflowRuntimeService {
     instanceId?: string
     initialInput?: unknown
     idempotencyKey?: string
+    expectedDefinitionRevision?: string
   }): Promise<WorkflowInstance> {
     const frozen = await this.captureInstanceDefinition(input.workflowRef)
+    if (input.expectedDefinitionRevision !== undefined && frozen.revision !== input.expectedDefinitionRevision) {
+      throw new Error("workflow_definition_revision_conflict")
+    }
     await this.facts.saveDefinitionRevision(frozen)
     const requestFingerprint = fingerprint({
       workflowRef: frozen.workflowRef,
@@ -1048,6 +1083,32 @@ export class WorkflowRuntimeService {
       runIds: instance.runIds.includes(descriptor.runId) ? instance.runIds : [...instance.runIds, descriptor.runId],
       updatedAt: Date.now(),
     })
+  }
+
+  /** Observe committed facts only. Unlike recovery, this never prepares or advances a driver. */
+  async observeCheckpoint(runId: string) {
+    const descriptor = await this.facts.loadDescriptor(runId)
+    if (!descriptor) return undefined
+    const checkpoint = await this.depa.checkpointRuntime.checkpointStore.load({instanceId:descriptor.instanceId,runId})
+    if (!checkpoint) return undefined
+    const profile = checkpoint.profile as unknown as import("ai-workflow-contract").AICtrlWorkflowRunProfileState<import("work-ctrl-flow-contract").WorkCtrlFlowSnapshot> | import("ai-workflow-contract").AIDataWorkflowRunProfileState<import("@cell/ai-workflow-contract").AIDataWorkflowRunGraph>
+    let status: any
+    const dataResumes: Array<{nodeId:string;outputs:string[];canResume:boolean;unavailableReason?:string}> = []
+    if (profile.kind === "AIDataWorkflow") {
+      status = this.attachDescriptor(descriptor, projectAIDataWorkflowCheckpointGraph(profile.runGraph, descriptor, "workflow.runStatus"))
+      const control = findAIDataAutonomousControlStateInExtensions(checkpoint.stepExtensions)
+      for (const node of Object.values(profile.runGraph.nodes)) {
+        if (node.nodeType !== "manual") continue
+        const unavailableReason = control?.binding.controlNodeId === node.id ? "autonomous_control_barrier" : node.config.taskTree===true?"workflow_tasktree_result_required":node.result?.status !== "Waiting" ? "node_not_waiting" : undefined
+        dataResumes.push({nodeId:node.id,outputs:[...node.outputs],canResume:unavailableReason===undefined,...(unavailableReason?{unavailableReason}:{})})
+      }
+    } else if (profile.kind === "AICtrlWorkflow") {
+      if (!this.ctrlNodeOrder.has(runId)) this.indexCtrlDeclarationOrder(runId, await this.loadFrozenDefinition(descriptor, "AICtrlWorkflow"))
+      status = this.project("workflow.runStatus", descriptor, projectAICtrlWorkflowRunRecord(profile.snapshot), profile.snapshot)
+      const flowState=profile.snapshot.vars[FLOW_STATE_KEY] as {returned?:boolean;output?:unknown}|undefined
+      if(flowState?.returned&&flowState.output!==undefined)status={...status,output:flowState.output}
+    } else return undefined
+    return {status:{...status,checkpoint_version:checkpoint.version,step_extensions:checkpoint.stepExtensions},dataResumes,checkpoint}
   }
 
   async status(runId: string): Promise<any | undefined> {
@@ -1479,6 +1540,20 @@ export class WorkflowRuntimeService {
     return result && this.attachDescriptor(descriptor, result)
   }
 
+  async dataNodeResumeContract(runId:string,nodeId:string) {
+    const descriptor=await this.facts.loadDescriptor(runId)
+    if(!descriptor||descriptor.form!=="AIDataWorkflow")return undefined
+    return (await this.loadDataDriver(descriptor))?.manualResumeContract(nodeId)
+  }
+
+  async validateDataNodeResume(runId:string,nodeId:string,output:unknown) {
+    const descriptor=await this.facts.loadDescriptor(runId)
+    if(!descriptor||descriptor.form!=="AIDataWorkflow")throw new Error("data_run_not_found")
+    const driver=await this.loadDataDriver(descriptor)
+    if(!driver)throw new Error("data_run_not_found")
+    return driver.validateManualResume(nodeId,output)
+  }
+
   async applyGraphPatch(runId: string, patch: AIDataWorkflowGraphPatch): Promise<any | undefined> {
     const descriptor = await this.facts.loadDescriptor(runId)
     if (!descriptor || descriptor.form !== "AIDataWorkflow") return undefined
@@ -1671,12 +1746,8 @@ export class WorkflowRuntimeService {
     return this.project("workflow.run", descriptor, record, await controller.store.load(descriptor.runId))
   }
 
-  private async createController(descriptor: WorkflowRunDescriptor, definition: ResolvedWorkflowDefinition): Promise<CtrlController> {
+  private indexCtrlDeclarationOrder(runId: string, definition: ResolvedWorkflowDefinition): void {
     if (definition.binding.kind !== "AICtrlWorkflow") throw new Error("Expected AICtrlWorkflow binding")
-    const component = createWorkflowComponentForRuntime(this.runtime)
-    if (!component.authoring) throw new Error("Workflow authoring workspace is not bound")
-    const activeRunAuthority = runRef(descriptor, definition)
-    const filesystemCode = createFilesystemFlowCodeResolver()
     const declarationOrder: string[] = []
     const visit = (node: any): void => {
       if (typeof node?.id === "string") declarationOrder.push(node.id)
@@ -1684,7 +1755,16 @@ export class WorkflowRuntimeService {
       for (const section of Object.values(node?.sections ?? {})) visit(section)
     }
     for (const statement of definition.binding.definition.statements ?? []) visit(statement)
-    this.ctrlNodeOrder.set(descriptor.runId, new Map(declarationOrder.map((nodeId, index) => [nodeId, index])))
+    this.ctrlNodeOrder.set(runId, new Map(declarationOrder.map((nodeId, index) => [nodeId, index])))
+  }
+
+  private async createController(descriptor: WorkflowRunDescriptor, definition: ResolvedWorkflowDefinition): Promise<CtrlController> {
+    if (definition.binding.kind !== "AICtrlWorkflow") throw new Error("Expected AICtrlWorkflow binding")
+    const component = createWorkflowComponentForRuntime(this.runtime)
+    if (!component.authoring) throw new Error("Workflow authoring workspace is not bound")
+    const activeRunAuthority = runRef(descriptor, definition)
+    const filesystemCode = createFilesystemFlowCodeResolver()
+    this.indexCtrlDeclarationOrder(descriptor.runId, definition)
     const instance = this.depa.load(descriptor.instanceId)
     const canonicalCheckpointStore = createAICtrlWorkflowCheckpointStore(
       this.depa.checkpointRuntime,
@@ -1720,7 +1800,7 @@ export class WorkflowRuntimeService {
       () => activeRunAuthority,
       frozenRegistry ? { workflowForm: descriptor.form, resourceRegistry: frozenRegistry } : undefined,
       this.stepExtensionFacade(),
-      { instanceId: descriptor.instanceId, workflowForm: descriptor.form },
+      { instanceId: descriptor.instanceId, workflowForm: descriptor.form, observeExecutions:this.options.observeCheckpoints, onExecutionPaused:this.options.onExecutionPaused },
       this.options.holonEffectFaults,
     )
     const bindAgentNode = definition.resourceReceipt
@@ -1732,6 +1812,8 @@ export class WorkflowRuntimeService {
           taskProofs,
         })
       : undefined
+    const ai={roots:runtimeRoots(this.runtime,component.authoring.store.rootPath),stateStore:this.depa.stateProjection(descriptor.instanceId),effects:agentEffects,metadata:{run:activeRunAuthority,flowInstanceId:descriptor.instanceId}}
+    if(this.options.taskTrees)this.taskTreeCtrlRuntimes.set(descriptor.runId,createAICtrlWorkflowRuntime({ai}))
     return createAICtrlWorkflowController({
       binding: definition.binding,
       store: checkpointStore,
@@ -1739,7 +1821,8 @@ export class WorkflowRuntimeService {
         ...input,
         reference: normalizeFrozenWorkflowCodeReference(input.reference),
       }),
-      ...(bindAgentNode || holonContext ? {
+      extraHandlers:controller=>({'wf.ExternalJob':createWorkflowTaskTreeCtrlWaitHandler({controller,opened:(handle,runtime,wait)=>{if(!this.options.taskTrees)throw new Error('workflow_tasktree_owner_unavailable');this.launchTaskTreeCtrlWait(descriptor,handle,runtime as object,wait)}})}),
+      ...(bindAgentNode || holonContext || this.options.taskTrees ? {
         bindNodeRuntime: (nodeRuntime, identity) => {
           let bound = nodeRuntime as typeof nodeRuntime & { readonly ai?: AIWorkflowAuthoredRuntimeContext }
           if (bindAgentNode && taskProofs[identity.nodeId]) bound = bindAgentNode(nodeRuntime, identity)
@@ -1748,9 +1831,10 @@ export class WorkflowRuntimeService {
             ...bound,
             ai: bindWorkflowStepExtensionAuthoredRuntime(bound.ai, facade),
           }) : bound
-          return holonContext
+          const withHolon=holonContext
             ? Object.freeze({ ...withAi, holonTasks: holonContext })
             : withAi
+          return withHolon
         },
       } : {}),
       ai: {
@@ -1760,6 +1844,39 @@ export class WorkflowRuntimeService {
         metadata: { run: activeRunAuthority, flowInstanceId: descriptor.instanceId },
       },
     })
+  }
+
+  private launchTaskTreeCtrlWait(descriptor:WorkflowRunDescriptor,handle:WaitHandle,runtime:object,wait:WorkflowTaskTreeCtrlWait):Promise<void>{
+    const key=`${descriptor.runId}:${handle.invocationKey}`,existing=this.taskTreeContinuations.get(key);if(existing)return existing
+    const pending=(async()=>{
+      const definition=await this.loadFrozenDefinition(descriptor,'AICtrlWorkflow')
+      if(definition.binding.kind!=='AICtrlWorkflow')throw new Error('workflow_tasktree_form_mismatch')
+      const code=createFilesystemFlowCodeResolver()({reference:normalizeFrozenWorkflowCodeReference(wait.src),flowId:descriptor.workflowRef,nodeId:handle.nodeKey,baseUri:definition.binding.definition.baseUri})
+      const fn=await code,identity={workflowRef:descriptor.workflowRef,instanceId:descriptor.instanceId,runId:descriptor.runId,nodeId:handle.nodeKey,invocationKey:handle.invocationKey,generation:descriptor.generation}
+      const output=await fn(bindWorkflowTaskTreeNodeRuntime(runtime,identity,this.options.taskTrees),wait.input,wait.config)
+      const observation=await this.observeCheckpoint(descriptor.runId)
+      const current=(observation?.status.open_wait_handles??[]).find((value:any)=>value.resumeToken===handle.resumeToken&&value.invocationKey===handle.invocationKey)
+      if(!current)throw new Error('workflow_tasktree_wait_identity_changed')
+      await this.resume(descriptor.runId,{signalKind:handle.signalKind,signalKey:handle.signalKey,resumeToken:handle.resumeToken,outcome:'Success',payload:output})
+    })().catch(async(error)=>{
+      await this.facts.appendRunEvent({workflow:{ref:descriptor.workflowRef,scheme:'resource'},runId:descriptor.runId,generation:descriptor.generation},{eventId:`tasktree-paused:${randomUUID()}`,runId:descriptor.runId,generation:descriptor.generation,nodeId:handle.nodeKey,type:'workflow.tasktree.wait-paused',atMs:Date.now(),payload:{invocationKey:handle.invocationKey,reason:error instanceof Error?error.message:'workflow_tasktree_wait_unknown'}})
+    }).finally(()=>{if(this.taskTreeContinuations.get(key)===pending)this.taskTreeContinuations.delete(key)})
+    this.taskTreeContinuations.set(key,pending);return pending
+  }
+
+  async continueTaskTreeNode(runId:string,nodeId:string,invocationKey:string,controlKey:string){
+    const descriptor=await this.facts.loadDescriptor(runId);if(!descriptor||!this.options.taskTrees?.control)throw new Error('workflow_tasktree_continuation_unavailable')
+    if(descriptor.form==='AIDataWorkflow'){
+      const driver=await this.loadDataDriver(descriptor);if(!driver)throw new Error('workflow_tasktree_continuation_unavailable')
+      return driver.continueTaskTreeNode(nodeId,invocationKey,controlKey)
+    }
+    const loaded=await this.loadController(runId),observation=await this.observeCheckpoint(runId)
+    const handle=(observation?.status.open_wait_handles??[]).find((h:any)=>h.nodeKey===nodeId&&h.invocationKey===invocationKey) as WaitHandle|undefined
+    const wait=handle?.metadata?.taskTree as WorkflowTaskTreeCtrlWait|undefined
+    if(!loaded||!handle||wait?.kind!=='eidolon.workflow-tasktree-wait')throw new Error('workflow_tasktree_wait_not_found')
+    await this.options.taskTrees.control({workflowRef:descriptor.workflowRef,instanceId:descriptor.instanceId,runId,nodeId,invocationKey,generation:descriptor.generation},controlKey)
+    void this.launchTaskTreeCtrlWait(descriptor,handle,this.taskTreeCtrlRuntimes.get(runId)!,wait)
+    return this.observeCheckpoint(runId)
   }
 
   private async createDataDriver(descriptor: WorkflowRunDescriptor, definition: ResolvedWorkflowDefinition): Promise<AIDataWorkflowRuntimeDriver> {
@@ -1832,6 +1949,9 @@ export class WorkflowRuntimeService {
       holonContext,
       preparedAgents,
       this.childInvocationRuntime(),
+      {observeExecutions:this.options.observeCheckpoints,onExecutionPaused:this.options.onExecutionPaused},
+      this.options.taskTrees,
+      result=>this.synchronizeInstanceStatus(descriptor.runId,result),
     )
   }
 
@@ -2559,7 +2679,7 @@ export class WorkflowRuntimeService {
       () => activeRun,
       { workflowForm: descriptor.form, resourceRegistry: executionRegistry },
       this.stepExtensionFacade(),
-      { instanceId: descriptor.instanceId, workflowForm: descriptor.form },
+      { instanceId: descriptor.instanceId, workflowForm: descriptor.form, observeExecutions:this.options.observeCheckpoints, onExecutionPaused:this.options.onExecutionPaused },
       this.options.holonEffectFaults,
     )
     const genericOwner = this.workflowHolonGenericOwner(descriptor, agentAdapter.agentDefinitionRef)
@@ -2896,11 +3016,11 @@ export class WorkflowRuntimeService {
 
 const SERVICE_BY_VM = new WeakMap<object, WorkflowRuntimeService>()
 
-export function getWorkflowRuntimeService(runtime: WorkflowRuntime): WorkflowRuntimeService {
+export function getWorkflowRuntimeService(runtime: WorkflowRuntime,options:WorkflowRuntimeServiceOptions={}): WorkflowRuntimeService {
   const vm = runtime.vm as object
   const existing = SERVICE_BY_VM.get(vm)
   if (existing) return existing
-  const service = new WorkflowRuntimeService(runtime)
+  const service = new WorkflowRuntimeService(runtime,options)
   SERVICE_BY_VM.set(vm, service)
   return service
 }

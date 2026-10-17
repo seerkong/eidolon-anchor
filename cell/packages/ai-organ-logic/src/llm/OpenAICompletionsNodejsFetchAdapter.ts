@@ -12,6 +12,7 @@ import type {
   ProviderTransportRequestObserver,
 } from "@cell/ai-organ-contract/llm/ProviderRuntime";
 import { observeProviderTransportRequest } from "./ProviderTransportObservation";
+import { createProviderTransportTiming } from "./ProviderTransportTiming";
 import { redactCanonicalImages } from "./CanonicalImageProjection";
 import { openAIOfficialChatEffectBundle } from "./ChatCompletionsEffectBundles";
 import { validateProviderContextFactsInFinalWire } from "./ProviderContextFactWireProfile";
@@ -46,6 +47,20 @@ const TRANSPORT_EXTRA_BODY_KEYS = new Set([
   "stream_idle_timeout_seconds",
 ]);
 const DEFAULT_FIRST_EVENT_TIMEOUT_SECONDS = 180;
+
+async function fetchBeforeResponse(fetchFn: NonNullable<ProviderOptions['fetch']>, url: string, init: RequestInit): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    init.signal?.throwIfAborted();
+    try { return await fetchFn(url, init); }
+    catch (error) {
+      const failure = error as { code?: string; cause?: { code?: string } };
+      const code = failure?.code ?? failure?.cause?.code;
+      // No response has been handed to the execution processor. Never replay
+      // a consumed stream, an HTTP rejection, an abort or an unknown failure.
+      if (attempt !== 0 || init.signal?.aborted || !['ECONNRESET', 'EPIPE', 'ConnectionClosed'].includes(code ?? '')) throw error;
+    }
+  }
+}
 
 type OpenAIStreamTimeouts = {
   requestStartedAt: number;
@@ -109,6 +124,7 @@ function observeOpenAIChatUsage(
     observer?: ProviderTransportOutcomeObserver;
     completion: OpenAIChatStreamCompletionObservation;
     signal?: AbortSignal;
+    timing?: ReturnType<typeof createProviderTransportTiming>;
   }>,
 ): Pick<LlmStreamResult, "stream" | "providerOutput"> {
   let resolveOutput!: (value: unknown | undefined) => void;
@@ -128,6 +144,7 @@ function observeOpenAIChatUsage(
     };
     try {
       for await (const chunk of source) {
+        outcome.timing?.chunk(chunk);
         const candidate = normalizeOpenAIChatUsage(chunk?.usage);
         if (candidate) usage = candidate;
         if (typeof chunk?.id === "string" && chunk.id.length > 0) {
@@ -598,13 +615,24 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
     }
 
     const fetchFn = providerOptions.fetch || fetch;
-    const outcomeObserver = observeProviderTransportRequest(this.requestObserver, {
-      transportType: "http",
-      requestBody: serializedBody,
-      url,
-      method: "POST",
-      toolSchemaCoverage: admittedRequest.coverageObservation,
-    });
+    let timing: ReturnType<typeof createProviderTransportTiming> | undefined;
+    let outcomeObserver: ProviderTransportOutcomeObserver | undefined;
+    const observedFetch: typeof fetchFn = async (input, init) => {
+      timing = createProviderTransportTiming(observeProviderTransportRequest(this.requestObserver, {
+        transportType: "http", requestBody: serializedBody, url, method: "POST",
+        toolSchemaCoverage: admittedRequest.coverageObservation,
+      }));
+      outcomeObserver = timing.observer;
+      try {
+        const response = await fetchFn(input, init);
+        timing.headers();
+        return response;
+      } catch (error) {
+        outcomeObserver.appendOutcome({terminalState: init?.signal?.aborted ? "aborted" : "failed",fallbackUsed:false,
+          completeness:{status:"not_observed",source:null,reason:init?.signal?.aborted ? "aborted" : "transport_error"},responseId:null});
+        throw error;
+      }
+    };
     let res: Response;
     try {
       const headerTimeoutSeconds =
@@ -613,7 +641,7 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
           timeouts.totalTimeoutSeconds,
         ) ?? timeouts.firstEventTimeoutSeconds;
       res = await raceWithTimeout(
-        fetchFn(url, {
+        fetchBeforeResponse(observedFetch, url, {
           method: "POST",
           headers,
           body: serializedBody,
@@ -699,7 +727,7 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
         abortForTimeout,
         completion,
       ),
-      { observer: outcomeObserver, completion, signal },
+      { observer: outcomeObserver, completion, signal, timing },
     );
   }
 }

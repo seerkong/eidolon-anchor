@@ -1,6 +1,6 @@
 import { runByFuncStyleAdapter } from "depa-processor"
 import type { ToolDef } from "@cell/ai-core-contract/types"
-import { fileToolScopeIntentSchema, readPromptFromDir } from "../_shared"
+import { fileToolScopeIntentSchema, readPromptFromDir, resolveToolPath } from "../_shared"
 import {
   makeMultieditOuterComputed,
   makeMultieditInnerRuntime,
@@ -14,6 +14,7 @@ import type { MultieditOuterConfig, MultieditOuterInput, MultieditOuterOutput } 
 export function buildMultieditToolDef(): ToolDef<MultieditOuterInput, MultieditOuterOutput, MultieditOuterConfig> {
   return {
     resourceEffect: "workspace_mutation",
+    resourceTargets: (input, workDir) => [input.filePath, ...input.edits.map(edit => edit.filePath ?? input.filePath)].map(file => resolveToolPath(workDir, file)),
     schema: {
       type: "function" as const,
       function: {

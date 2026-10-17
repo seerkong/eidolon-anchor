@@ -39,17 +39,17 @@ describe("Eidolon workflow architecture boundaries", () => {
       "ai-ctrl-workflow-logic": "0.2.0",
       "ai-data-workflow-contract": "0.2.0",
       "ai-data-workflow-logic": "0.2.0",
-      "ai-workflow-contract": "0.2.0",
-      "ai-workflow-logic": "0.2.0",
+      "ai-workflow-contract": "0.2.1",
+      "ai-workflow-logic": "0.2.1",
       "depa-actor": "0.2.2",
       "depa-processor": "0.1.1",
       "eager-data-flow-logic": "0.1.7",
       "flow-step-space-contract": "0.1.1",
       "flow-step-space-logic": "0.1.1",
-      "holarchy-core-contract": "0.2.0",
-      "holarchy-core-logic": "0.2.0",
+      "holarchy-core-contract": "0.3.0",
+      "holarchy-core-logic": "0.3.0",
       "holarchy-eidolon-adapter": "0.2.0",
-      "holarchy-file-xnl-capsule": "0.3.0",
+      "holarchy-file-xnl-capsule": "0.4.1",
       "instant-ctrl-flow-logic": "0.1.6",
       "task-manager-contract": "0.1.3",
       "task-manager-logic": "0.1.6",
@@ -59,15 +59,15 @@ describe("Eidolon workflow architecture boundaries", () => {
     const contractClosure = {
       "ai-ctrl-workflow-contract": "0.2.0",
       "ai-data-workflow-contract": "0.2.0",
-      "ai-workflow-contract": "0.2.0",
-      "ai-workflow-logic": "0.2.0",
+      "ai-workflow-contract": "0.2.1",
+      "ai-workflow-logic": "0.2.1",
       "flow-step-space-contract": "0.1.1",
     }
     expect(organ.dependencies).toMatchObject(organClosure)
     expect(contract.dependencies).toMatchObject(contractClosure)
     expect(support.dependencies["ai-workflow-flow-dsl-reference"]).toBe("0.2.0")
-    expect(organ.dependencies["halfcode-compiler.xnl"]).toBe("0.3.0")
-    expect(support.dependencies["halfcode-compiler.xnl"]).toBe("0.3.0")
+    expect(organ.dependencies["halfcode-compiler.xnl"]).toBe("0.3.2")
+    expect(support.dependencies["halfcode-compiler.xnl"]).toBe("0.3.2")
     for (const version of [
       ...Object.values(organClosure),
       ...Object.values(contractClosure),

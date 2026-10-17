@@ -138,6 +138,7 @@ export async function createHolonTaskProcessorRuntime(
           dispatchInput.memberRuntimeRef,
           dispatchInput.invocation,
           dispatchInput.idempotencyKey,
+          dispatchInput.signal,
         )
         return Object.freeze({ output: result.output, replayed: false })
       },

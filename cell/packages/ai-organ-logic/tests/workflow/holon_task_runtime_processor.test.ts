@@ -11,6 +11,8 @@ import { canonicalOwnDataDigest } from "task-manager-contract"
 import {
   InMemoryTaskSpaceOwner,
   claimTask,
+  cancelTask,
+  heartbeatTaskClaim,
   createTaskSpace,
 } from "task-manager-logic"
 
@@ -83,8 +85,27 @@ const admission = () => ({
 })
 
 describe("standalone Holon task execution Processor", () => {
-  it("executes and replays through TaskSpace and explicit ports without Workflow identity", async () => {
-    const owner = new InMemoryTaskSpaceOwner()
+  it.each(['success','lost','settlement-race','settlement-cancel-race'])("executes/replays or promptly revokes a lost claim (%s)", async (scenario) => {
+    const lost=scenario==='lost';
+    let dispatchStarted!: () => void;
+    const dispatchGate = new Promise<void>(resolve => { dispatchStarted = resolve });
+    const storage = new InMemoryTaskSpaceOwner()
+    let completedDispatch=false,raced=false;
+    const owner = new Proxy(storage,{get(target,prop){
+      if(prop==='readSnapshot')return async(id:string)=>{
+        const observed=await storage.readSnapshot(id);
+        if(scenario.startsWith('settlement-')&&completedDispatch&&!raced){
+          raced=true;
+          if(scenario==='settlement-cancel-race')await cancelTask({owner:storage},{kind:'task.cancel',commandId:'external-settlement-cancel',taskSpaceId:id,
+            taskId:'review:42',expectedRevision:observed!.revision,cancelledAt:'2026-09-03T00:00:00.004Z',reason:'owner revocation'},config);
+          else
+          await heartbeatTaskClaim({owner:storage},{kind:'task.claim-heartbeat',commandId:'external-settlement-renewal',taskSpaceId:id,
+            expectedRevision:observed!.revision,claim:observed!.tasks[0]!.activeClaim!,heartbeatAt:'2026-09-03T00:00:00.004Z',extendByMs:60_000},config);
+        }
+        return observed;
+      };
+      const value=Reflect.get(target,prop);return typeof value==='function'?value.bind(target):value;
+    }})
     const taskManager = { owner }
     const config = { maxTasks: 8, maxRelations: 8, maxLeaseDurationMs: 60_000 }
     const profile = createHolonTaskExecutionProfile(admission(), snapshotReceipt())
@@ -158,6 +179,11 @@ describe("standalone Holon task execution Processor", () => {
       actorDispatch: {
         async dispatch(input) {
           dispatches += 1
+          dispatchStarted();
+          if (lost) await new Promise<void>((_resolve, reject) => {
+            const abort = () => reject(input.signal!.reason);
+            if (input.signal!.aborted) abort(); else input.signal!.addEventListener('abort', abort, {once:true});
+          });
           const taskInput = input.invocation.input as Readonly<Record<string, unknown>>
           return { output: { summary: `done:${String(taskInput.changeRef)}` }, replayed: false }
         },
@@ -165,6 +191,7 @@ describe("standalone Holon task execution Processor", () => {
       journal: {
         async dispatch(intent, effect) {
           const output = await effect(intent.invocationRef)
+          completedDispatch=true;
           const body = {
             schemaVersion: "eidolon.holon-task-pump/v1" as const,
             intentId: intent.intentId,
@@ -181,7 +208,13 @@ describe("standalone Holon task execution Processor", () => {
       },
       clock: { nowEpochMs: () => 1_788_393_600_002 },
       timer: {
-        wait(_delayMs, signal) {
+        async wait(_delayMs, signal) {
+          if (lost) {
+            await dispatchGate;
+            await cancelTask(taskManager, {kind:'task.cancel',commandId:'lost-owner',taskSpaceId:snapshotReceipt().taskSpaceId,taskId:'review:42',
+              expectedRevision:(await owner.readSnapshot(snapshotReceipt().taskSpaceId))!.revision,cancelledAt:'2026-09-03T00:00:00.010Z',reason:'owner revocation'}, config);
+            return true;
+          }
           return new Promise((resolve) => {
             if (signal.aborted) return resolve(false)
             signal.addEventListener("abort", () => resolve(false), { once: true })
@@ -205,6 +238,19 @@ describe("standalone Holon task execution Processor", () => {
       settledAt: "2026-09-03T00:00:00.003Z",
       leaseDurationMs: 60_000,
       input: { changeRef: "42" },
+    }
+    if (lost) {
+      await expect(executeHolonTask(runtime, input, config)).rejects.toThrow('EIDOLON_HOLON_TASK_ATTEMPT_STALE');
+      expect(dispatches).toBe(1);
+      expect((await owner.readSnapshot(snapshotReceipt().taskSpaceId))!.tasks[0]!.status).toBe('Cancelled');
+      expect(await owner.readReceiptByCommand(snapshotReceipt().taskSpaceId,input.settlementCommandId)).toBeUndefined();
+      return;
+    }
+    if(scenario==='settlement-cancel-race'){
+      await expect(executeHolonTask(runtime,input,config)).rejects.toThrow('EIDOLON_HOLON_TASK_RESULT_STALE');
+      expect(dispatches).toBe(1);
+      expect(await owner.readReceiptByCommand(input.taskSpaceId,input.settlementCommandId)).toBeUndefined();
+      return;
     }
     const first = await executeHolonTask(runtime, input, config)
     const replay = await executeHolonTask(runtime, input, config)

@@ -65,6 +65,8 @@ export type RuntimeInteractiveTurnCancelResult = {
 
 export type AiAgentRuntimeCoordinator = {
   enqueue: <T>(fn: () => Promise<T>) => Promise<T>;
+  /** Same exclusive owner lane, without progress ticks or automatic snapshot side effects. */
+  enqueueWithoutSnapshot: <T>(fn: () => Promise<T>) => Promise<T>;
   saveSnapshot: () => Promise<void>;
   startBackgroundPump: () => void;
   stopBackgroundPump: () => void;
@@ -870,6 +872,7 @@ export function createAiAgentRuntimeCoordinator(params: {
 
   return {
     enqueue,
+    enqueueWithoutSnapshot,
     // Existing command owners call this from inside enqueue. The safepoint
     // check belongs to saveSnapshotAfterProgress; recursively enqueueing here
     // would deadlock that owner.

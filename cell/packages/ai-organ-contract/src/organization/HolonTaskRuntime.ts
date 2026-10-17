@@ -380,6 +380,8 @@ export interface HolonTaskRuntimeActorDispatchPort {
     readonly memberRuntimeRef: string
     readonly invocation: HolonExecutionInvocation
     readonly idempotencyKey: string
+    /** Volatile execution cancellation capability; never a persisted claim fact. */
+    readonly signal?: AbortSignal
   }>): Promise<Readonly<{ readonly output: ClosedValue; readonly replayed: boolean }>>
 }
 

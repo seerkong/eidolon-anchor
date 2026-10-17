@@ -388,6 +388,30 @@ export function applyCommittedMessageAppendToDomains(params: {
   };
   const nextSession: ConversationSessionRawState = {
     ...currentSession,
+    // The session-owned index must advance with the same committed generation.
+    // Persisting only actorBindings leaves a valid transcript with no provable
+    // head (and makes durable fork/rewind reject every newly created history).
+    historyIndex: {
+      ...currentSession.historyIndex,
+      heads: {
+        ...currentSession.historyIndex.heads,
+        [params.actorKey]: {
+          version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
+          sessionId, actorKey: params.actorKey, actorId: params.actorId,
+          activeGenerationId: nextGeneration.generationId,
+          visibleGenerationIds: nextHistoryState.generations.map(generation => generation.generationId),
+          updatedAt: nextGeneration.updatedAt,
+        },
+      },
+      generations: {
+        ...currentSession.historyIndex.generations,
+        [nextGeneration.generationId]: {
+          generationId: nextGeneration.generationId, actorKey: params.actorKey, actorId: params.actorId,
+          sealed: nextGeneration.sealed, createdAt: nextGeneration.createdAt, updatedAt: nextGeneration.updatedAt,
+        },
+      },
+      updatedAt: nextGeneration.updatedAt,
+    },
     activeActorKey: currentActiveActorKey,
     actorBindings: {
       ...currentSession.actorBindings,

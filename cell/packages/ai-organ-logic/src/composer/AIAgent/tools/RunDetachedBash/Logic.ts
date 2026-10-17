@@ -8,6 +8,7 @@ import {
 import {
   executeStreamingSandboxedBashCommand,
   resolveSandboxBackendSelectionFromRuntime,
+  privateReadExecutionBoundary,
 } from "@cell/ai-organ-logic/sandbox"
 import {
   authorizeLocalToolCall,
@@ -54,12 +55,6 @@ export const runDetachedBashCoreLogic: StdInnerLogic<
       return JSON.stringify({ ok: false, error: "missing_agent_type" })
     }
 
-    const permission = authorizeLocalToolCall(runtime, "bash", {
-      command,
-      timeoutSeconds: (input as any)?.timeoutSeconds,
-    })
-    if (!permission.ok) return JSON.stringify({ ok: false, error: permission.output })
-
     const workdirRaw = typeof (input as any)?.workdir === "string" && String((input as any).workdir).trim()
       ? String((input as any).workdir)
       : runtime.vm.outerCtx.workDir
@@ -70,6 +65,13 @@ export const runDetachedBashCoreLogic: StdInnerLogic<
     const cwd = path.isAbsolute(workdirRaw)
       ? workdirRaw
       : path.resolve(String(runtime.vm.outerCtx.workDir ?? process.cwd()), workdirRaw)
+    const selection = resolveSandboxBackendSelectionFromRuntime(runtime, cwd, undefined)
+    const permission = authorizeLocalToolCall(runtime, "bash", {
+      command,
+      workdir: cwd,
+      timeoutSeconds: (input as any)?.timeoutSeconds,
+    }, privateReadExecutionBoundary(selection))
+    if (!permission.ok) return JSON.stringify({ ok: false, error: permission.output })
     // Keep detached Bash aligned with foreground Bash: yolo exempts sudo only.
     if (isToolGuardedBashCommand(runtime, command)) {
       return JSON.stringify({ ok: false, error: "Dangerous command blocked" })
@@ -84,7 +86,6 @@ export const runDetachedBashCoreLogic: StdInnerLogic<
       toolCallId: typeof (runtime as any)?.toolCallId === "string" ? (runtime as any).toolCallId : undefined,
     })
     const store = getDetachedActorObservabilityStore(runtime.vm)
-    const selection = resolveSandboxBackendSelectionFromRuntime(runtime, cwd, undefined)
     const timeoutMs = resolveTimeoutMs((input as any)?.timeoutSeconds)
 
     const runProcess = async () => {

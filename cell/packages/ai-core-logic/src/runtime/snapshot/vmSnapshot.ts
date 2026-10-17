@@ -27,6 +27,7 @@ const VM_SNAPSHOT_CODEC = createSnapshotCodec<AiAgentVm, RuntimeSnapshotVm>({
         coordinationRecords: "indexes/coordinationRecords.json",
       },
       sessionState: {
+        ...(sessionState.hostInteractions ? {hostInteractions:structuredClone(sessionState.hostInteractions)} : {}),
         holons: Object.values(sessionState.holons).map((record) => ({ ...record, memberIds: [...record.memberIds] })),
         detachedActors: Object.values(sessionState.detachedActors).map((record) => ({ ...record })),
         controlSignals: serializeDurableControlSignalStoreForSnapshot(sessionState.controlSignals),
@@ -80,6 +81,7 @@ function hydrateVMFromSnapshot(
   },
 ): AiAgentVm {
   const sessionState = {
+    ...(snapshot.sessionState?.hostInteractions ? {hostInteractions:structuredClone(snapshot.sessionState.hostInteractions)} : {}),
     ...(args.params?.sessionState ?? {}),
     holons: Object.fromEntries(
       (snapshot.sessionState?.holons ?? []).map((record) => [record.holonId, { ...record, memberIds: [...record.memberIds] }]),

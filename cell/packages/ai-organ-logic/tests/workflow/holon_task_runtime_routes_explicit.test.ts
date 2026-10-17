@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test"
 import { readFile } from "node:fs/promises"
 import { canonicalOwnDataDigest } from "task-manager-contract"
-import { InMemoryTaskSpaceOwner } from "task-manager-logic"
+import { InMemoryTaskSpaceOwner,createTaskSpace,controlTaskRoot,prepareTask } from "task-manager-logic"
 import {
   HOLON_TASK_RUNTIME_ADMISSION_SCHEMA_VERSION,
   HOLON_TASK_RUNTIME_DEFINITION_SCHEMA_VERSION,
@@ -19,10 +19,12 @@ import {
 import {
   createHolonTaskRuntimeRoutes,
   createHolonTaskRuntimeRouteState,
+  canonicalSnapshotReceipt,
   type HolonTaskRuntimeCoordinatorPort,
   type LocalHolonTaskRuntimeBinding,
 } from "../../src/organization/HolonTaskRuntimeRoutes"
-import { normalizeHolonTaskExecutionProfile } from "../../src/organization/HolonTaskExecutionProfile"
+import { normalizeHolonTaskExecutionProfile,createHolonTaskExecutionProfile } from "../../src/organization/HolonTaskExecutionProfile"
+import {pumpHolonTaskSpace} from '../../src/organization/HolonTaskSpacePump'
 import type { HolonTaskProcessorRuntime } from "../../src/organization/HolonTaskRuntimeProcessor"
 import type { HolonTaskSubmissionRecord } from "@cell/ai-organ-contract/organization/HolonTaskRuntimeStorage"
 
@@ -142,6 +144,31 @@ function fixture() {
 }
 
 describe("Holon task route effect boundary", () => {
+  it('admits an existing managed leaf only with its exact preparation receipt; paused pump dispatches nothing',async()=>{
+    const host=fixture(),at='2026-01-01T00:00:00.000Z',taskSpaceId='managed-space',taskId='managed-leaf',rootId='managed-root'
+    const planned={kind:'task-profile' as const,profileKind:'planned',schemaVersion:1,facts:{}}
+    await createTaskSpace({owner:host.owner},{kind:'task-space.create',commandId:'create-managed',taskSpaceId,createdAt:at,definition:{kind:'task-space-definition',taskSpaceId,name:'Managed forest',schemaVersion:1,tasks:[
+      {kind:'task-group',taskId:rootId,name:'Root',order:0,mode:'all',profile:planned,inputArtifacts:[]},
+      {kind:'task',taskId,name:'Leaf',order:0,profile:planned,inputArtifacts:[]},
+    ],relations:[{kind:'parent-child',relationId:'root',parentTaskId:null,childTaskId:rootId,order:0},{kind:'parent-child',relationId:'leaf',parentTaskId:rootId,childTaskId:taskId,order:0}]}},{})
+    const binding={bindingId:'managed-binding',authorityRef:'global',executionRef:'managed',digest:digest('8')}
+    await controlTaskRoot({owner:host.owner},{kind:'task.root-control',commandId:'bind',taskSpaceId,taskId:rootId,expectedRevision:0,expectedControlRevision:0,occurredAt:at,action:{kind:'bind',binding}},{})
+    await controlTaskRoot({owner:host.owner},{kind:'task.root-control',commandId:'resume',taskSpaceId,taskId:rootId,expectedRevision:1,expectedControlRevision:1,occurredAt:at,action:{kind:'resume',bindingId:binding.bindingId}},{})
+    const snapshotReceipt=canonicalSnapshotReceipt(host.binding.admission,taskSpaceId,host.binding.snapshotReceiptId)
+    await prepareTask({owner:host.owner},{kind:'task.prepare',commandId:'prepare-managed',taskSpaceId,taskId,rootBindingId:binding.bindingId,expectedRevision:2,preparedAt:at,profile:createHolonTaskExecutionProfile(host.binding.admission,snapshotReceipt) as any},{})
+    const invocation:HolonTaskRuntimeInvocation={...host.submission.invocation,taskRequest:{kind:'exact',identity:{taskSpaceId,taskId,commandId:'prepare-managed'},name:'Leaf'}}
+    const submission={...host.submission,invocation,taskId,commandId:'prepare-managed'}
+    const accepted=await host.route.taskSpace.submit(submission)
+    expect(accepted.taskSpaceId).toBe(taskSpaceId);expect(accepted.snapshotReceipt).toEqual(snapshotReceipt)
+    expect((await host.owner.readSnapshot(taskSpaceId))?.definition.tasks[1]?.profile).toEqual(planned)
+    await expect(host.route.taskSpace.submit({...submission,commandId:'create-managed',invocation:{...invocation,taskRequest:{kind:'exact',identity:{taskSpaceId,taskId,commandId:'create-managed'},name:'Leaf'}}})).rejects.toThrow('PREPARATION_RECEIPT_MISMATCH')
+    await controlTaskRoot({owner:host.owner},{kind:'task.root-control',commandId:'pause',taskSpaceId,taskId:rootId,expectedRevision:3,expectedControlRevision:2,occurredAt:at,action:{kind:'pause'}},{})
+    const subscription=(await host.support.listSubscriptions())[0]!
+    const pumped=await pumpHolonTaskSpace({taskManager:{owner:host.owner}} as any,{subscription,leaseDurationMs:5000,maxSteps:16,observedAt:at},{})
+    expect(pumped.status).toBe('waiting');expect(pumped.steps).toBe(0)
+    expect((await host.owner.readSnapshot(taskSpaceId))?.tasks[1]?.activeClaim).toBeNull()
+    host.support.close()
+  })
   it("keeps physical task storage independent of organ rules", async () => {
     const source = await readFile(new URL("../../../ai-support/src/organization/LocalHolonTaskRuntimeSupport.ts", import.meta.url), "utf8")
     expect(source).not.toContain("@cell/ai-organ-logic")

@@ -420,7 +420,16 @@ export class EidolonAppResourceRegistryAdapter {
     const effective = this.effectiveVfsPorts.get(snapshot)
     // Preserve the imported contract packages beside author resources.  A
     // frozen execution must re-load the same branded KindDefinition imports.
-    if (effective) await visit(createHalfcodeReadPort(effective), "/.eidolon", ".agent-resources/effective-vfs/.eidolon")
+    if (effective) {
+      const port = createHalfcodeReadPort(effective)
+      // Only admitted resource packages and their branded contract imports
+      // belong to code recovery; runtime journals and caches are not source.
+      for (const root of ["resources", "contracts"]) {
+        if (await port.readDirectory(`/.eidolon/${root}`)) {
+          await visit(port, `/.eidolon/${root}`, `.agent-resources/effective-vfs/.eidolon/${root}`)
+        }
+      }
+    }
     else for (const layer of snapshot.layers) await visit(await createDirectoryResourcePackageReadPort(layer.rootDir), "/", `.agent-resources/${layer.id}`)
     return Object.freeze(files)
   }

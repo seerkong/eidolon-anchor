@@ -1,5 +1,5 @@
 import type { ToolDef } from "@cell/ai-core-contract/types"
-import { updateThreadGoalStatus } from "@cell/ai-organ-logic/goals/ThreadGoalManager"
+import { formatThreadGoalToolResult, updateThreadGoalStatus } from "@cell/ai-organ-logic/goals/ThreadGoalManager"
 
 type GoalUpdateInput = {
   status?: "complete" | "blocked"
@@ -36,8 +36,7 @@ export function buildGoalUpdateToolDef(): ToolDef<GoalUpdateInput, string> {
         reason: input?.reason,
         modelUpdate: true,
       })
-      return JSON.stringify(result)
+      return formatThreadGoalToolResult(result)
     },
   }
 }
-

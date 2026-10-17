@@ -149,6 +149,8 @@ describe("Runtime snapshot repository", () => {
     })
     const vm = createVM({ controlActorKey: root.key, actors: { [root.key]: root, [worker.key]: worker } })
 
+    worker.workContext = { ...worker.workContext, workMode: "plan", workModeSource: "web_command", workModeUpdatedAt: "2026-10-07T00:00:00.000Z" }
+
     const vmSnapshot = serializeVM(vm)
     const actorSnapshot = serializeActor(worker)
     expect("schemaVersion" in vmSnapshot).toBe(false)
@@ -193,6 +195,7 @@ describe("Runtime snapshot repository", () => {
     expect(Object.keys(manifest?.actorFiles ?? {})).toContain(root.key)
     const loaded = await repository.loadSnapshot()
     expect(loaded?.actors.worker?.profileSystemPromptProvenance).toEqual(actorSnapshot.profileSystemPromptProvenance)
+    expect(loaded?.actors.worker?.workContext).toEqual(actorSnapshot.workContext)
     expect(loaded?.actors.worker?.agentName).toBe("resource://eidolon.fixture.RecoverableAgent")
     expect(loaded?.actors.worker?.continuationBaseline?.contextDigest).toBe("sha256:provider-visible-context")
     expect(loaded?.actors.worker?.durableMaterials).toEqual(worker.durableMaterials)

@@ -124,7 +124,7 @@ function resolveExecProtocolAdditionalWritableRoots(runtime: any): string[] {
     .filter(Boolean);
 }
 
-export function authorizeLocalToolCall(runtime: any, toolName: string, payload: Record<string, unknown>): { ok: true } | { ok: false; output: string } {
+export function authorizeLocalToolCall(runtime: any, toolName: string, payload: Record<string, unknown>, executionBoundary?: { enforcedPrivateReadPaths: readonly string[] }): { ok: true } | { ok: false; output: string } {
   const workDir = String(runtime?.vm?.outerCtx?.workDir ?? "").trim();
   if (!workDir) {
     return { ok: false, output: "Error: workDir not configured" };
@@ -138,14 +138,18 @@ export function authorizeLocalToolCall(runtime: any, toolName: string, payload: 
       authorityRoot: resolveLocalPermissionAuthorityRootFromRuntime(runtime),
       approvalGrant: resolveLocalPermissionGrantFromRuntime(runtime),
       additionalWritableRoots: resolveExecProtocolAdditionalWritableRoots(runtime),
+      enforcedPrivateReadPaths: toolName === "bash" ? executionBoundary?.enforcedPrivateReadPaths : undefined,
     });
     if (decision.action === "allow") {
       return { ok: true };
     }
+    if (decision.reasonCode === 'private_runtime_data') {
+      return { ok: false, output: `Error: ${decision.message}` };
+    }
     // `dangerous` (`--yolo`) and `full-auto` share one behaviour: the model is
     // trusted to act, so a normal deny or an unmatched rule is not a boundary.
-    // The single remaining boundary is the write-protected local permission
-    // config list (`permissions.json`, `workspace-access.json`), which is
+    // Private runtime control data was rejected above. The other remaining
+    // boundary is the write-protected permission config list, which is
     // withheld because writing it is how the agent would author its own
     // authority. Every other path is allowed in both modes.
     if (execProtocolMode === "dangerous" || execProtocolMode === "full-auto") {

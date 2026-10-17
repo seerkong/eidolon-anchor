@@ -2,6 +2,7 @@ export { createSessionRuntimeAssembly } from "./session/SessionRuntimeAssembly"
 export type { SessionRuntimeConfig, SessionRuntimeBridge, SessionRuntimeAssemblyOptions } from "./session/SessionRuntimeAssembly"
 export type { SessionPresentation, SessionPresentationFactory } from "./session/SessionRuntimePresentation"
 export { createHost } from "./host"
+export { createDaemon } from './daemon'
 export type { RuntimeHostOptions } from "./host"
 export { createSemanticObservation } from "./semanticObservation"
 export type { SemanticObservationOptions } from "./semanticObservation"

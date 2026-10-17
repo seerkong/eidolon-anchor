@@ -122,6 +122,7 @@ export type RuntimeSnapshotVm = RuntimeRootSnapshotBase & {
     coordinationRecords?: string;
   };
   sessionState?: {
+    hostInteractions?: import('./HostInteractions').RuntimeHostInteractionState;
     holons?: VmHolonRecord[];
     detachedActors?: VmDetachedActorRecord[];
     controlSignals?: DurableControlSignalSnapshotStore;

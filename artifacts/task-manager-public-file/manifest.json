@@ -1,0 +1,17 @@
+{
+  "task-manager-contract": {
+    "version": "0.1.4",
+    "archive": "task-manager-contract-0.1.4.tgz",
+    "sha256": "ead401b74ac8597fd222d76c1a0a9bbcad40678ba60d16bfaac17b23bcf4df2a"
+  },
+  "task-manager-logic": {
+    "version": "0.1.7",
+    "archive": "task-manager-logic-0.1.7.tgz",
+    "sha256": "5c6bf7297ca8cc120a8153b2bbe5d2c381c604fe15e865deb184fe5f7b63da2a"
+  },
+  "task-manager-file-support": {
+    "version": "0.1.6",
+    "archive": "task-manager-file-support-0.1.6.tgz",
+    "sha256": "ce8b05dcea8da80c19061fea0277d015a7da4f89f88c12a8425b0f21a647462e"
+  }
+}

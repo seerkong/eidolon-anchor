@@ -20,6 +20,10 @@ function resolveHomeDir(): string {
   return process.env.HOME || process.env.USERPROFILE || os.homedir();
 }
 
+export function hostPackageCredentialPaths(homeDir: string): string[] {
+  return [path.join(homeDir, ".npmrc"), path.join(homeDir, ".bunfig.toml")];
+}
+
 export function resolveLocalPermissionAuthorityRoot(authorityRoot?: string): string {
   return path.resolve(authorityRoot || path.join(resolveHomeDir(), ".eidolon"));
 }
@@ -54,7 +58,54 @@ function writeWorkspaceAccessConfig(config: WorkspaceAccessConfig, authorityRoot
   fs.writeFileSync(filePath, `${JSON.stringify(serializeWorkspaceAccessConfig(config), null, 2)}\n`, "utf-8");
 }
 
+function isNonTraversablePath(error: unknown): boolean {
+  // Permission inspection also receives shell data literals as candidates.
+  // These errors prove the spelling cannot reach a filesystem object. Keep
+  // permission/loop/IO failures unproven rather than treating them as absence.
+  const code = (error as NodeJS.ErrnoException)?.code;
+  return code === "ENOENT" || code === "ENOTDIR" || code === "ENAMETOOLONG";
+}
+
 export const LocalFilePermissionConfigStore: LocalPermissionConfigStore = {
+  inspectRecursivePrivateRuntime(filePath, authorityRoot) {
+    const within = (candidate: string, root: string) => {
+      const relative = path.relative(root, candidate);
+      return relative === '' || relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+    };
+    const privateRoots = this.privateRuntimePaths!(authorityRoot).map(root => this.canonicalProtectionPath!(root));
+    const pending = [path.resolve(filePath)], visited = new Set<string>();
+    // This synchronous metadata check runs on the execution/heartbeat loop.
+    // An installed dependency tree must not monopolize that loop. Failure to
+    // prove its full scope within the bound denies access, never skips links.
+    const deadline = performance.now() + 100;
+    let remaining = 10_000;
+    while (pending.length) {
+      if (--remaining < 0 || performance.now() >= deadline) return "unproven";
+      const candidate = pending.pop()!;
+      try {
+        const target = fs.realpathSync(candidate);
+        if (privateRoots.some(root => within(target, root) || within(root, target))) return "private";
+        if (visited.has(target)) continue;
+        visited.add(target);
+        if (fs.statSync(target).isDirectory()) {
+          for (const name of fs.readdirSync(target)) pending.push(path.join(target, name));
+        }
+      } catch (error) {
+        if (!isNonTraversablePath(error)) return "unproven";
+      }
+    }
+    return "clear";
+  },
+  canonicalProtectionPath(filePath) {
+    let ancestor = path.resolve(filePath); const suffix: string[] = [];
+    while (true) {
+      try { return path.join(fs.realpathSync(ancestor), ...suffix); }
+      catch (error) {
+        if (!isNonTraversablePath(error) || path.dirname(ancestor) === ancestor) throw error;
+        suffix.unshift(path.basename(ancestor)); ancestor = path.dirname(ancestor);
+      }
+    }
+  },
   loadLocalPermissionsConfig(authorityRoot?: string): LocalPermissionsConfig {
     const filePath = permissionsConfigPath(authorityRoot);
     if (!fs.existsSync(filePath)) {
@@ -115,6 +166,11 @@ export const LocalFilePermissionConfigStore: LocalPermissionConfigStore = {
   },
 
   protectedPermissionConfigPaths(authorityRoot?: string): string[] {
-    return [permissionsConfigPath(authorityRoot), workspaceAccessConfigPath(authorityRoot)];
+    return [permissionsConfigPath(authorityRoot), workspaceAccessConfigPath(authorityRoot),
+      path.join(resolveLocalPermissionAuthorityRoot(authorityRoot), 'daemon', '.eidolon', 'projects', 'daemon-control')];
+  },
+  privateRuntimePaths(authorityRoot?: string): string[] {
+    return [path.join(resolveLocalPermissionAuthorityRoot(authorityRoot), 'daemon', '.eidolon', 'projects', 'daemon-control'),
+      ...[...new Set([resolveHomeDir(), process.env.USERPROFILE, os.homedir()].filter((home): home is string => Boolean(home)))].flatMap(hostPackageCredentialPaths)];
   },
 };

@@ -18,6 +18,7 @@ export function hostActorExecutionKind(actor: Pick<AiAgentActor, "type">): Actor
 
 export function createHostActorLifecycle(options: {
   vm: AiAgentVm; observations: ObservationRuntime; actorViews: Map<string, ActorSummary>; maxActors?: number
+  permitsResourceHolonAdoption?: (candidate: Readonly<{holonRef:string;bindingRef:string;semanticFingerprint:string}>) => boolean
 }) {
   const reconcile = (): string[] => {
     const live = new Set(Object.values(options.vm.actors).map(actor => actor.id))
@@ -26,7 +27,12 @@ export function createHostActorLifecycle(options: {
     return retired
   }
   const beforeRegister: NonNullable<RuntimeEffects["actorRegistration"]>["beforeRegister"] = candidate => {
-    if (candidate.identity) return failure(403, "organization_creation_unsupported")
+    if (candidate.identity) {
+      const identity = candidate.identity, proof = candidate.resourceAdmission
+      if (identity.kind !== 'holon' || identity.governance !== 'leader_led' || !identity.holonId || !proof
+        || candidate.actorId !== identity.holonId || candidate.actorKey !== `holon:${identity.holonId}` || candidate.actorType !== 'detached'
+        || !options.permitsResourceHolonAdoption?.({holonRef:identity.holonId,...proof})) return failure(403, "organization_creation_unsupported")
+    } else if (candidate.resourceAdmission) return failure(403, 'organization_creation_unsupported')
     if (!["primary", "interactive", "delegate", "detached"].includes(candidate.actorType)) return failure(422, "unsupported_actor_kind")
     reconcile()
     const live = Object.values(options.vm.actors)

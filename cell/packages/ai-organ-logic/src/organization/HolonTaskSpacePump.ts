@@ -9,6 +9,7 @@ import {
   failTask,
   heartbeatTaskClaim,
   TaskManagerError,
+  taskRoot,
   type TaskProcessorConfig,
 } from "task-manager-logic"
 import { normalizeHolonTaskSnapshotReceipt, normalizeHolonTaskTarget } from "ai-workflow-contract"
@@ -169,6 +170,7 @@ function recoverableRace(error: unknown): boolean {
       "task-not-ready",
       "claim-token-mismatch",
       "terminal-task-immutable",
+      "root-paused",
     ].includes(error.code)
   const code = error && typeof error === "object" && "code" in error ? String(error.code) : ""
   return code === "EIDOLON_HOLON_TASK_RESULT_STALE" || code === "EIDOLON_HOLON_TASK_ATTEMPT_STALE"
@@ -219,7 +221,7 @@ export async function pumpHolonTaskSpace(
       continue
     }
 
-    const ready = tasks.find((task) => task.status === "Ready")
+    const ready = tasks.find((task) => {const root=taskRoot(snapshot,task.taskId);return task.status === "Ready" && (!root.rootControl || !root.rootControl.paused && task.attempt===0 && !["Succeeded","Failed","Cancelled"].includes(root.status))})
     const recovering = await recoveringTask(runtime, snapshot.taskSpaceId, tasks)
     if (!ready && recovering?.activeClaim) {
       const claim = recovering.activeClaim

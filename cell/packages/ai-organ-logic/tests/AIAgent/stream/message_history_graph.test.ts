@@ -222,6 +222,7 @@ describe("MessageHistoryGraph transcript fixtures", () => {
       content: "done",
       toolCallId: "tc-1",
       resultMetadata: {
+        isError: false,
         contextResource: { status: "loaded", resourceId: "file:///workspace/README.md" },
       },
       startAt: 170,

@@ -27,6 +27,7 @@ import {
   type VmRecoveryReport,
 } from "@cell/ai-core-logic"
 import { hasPendingAiAgentWakeMailbox } from "@cell/ai-core-logic/runtime/actor"
+import { extendActorRetirementFacetRegistry, readActorRetirement } from "../runtime/ActorRetirementFacet"
 import { quarantineWebExecutionOnRecovery } from "./ExecutionOriginRecovery"
 import { restoreAgentContextPipelineExecution } from "../resources/EidolonAppResourceRegistryAdapter"
 import type { AiRuntimeOuterCtx } from "@cell/ai-core-contract/runtime/AiRuntimeOuterCtx"
@@ -328,6 +329,7 @@ function normalizeCooperativeExecState(value: unknown): any | null {
     toolCalls: cloneJsonValue(asArray(raw.toolCalls)) ?? [],
     toolIndex: asNonNegativeInteger(raw.toolIndex, 0),
     nextOpSeq: Math.max(1, asNonNegativeInteger(raw.nextOpSeq, 1)),
+    ...(typeof raw.operationNamespace === "string" && raw.operationNamespace ? { operationNamespace: raw.operationNamespace } : {}),
     pendingToolResults: cloneJsonValue(asArray(raw.pendingToolResults)) ?? [],
     // P8 single-writer pipeline: entries restored from a serialized
     // pendingAiGenerated never crossed THIS process's semantic event bus,
@@ -1206,10 +1208,16 @@ function normalizeRecoveredContinuationBaseline(value: unknown): ContinuationBas
 function hydrateActorContextControlFromConversation(params: {
   actor: AiAgentActor
   actorRawState: Awaited<ReturnType<typeof loadConversationActorRawState>> | null
+  runtimeWorkContext?: unknown
 }): void {
   const metadata = params.actorRawState?.promptGeneration?.metadata
-  if (!isRecord(metadata)) return
-  const recoveredWorkContext = normalizeRecoveredWorkContext(metadata.workContext)
+  // WorkContext is runtime control authority. A historical prompt generation
+  // must not overwrite a later manual control checkpoint (control-only policy).
+  // Only legacy snapshots without valid modern control use the one-way importer.
+  const control = params.runtimeWorkContext
+  const modernControl = isRecord(control) && (control.workMode === WORK_MODES.build || control.workMode === WORK_MODES.plan)
+    && (control.taskPhase === TASK_PHASES.normal || control.taskPhase === TASK_PHASES.answer)
+  const recoveredWorkContext = normalizeRecoveredWorkContext(modernControl ? control : isRecord(metadata) ? metadata.workContext : undefined)
   if (recoveredWorkContext) {
     params.actor.workContext = {
       ...params.actor.workContext,
@@ -1218,6 +1226,7 @@ function hydrateActorContextControlFromConversation(params: {
       actorId: params.actor.id,
     }
   }
+  if (!isRecord(metadata)) return
   const recoveredBaseline =
     normalizeRecoveredContinuationBaseline(metadata.continuationBaselineAfter)
     ?? normalizeRecoveredContinuationBaseline(metadata.continuationBaselineBefore)
@@ -1731,7 +1740,7 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
     Awaited<ReturnType<typeof loadConversationActorRawState>>
   >()
 
-  const actorFacetRuntime = createWorkflowLifecycleFacetRegistry()
+  const actorFacetRuntime = extendActorRetirementFacetRegistry(createWorkflowLifecycleFacetRegistry())
   const actorEntries = await Promise.all(
     Object.values(loaded.actors).map(async (snapshot) => {
       // Single-source read via the read port: each conversation fact from its
@@ -1750,6 +1759,8 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
         messages: [],
         actorFacetRuntime,
       })
+      const retirement = readActorRetirement(actor)
+      if (retirement && (actor.key === loaded.vm.controlActorKey || actor.type === 'primary')) throw new Error('actor_primary_retirement_corrupt')
       // Code is a process-local dependency rebuilt from the exact durable bundle
       // before registration or any synchronous provider prompt construction.
       actor.contextPipelineExecution = await restoreAgentContextPipelineExecution(actor)
@@ -1772,6 +1783,7 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
       hydrateActorContextControlFromConversation({
         actor,
         actorRawState,
+        runtimeWorkContext: snapshot.workContext,
       })
       // P8 single-writer pipeline (decisions.md decision 8): asyncCompletion
       // entries carried over from a serialized mailbox snapshot never crossed

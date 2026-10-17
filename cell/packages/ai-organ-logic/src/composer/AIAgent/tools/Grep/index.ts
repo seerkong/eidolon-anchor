@@ -18,7 +18,7 @@ export function buildGrepToolDef(): ToolDef<GrepOuterInput, GrepOuterOutput, Gre
       type: "function" as const,
       function: {
         name: "grep",
-        description: "Search file contents. Omit path or use '.' for the current workspace; external paths require explicit scopeIntent.",
+        description: "Search file contents in a file or directory. Omit path or use '.' for the current workspace; external paths require explicit scopeIntent. Execution errors are distinct from no matches.",
         parameters: { type: "object", properties: { pattern: { type: "string" }, path: { type: "string", default: "." }, include: { type: "string" }, scopeIntent: fileToolScopeIntentSchema() }, required: ["pattern"] },
       },
     },

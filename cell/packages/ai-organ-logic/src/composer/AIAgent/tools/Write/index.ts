@@ -1,6 +1,6 @@
 import { runByFuncStyleAdapter } from "depa-processor"
 import type { ToolDef } from "@cell/ai-core-contract/types"
-import { fileToolScopeIntentSchema, readPromptFromDir } from "../_shared"
+import { fileToolScopeIntentSchema, readPromptFromDir, resolveToolPath } from "../_shared"
 import {
   makeWriteOuterComputed,
   makeWriteInnerRuntime,
@@ -14,6 +14,7 @@ import type { WriteOuterConfig, WriteOuterInput, WriteOuterOutput } from "./Oute
 export function buildWriteToolDef(): ToolDef<WriteOuterInput, WriteOuterOutput, WriteOuterConfig> {
   return {
     resourceEffect: "workspace_mutation",
+    resourceTargets: (input, workDir) => [resolveToolPath(workDir, input.filePath)],
     schema: {
       type: "function" as const,
       function: {

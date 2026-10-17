@@ -1,0 +1,1 @@
+{"extends":"../../cell/tsconfig.json","compilerOptions":{"noEmit":true},"include":["../../cell/packages/ai-runtime-host-contract/src/Workflow.ts","../../cell/packages/ai-runtime-host-contract/src/WorkflowSchema.ts","../../cell/packages/ai-runtime-host-logic/src/workflowProjection.ts","../../cell/packages/ai-runtime-host-support/src/workflowWorkbenchStore.ts"]}

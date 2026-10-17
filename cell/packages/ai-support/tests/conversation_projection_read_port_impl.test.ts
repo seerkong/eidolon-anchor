@@ -782,6 +782,7 @@ describe("LocalFileConversationProjectionReadPort: single-source reads", () => {
               content: "persisted tool progress",
               toolCallId: "call-sequence-regression",
               resultMetadata: {
+                isError: true,
                 contextResource: {
                   status: "loaded",
                   resourceId: "file:///workspace/README.md",
@@ -803,6 +804,7 @@ describe("LocalFileConversationProjectionReadPort: single-source reads", () => {
         ["tool", "persisted tool progress"],
       ])
       expect(history.messages[2]?.resultMetadata).toEqual({
+        isError: true,
         contextResource: {
           status: "loaded",
           resourceId: "file:///workspace/README.md",

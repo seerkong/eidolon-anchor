@@ -13,17 +13,30 @@ export type QuestionnaireHostOptions = {
   limits?: CommandLimits
 }
 
-function publicQuestion(request: QuestionnaireRequestPayload, actorId: string, turnId: string): QuestionRecord {
+function encodeQuestionDefault(value:unknown):string {
+  const result=JSON.stringify(value,(_key,item)=>{
+    if(typeof item==='number'&&!Number.isFinite(item)||['undefined','function','symbol','bigint'].includes(typeof item))throw Error('question_default_not_json');
+    return item;
+  });
+  if(result===undefined)throw Error('question_default_not_json');return result;
+}
+
+export function projectHostQuestion(request: QuestionnaireRequestPayload, actorId: string, turnId: string): QuestionRecord {
   return {
     actorId, turnId, questionnaireId: request.questionnaireId, state: "pending", canAnswer: true,
     schema: {
+      version: 2,
       title: request.title ?? "Input required",
-      questions: request.questions.map((question, index) => ({
+      kind: request.kind,
+      ...(request.intro !== undefined ? { intro: request.intro } : {}),
+      suspendPolicy: request.suspendPolicy,
+      questions: request.questions.map(question => ({
         id: question.id,
-        prompt: [index === 0 ? request.intro : undefined, question.prompt, question.helpText,
-          question.type === "number" || question.type === "json" ? `Response type: ${question.type}` : undefined,
-          question.required ? "Required" : undefined,
-        ].filter(Boolean).join("\n"),
+        prompt: question.prompt,
+        type: question.type,
+        ...(question.required !== undefined ? { required: question.required } : {}),
+        ...(question.default !== undefined ? { defaultJson: encodeQuestionDefault(question.default) } : {}),
+        ...(question.helpText !== undefined ? { helpText: question.helpText } : {}),
         ...(question.choices?.length ? { options: question.choices.map(choice => typeof choice === "string"
           ? { id: choice, label: choice } : { id: choice.value, label: choice.label ?? choice.value }) }
           : question.type === "yes_no" ? { options: [{ id: "yes", label: "Yes" }, { id: "no", label: "No" }] } : {}),
@@ -45,6 +58,7 @@ export function createQuestionnaireHostEffects(options: QuestionnaireHostOptions
     const existing = commands.index.questions.get(row.questionnaireId)?.record
     if (!actorId || !existing || existing.actorId !== actorId || existing.state !== "pending") return
     const record: QuestionRecord = {
+      ...projectHostQuestion(row.request, actorId, existing.turnId),
       actorId, turnId: existing.turnId, questionnaireId: row.questionnaireId,
       state: row.status === "answered" ? "answered" : "cancelled", canAnswer: false,
     }
@@ -63,7 +77,7 @@ export function createQuestionnaireHostEffects(options: QuestionnaireHostOptions
       if (commands.authorization.currentGrantsVersion(request.principal.principalId) !== request.principal.grantsVersion
         || !commands.authorization.permits(request.principal, { kind: "actor", sessionId: commands.sessionId, actorId, action: "answer_question" })
         || !summary?.allowedActions.includes("answer_question") || !summary.capabilities.questionnaireAnswer) return reject(request, "question_forbidden")
-      const record = publicQuestion(payload, actorId, owner.turnId)
+      const record = projectHostQuestion(payload, actorId, owner.turnId)
       const previousTurn = turn.turn
       const waitingTurn = { ...previousTurn, state: "waiting_input" as const, pendingQuestionIds: [...new Set([...previousTurn.pendingQuestionIds, record.questionnaireId])] }
       const publications: ObservationPublication[] = [
@@ -98,7 +112,7 @@ export function createQuestionnaireHostEffects(options: QuestionnaireHostOptions
           metadata.release()
           releaseHostQuestion(commands, record)
           if (published) {
-            publishObservation(observations, { kind: "question.updated", payload: { actorId, turnId: record.turnId, questionnaireId: record.questionnaireId, state: "cancelled", canAnswer: false } })
+            publishObservation(observations, { kind: "question.updated", payload: { ...record, state: "cancelled", canAnswer: false } })
             publishObservation(observations, { kind: "turn.updated", payload: previousTurn })
             recordHostTurn(commands, previousTurn)
           }

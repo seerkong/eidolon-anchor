@@ -210,7 +210,7 @@ describe("provider request SQLite ledger", () => {
 
     const db = new Database(databasePath, { readonly: true })
     try {
-      expect(db.query("PRAGMA user_version").get()).toEqual({ user_version: 3 })
+      expect(db.query("PRAGMA user_version").get()).toEqual({ user_version: 4 })
       expect(db.query("PRAGMA journal_mode").get()).toEqual({ journal_mode: "wal" })
       const request = db
         .query(
@@ -281,6 +281,7 @@ describe("provider request SQLite ledger", () => {
     binding!.port.append(transportObservation())
     binding!.port.appendOutcome(transportOutcome({
       completenessSource: "reconstructed_event_items",
+      timing: {startedAt: 1, headersMs: 2, firstEventMs: 3, firstContentMs: null, elapsedMs: 4},
     }))
     binding!.dispose()
 
@@ -294,6 +295,7 @@ describe("provider request SQLite ledger", () => {
                completeness_reason, response_id
         FROM provider_request_outcomes
       `).get()
+      expect(JSON.parse((db.query("SELECT timing_json FROM provider_request_outcomes").get() as any).timing_json)).toEqual({startedAt:1,headersMs:2,firstEventMs:3,firstContentMs:null,elapsedMs:4})
       expect(outcome).toEqual({
         session_id: "session-1",
         provider_call_id: "provider-call-1",
@@ -339,7 +341,7 @@ describe("provider request SQLite ledger", () => {
 
     const db = new Database(databasePath, { readonly: true })
     try {
-      expect(db.query("PRAGMA user_version").get()).toEqual({ user_version: 3 })
+      expect(db.query("PRAGMA user_version").get()).toEqual({ user_version: 4 })
       const rows = db
         .query(
           `
@@ -392,7 +394,7 @@ describe("provider request SQLite ledger", () => {
 
     const db = new Database(databasePath, { readonly: true })
     try {
-      expect(db.query("PRAGMA user_version").get()).toEqual({ user_version: 3 })
+      expect(db.query("PRAGMA user_version").get()).toEqual({ user_version: 4 })
       expect(db.query(`
         SELECT provider_call_id, plan_kind, replay_source,
                previous_response_id_decision, previous_response_id,

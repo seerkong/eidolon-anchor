@@ -1,4 +1,5 @@
 import type { RuntimeHostPort } from "@cell/ai-runtime-host-contract"
+import { realpath } from 'node:fs/promises'
 import type { RuntimeHostOptions } from "@cell/ai-runtime-host-capsule"
 import { createAnchorHttpHost } from "./runtimeRoutes"
 import { validateRuntimeSecurity, type RuntimeSecurity } from "./runtimeAuth"
@@ -23,7 +24,8 @@ export async function serveRuntime(options: RuntimeServeOptions, createHost?: (o
   const runtime = await factory(options.host)
   let server: ReturnType<typeof createAnchorHttpHost> | undefined
   try {
-    server = createAnchorHttpHost({ runtime, listen: options.listen, security, log: options.log })
+    const workDir = await realpath(options.host.workDir)
+    server = createAnchorHttpHost({ runtime, workspace: { workspaceId: workDir, workDir }, listen: options.listen, security, log: options.log })
     await server.start()
     return server
   } catch (error) { if (server) await server.close(); else await runtime.close(); throw error }

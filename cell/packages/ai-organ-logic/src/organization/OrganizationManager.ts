@@ -5,6 +5,23 @@ import { ensureVmRuntimeContext, ensureVmSessionState, type AiAgentVm, type VmAu
 import { AI_AGENT_LANES } from "../lane/AiAgentLane";
 import { AI_AGENT_WORKLOADS } from "../lane/AiAgentWorkload";
 import { getMemberManager } from "./MemberManager";
+import type { AdmittedLeaderLedHolonPolicy } from '../resources/HolonGovernancePolicy';
+import { transitionLeaderLedHolonGovernance, type LeaderLedHolonGovernanceEffect } from './LeaderLedHolonGovernance';
+import { parseLeaderLedHolonEnvelope } from './leaderLedHolonEnvelope';
+
+/** Both legacy and resource-admitted shells drain the original organization mailbox. */
+export function drainLeaderLedHolonGovernance(actor: AiAgentActor, now: () => number): readonly LeaderLedHolonGovernanceEffect[] {
+  const effects: LeaderLedHolonGovernanceEffect[] = [];
+  if (actor.holonState?.governance !== 'leader_led') return effects;
+  for (const message of actor.drainMailbox('memberChatInbox')) {
+    const parsed = parseLeaderLedHolonEnvelope(message.text);
+    if (!parsed || actor.holonState?.governance !== 'leader_led') continue;
+    const transition = transitionLeaderLedHolonGovernance(actor.holonState, parsed.payload, now());
+    if (transition.state !== actor.holonState) writeHolonGovernance(actor, transition.state);
+    effects.push(...transition.effects);
+  }
+  return effects;
+}
 
 export type OrganizationHolonRecord = VmAutonomousHolonRecord | VmLeaderLedHolonRecord;
 
@@ -17,11 +34,19 @@ export type OrganizationHolonRecord = VmAutonomousHolonRecord | VmLeaderLedHolon
  * THIS function only. Each caller computes its own next HolonActorState; this
  * writer performs the sole assignment so the ad-hoc write points (the
  * OrganizationManager governance transitions, the autonomous task runner, and
- * the assign-cores) all funnel through one owner. Behavior is identical to the
- * previous direct `actor.holonState = next` assignment — this is purely a
- * single-writer funnel, no invariant is added or changed.
+ * the assign-cores) all funnel through one owner. Resource-adopted topology is
+ * frozen by its admission; legacy VM organization transitions retain their behavior.
  */
 export function writeHolonGovernance(actor: AiAgentActor, next: HolonActorState): void {
+  const previous = actor.holonState;
+  if (previous?.governance === 'leader_led' && previous.resourceAdmission) {
+    if (next.governance !== 'leader_led' || next.holonId !== previous.holonId || next.leaderMemberId !== previous.leaderMemberId
+      || JSON.stringify(next.memberIds) !== JSON.stringify(previous.memberIds)
+      || (next.resourceAdmission && JSON.stringify(next.resourceAdmission) !== JSON.stringify(previous.resourceAdmission))) {
+      throw new Error('EIDOLON_HOLON_RESOURCE_ADOPTION_CONFLICT');
+    }
+    next = { ...next, resourceAdmission: previous.resourceAdmission };
+  }
   actor.holonState = next;
 }
 
@@ -32,6 +57,32 @@ function stripOrganizationPrefix(query: string, prefix: "collective" | "formatio
 }
 
 export class OrganizationManager {
+  /** Called only after frozen resource validation. Never adopts a similarly named legacy organization. */
+  adoptResourceLeaderLedHolon(vm: AiAgentVm, policy: AdmittedLeaderLedHolonPolicy,
+    proof: Readonly<{ bindingRef: string; semanticFingerprint: string }>): AiAgentActor {
+    const key = this.getHolonActorKey(policy.holonRef);
+    const existing = vm.actors[key];
+    if (existing) {
+      const state = existing.holonState;
+      if (existing.identity?.kind !== 'holon' || existing.identity.holonId !== policy.holonRef
+        || state?.governance !== 'leader_led' || state.resourceAdmission?.bindingRef !== proof.bindingRef
+        || state.resourceAdmission.semanticFingerprint !== proof.semanticFingerprint
+        || state.leaderMemberId !== policy.leaderMemberRef || JSON.stringify(state.memberIds) !== JSON.stringify(policy.memberRefs)) {
+        throw new Error('EIDOLON_HOLON_RESOURCE_ADOPTION_CONFLICT');
+      }
+      return existing;
+    }
+    if (ensureVmSessionState(vm).holons[policy.holonRef]) throw new Error('EIDOLON_HOLON_RESOURCE_ADOPTION_CONFLICT');
+    const now = Date.now();
+    const record: VmLeaderLedHolonRecord = { holonId: policy.holonRef, governance: 'leader_led', name: policy.name,
+      memberIds: [...policy.memberRefs], leaderMemberId: policy.leaderMemberRef, watchState: 'unwatched', createdAt: now, updatedAt: now };
+    const actor = this.ensureLeaderLedHolonActor(vm, record, proof);
+    if (actor.holonState?.governance !== 'leader_led') throw new Error('EIDOLON_HOLON_RESOURCE_ADOPTION_CONFLICT');
+    writeHolonGovernance(actor, { ...actor.holonState, resourceAdmission: Object.freeze({ ...proof }) });
+    this.writeLeaderLedHolonIndex(vm, record);
+    return actor;
+  }
+
   getHolonActorKey(holonId: string): string {
     return `holon:${holonId}`;
   }
@@ -204,7 +255,8 @@ export class OrganizationManager {
     return actor;
   }
 
-  private ensureLeaderLedHolonActor(vm: AiAgentVm, record: VmLeaderLedHolonRecord) {
+  private ensureLeaderLedHolonActor(vm: AiAgentVm, record: VmLeaderLedHolonRecord,
+    resourceAdmission?: Readonly<{ bindingRef: string; semanticFingerprint: string }>) {
     const key = this.getHolonActorKey(record.holonId);
     let actor = this.getLeaderLedHolonActor(vm, record.holonId);
     if (!actor) {
@@ -221,6 +273,7 @@ export class OrganizationManager {
         },
         holonState: {
           governance: "leader_led",
+          ...(resourceAdmission ? { resourceAdmission: Object.freeze({ ...resourceAdmission }) } : {}),
           holonId: record.holonId,
           name: record.name,
           memberIds: [...record.memberIds],
@@ -229,7 +282,8 @@ export class OrganizationManager {
           routes: {},
         },
       });
-      vm.effects.actorRegistration?.beforeRegister({ actorId: actor.id, actorKey: actor.key, actorType: actor.type, identity: actor.identity });
+      vm.effects.actorRegistration?.beforeRegister({ actorId: actor.id, actorKey: actor.key, actorType: actor.type, identity: actor.identity,
+        ...(resourceAdmission ? { resourceAdmission } : {}) });
       vm.actors[key] = actor;
       if (!vm.actorRuntime.has(key)) {
         vm.actorRuntime.register(key, actor);

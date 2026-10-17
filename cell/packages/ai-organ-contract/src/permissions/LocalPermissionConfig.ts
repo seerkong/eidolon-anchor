@@ -44,4 +44,7 @@ export type LocalPermissionConfigStore = {
     authorityRoot?: string;
   }) => string;
   protectedPermissionConfigPaths: (authorityRoot?: string) => string[];
+  canonicalProtectionPath?: (filePath: string) => string;
+  privateRuntimePaths?: (authorityRoot?: string) => string[];
+  inspectRecursivePrivateRuntime?: (filePath: string, authorityRoot?: string) => "clear" | "private" | "unproven";
 };

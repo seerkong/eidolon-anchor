@@ -38,11 +38,32 @@ export type ProviderTransportRequestObservationInput = Readonly<{
   toolSchemaCoverage?: ProviderToolSchemaCoverageObservation;
 }>;
 
+/** Durations use a monotonic clock; missing phases remain null. */
+export type ProviderTransportTiming = Readonly<{
+  startedAt: number;
+  headersMs: number | null;
+  firstEventMs: number | null;
+  firstContentMs: number | null;
+  /** Milestones, not claims about upstream queue or model compute time. */
+  firstReasoningMs?: number | null;
+  lastReasoningMs?: number | null;
+  lastContentMs?: number | null;
+  lastEventMs?: number | null;
+  eventCount?: number;
+  reasoningEventCount?: number;
+  contentEventCount?: number;
+  maxInterEventGapMs?: number | null;
+  longInterEventGapCount?: number;
+  longInterEventGapTotalMs?: number;
+  elapsedMs: number;
+}>;
+
 export type ProviderTransportOutcomeObservationInput = Readonly<{
   terminalState: "completed" | "failed" | "aborted" | "incomplete";
   fallbackUsed: boolean;
   completeness: ProviderResponseCompletenessObservation;
   responseId: string | null;
+  timing?: ProviderTransportTiming;
 }>;
 
 export type ProviderTransportOutcomeObserver = Readonly<{
@@ -113,6 +134,7 @@ export type ProviderRequestOutcomeObservationData = Readonly<{
   completenessSource: ProviderResponseCompletenessObservation["source"];
   completenessReason: string | null;
   responseId: string | null;
+  timing?: ProviderTransportTiming;
   capturedAt: number;
 }>;
 

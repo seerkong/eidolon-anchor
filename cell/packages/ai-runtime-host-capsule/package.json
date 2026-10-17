@@ -16,6 +16,8 @@
   "files": ["src"],
   "description": "Renderer-neutral runtime host composition over the existing actor, conversation and execution owners.",
   "dependencies": {
+    "task-manager-contract":"0.1.4",
+    "task-manager-logic":"0.1.7",
     "@cell/ai-runtime-host-contract": "workspace:*",
     "@cell/ai-runtime-host-logic": "workspace:*",
     "@cell/ai-runtime-host-support": "workspace:*",

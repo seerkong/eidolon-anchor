@@ -1,14 +1,16 @@
 import fs from "fs";
 import path from "path";
+import os from "os";
+
+/** Expand only the declared home aliases; never evaluate arbitrary shell text. */
+export function expandHomePath(rawPath: string, home = process.env.HOME || process.env.USERPROFILE || os.homedir()): string {
+  const windowsAlias = /^(?:\$env:(?:HOME|USERPROFILE)|\$\{env:(?:HOME|USERPROFILE)\}|%(?:HOME|USERPROFILE)%)(?=$|[\\/])/i;
+  return rawPath.replace(windowsAlias, home)
+    .replace(/^(?:~|\$(?:HOME|USERPROFILE)|\$\{(?:HOME|USERPROFILE)\})(?=$|[\\/])/, home);
+}
 
 export function resolveRequestedPath(workDir: string, rawPath: string): string {
-  const home = process.env.HOME;
-  const expanded =
-    rawPath === "~"
-      ? home || rawPath
-      : rawPath.startsWith("~/") && home
-        ? path.join(home, rawPath.slice(2))
-        : rawPath;
+  const expanded = expandHomePath(rawPath);
   return path.resolve(path.isAbsolute(expanded) ? expanded : path.resolve(workDir, expanded));
 }
 

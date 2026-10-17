@@ -201,10 +201,16 @@ async function physicalRootStatus(rootDir: string) {
 }
 
 const PHYSICAL_OVERLAY_EXCLUDED_ROOTS = new Set([
+  ".writer-locks",
+  "daemon",
+  "web-host",
   // Mutable runtime state. These trees can be large and may change while the
   // configuration/resource overlay is being projected.
   "projects",
   "sessions",
+  // Canonical task records and private execution snapshots belong to the task
+  // owner. Importing them here recursively embeds old resource views in new VMs.
+  "global-taskspaces",
   // Workflow drafts, receipts, frozen instances and legacy bundles have their
   // own explicit store. Writing a draft must not change its resource CAS base.
   "workflows",

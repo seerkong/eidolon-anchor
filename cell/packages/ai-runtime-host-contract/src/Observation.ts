@@ -1,7 +1,8 @@
 import type { ActorSummary, AssociatedTurn, CommandStatus, ProtocolError } from "./Command"
 
 export type PublicMessagePart = Readonly<
-  | { kind: "text"; text: string }
+  | { kind: "text"; text: string; filename?: string; sourceDigest?: string }
+  | { kind: "image"; mime: string; filename?: string; sourceDigest?: string; size?: number; dataUrl?: string }
   | { kind: "reasoning"; text: string }
   | { kind: "tool_call"; toolCallId: string; name: string; input: string }
   | { kind: "tool_result"; toolCallId: string; output: string; isError: boolean }
@@ -37,10 +38,19 @@ export type PendingStream = Readonly<{
 }>
 
 export type QuestionSchema = Readonly<{
+  version?: 2
   title: string
+  kind?: "clarification" | "approval" | "freeform" | "form"
+  intro?: string
+  suspendPolicy?: "pause_all" | "continue_others"
   questions: readonly Readonly<{
     id: string
     prompt: string
+    type?: "text" | "yes_no" | "single_select" | "multi_select" | "number" | "json"
+    required?: boolean
+    /** Bounded JSON text preserves false, zero, null, arrays and object defaults. */
+    defaultJson?: string
+    helpText?: string
     options?: readonly Readonly<{ id: string; label: string; description?: string }>[]
     multiple?: boolean
   }>[]

@@ -12,6 +12,7 @@ import { createActor } from "../../cell/packages/ai-core-logic/src/runtime/actor
 import { createVM } from "../../cell/packages/ai-core-logic/src/runtime/runtime"
 import { appendLiveHistoryMessageToConversationDomainRuntime, ensureVmConversationDomainRuntime } from "../../cell/packages/ai-organ-logic/src/conversationCapsule/coreLogic"
 import { createPublicHistoryReader } from "../../cell/packages/ai-runtime-host-capsule/src/publicHistory"
+import { projectInputContentText } from '@shared/composer'
 
 const caller: HostRequest = { principal: { principalId: "owner", grantsVersion: "1" }, requestId: "boundary-request" }
 const cleanup: Array<() => Promise<void>> = []
@@ -52,6 +53,20 @@ test("actor directory exposes read-history-only actors without granting observe"
   const directory = await host.actors(caller, session)
   expect(directory.actors.map(actor => actor.actorId)).toContain(primary.actorId)
   expect(directory.actors[0].allowedActions).toEqual(["read_history"])
+}, 30000)
+test("persisted actor directory restores exact member identities without activating an adapter or writer", async () => {
+  const f = await fixture(); const session = await f.create()
+  const before = (await f.host.actors(caller, session)).actors
+  await f.host.close()
+  let activations = 0
+  __setLlmAdapterFactoryForTest(async () => { activations++; throw new Error("directory_must_not_activate") })
+  const host = await createHost({ workDir: f.workDir, globalRoot: f.globalRoot,
+    authorization: { permits: () => true, currentGrantsVersion: () => "1" } })
+  cleanup.push(() => host.close())
+  const directory = await host.actors(caller, session, { directoryOnly: true })
+  expect(directory.actors.map(actor => [actor.actorId, actor.memberId, actor.executionKind])).toEqual(before.map(actor => [actor.actorId, actor.memberId, actor.executionKind]))
+  expect(activations).toBe(0)
+  expect(directory.actors.every(actor => !actor.capabilities.textInput && actor.allowedActions.every(action => ["observe", "read_history"].includes(action)))).toBe(true)
 }, 30000)
 test("a real persisted organization identity restores as read-only while ordinary sessions retain controls", async () => {
   const f = await fixture(); const session = await f.create()
@@ -202,12 +217,65 @@ test("real Questionnaire caller controls recover after disconnect while only C i
   expect(snapshot.histories.every((history: any) => history.actorId === c.actorId)).toBe(true)
   expect(snapshot.pendingStreams.every((stream: any) => stream.actorId === c.actorId)).toBe(true)
   expect(JSON.stringify(snapshot)).not.toContain("private actor A input")
+  const retireC={commandId:'retire-idle-C',kind:'archive_actor' as const,expectedServerInstanceId:f.host.capabilities(caller).serverInstanceId,
+    expectedEpoch:session.epoch,expectedLifecycleRevision:0}
+  // Even an idle, unrelated Actor cannot be retired while a real Questionnaire
+  // waits elsewhere in the same Session. No answer or cancellation is implied.
+  await expect(f.host.manageActor!(caller,{sessionId:session.sessionId,actorId:c.actorId},retireC)).rejects.toMatchObject({status:409,error:{code:'session_busy'}})
+  await expect(f.host.manageActor!(caller,{sessionId:session.sessionId,actorId:c.actorId},{...retireC,commandId:'delete-idle-C',kind:'delete_actor'})).rejects.toMatchObject({status:409,error:{code:'session_busy'}})
+  expect((await f.host.actors(caller,session)).actors.find(actor=>actor.actorId===c.actorId)!.lifecycle?.state).toBe('active')
   await f.host.command(caller, session, { commandId: "answer-A", surfaceId: "pane", expectedEpoch: session.epoch, kind: "answer_question", payload: { actorId: a.actorId, turnId: question.turnId, questionnaireId: question.questionnaireId, responseText: "Q1: yes" } })
   await until(async () => (await f.host.commandStatus(caller, session, { commandId: "question-work", expectedEpoch: session.epoch })).associatedTurn?.state === "succeeded")
   expect((await f.host.commandStatus(caller, session, { commandId: "answer-A", expectedEpoch: session.epoch })).state).toBe("applied")
   expect(providerCalls).toBe(2)
   expect(JSON.stringify(await f.host.history(caller, { sessionId: session.sessionId, actorId: a.actorId }, {}))).toContain("answered successfully")
+  await until(async()=>!await f.host.isBusy!())
+  expect((await f.host.manageActor!(caller,{sessionId:session.sessionId,actorId:c.actorId},retireC)).lifecycle.state).toBe('archived')
 }, 30000)
+
+test('real detached delegate blocks idle Actor retirement after its foreground caller finishes, without cancelling or replaying work',async()=>{
+  let release!:()=>void,childEntered=false,calls=0,childCalls=0,delegated=false;
+  const gate=new Promise<void>(resolve=>{release=resolve});
+  const f=await fixture(undefined,async()=>({...adapter(),async createStream(options:any){
+    calls++;
+    const child=options.messages.some((message:any)=>message.role==='user'&&projectInputContentText(message.content).includes('P3_DETACHED_CHILD'));
+    const completedTool=options.messages.some((message:any)=>message.role==='tool');
+    async function* stream(){
+      if(child){childCalls++;childEntered=true;await gate;yield {choices:[{delta:{content:'P3_DETACHED_COMPLETE'}}]};}
+      else if(!completedTool&&!delegated){
+        delegated=true;
+        yield {choices:[{delta:{tool_calls:[{index:0,id:'p3-detached',type:'function',function:{name:'RunDelegateActor',arguments:JSON.stringify({description:'P3 background barrier',prompt:'P3_DETACHED_CHILD',agent_type:'code',mode:'detached'})}}]}}]};
+        yield {choices:[{delta:{},finish_reason:'tool_calls'}]};return;
+      }else yield {choices:[{delta:{content:'P3_FOREGROUND_COMPLETE'}}]};
+      yield {choices:[{delta:{},finish_reason:'stop'}]};
+    }
+    return {stream:stream(),providerOutput:Promise.resolve({provider_cache_cost_observation:createMockProviderCacheCostObservation(options)})};
+  }}));
+  try{
+    const session=await f.create(),primary=(await f.host.actors(caller,session)).actors[0]!;
+    await f.host.command(caller,session,{commandId:'background-idle',surfaceId:'pane',expectedEpoch:session.epoch,kind:'create_actor',payload:{profileId:'ai-coding',displayName:'Idle background witness'}});
+    await until(async()=>(await f.host.commandStatus(caller,session,{commandId:'background-idle',expectedEpoch:session.epoch})).state==='applied');
+    const idle=(await f.host.actors(caller,session)).actors.find(actor=>actor.displayName==='Idle background witness')!;
+    await f.host.command(caller,session,{commandId:'background-parent',surfaceId:'pane',expectedEpoch:session.epoch,kind:'send_text',payload:{actorId:primary.actorId,text:'P3 start controlled detached work'}});
+    await until(async()=>childEntered);
+    await until(async()=>(await f.host.commandStatus(caller,session,{commandId:'background-parent',expectedEpoch:session.epoch})).associatedTurn?.state==='succeeded');
+    const background=(await f.host.actors(caller,session)).actors.find(actor=>['detached','delegate'].includes(actor.executionKind));
+    expect(background).toBeDefined();expect(background!.runtimeState).toBe('running');
+    const archive={commandId:'background-archive',kind:'archive_actor' as const,expectedServerInstanceId:f.host.capabilities(caller).serverInstanceId,expectedEpoch:session.epoch,expectedLifecycleRevision:0};
+    for(const kind of ['archive_actor','delete_actor'] as const)
+      await expect(f.host.manageActor!(caller,{sessionId:session.sessionId,actorId:idle.actorId},{...archive,kind})).rejects.toMatchObject({status:409,error:{code:'session_busy'}});
+    expect((await f.host.actors(caller,session)).actors.find(actor=>actor.actorId===idle.actorId)!.lifecycle?.state).toBe('active');
+    release();
+    // A child completion notification may wake the original caller once. Its
+    // scheduling is not a retirement effect or a second child execution.
+    await until(async()=>!await f.host.isBusy!()
+      &&JSON.stringify(await f.host.history(caller,{sessionId:session.sessionId,actorId:background!.actorId},{})).includes('P3_DETACHED_COMPLETE'));
+    expect((await f.host.manageActor!(caller,{sessionId:session.sessionId,actorId:idle.actorId},archive)).lifecycle.state).toBe('archived');
+    expect(JSON.stringify(await f.host.history(caller,{sessionId:session.sessionId,actorId:primary.actorId},{}))).toContain('P3_FOREGROUND_COMPLETE');
+    await f.host.close();
+    expect(childCalls).toBe(1);expect(calls).toBeGreaterThanOrEqual(3);expect(calls).toBeLessThanOrEqual(4);
+  }finally{release();}
+},30000);
 
 test("host history adapter binds emitted content refs to the delivered owner fence during reentrant publication", () => {
   const actor = createActor({ key: "main" }); const vm = createVM({ controlActorKey: actor.key, actors: { main: actor }, outerCtx: { metadata: { sessionId: "internal-session" } } })

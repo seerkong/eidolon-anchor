@@ -29,14 +29,14 @@ function firstExistingConfigPath(rootDir: string, filenames: string[]): string |
   return undefined;
 }
 
-function firstExistingProjectOrHomeConfigPath(workDir: string, filenames: string[]): string | undefined {
-  return firstExistingConfigPath(workDir, filenames) ?? firstExistingConfigPath(homeDir(), filenames);
+function firstExistingProjectOrHomeConfigPath(workDir: string, filenames: string[], globalRoot?: string): string | undefined {
+  return firstExistingConfigPath(workDir, filenames) ?? (globalRoot ? path.join(globalRoot, filenames[0]!) : firstExistingConfigPath(homeDir(), filenames));
 }
 
-export const LocalFileRuntimeConfigLoader: CoreRuntimeConfigLoader = {
+function createLocalRuntimeConfigLoader(globalRoot?: string): CoreRuntimeConfigLoader { return {
   loadLLMProviderConfig(workDir: string, logger?: RuntimeLogFn): LLMProviderConfig | null {
     try {
-      return loadProviderCatalog(firstExistingProjectOrHomeConfigPath(workDir, [PROVIDER_CONFIG_FILE_NAME]));
+      return loadProviderCatalog(firstExistingProjectOrHomeConfigPath(workDir, [PROVIDER_CONFIG_FILE_NAME], globalRoot));
     } catch (error) {
       logger?.("error", "Failed to load LLM provider catalog", {
         error: error instanceof Error ? error.message : String(error),
@@ -47,7 +47,7 @@ export const LocalFileRuntimeConfigLoader: CoreRuntimeConfigLoader = {
 
   loadAgentPresetConfig(workDir: string, logger?: RuntimeLogFn): AgentPresetConfig | null {
     try {
-      const presentConfigPath = firstExistingProjectOrHomeConfigPath(workDir, [PRESENT_CONFIG_FILE_NAME]);
+      const presentConfigPath = firstExistingProjectOrHomeConfigPath(workDir, [PRESENT_CONFIG_FILE_NAME], globalRoot);
       const presentConfig = loadPresentConfig({ configPath: presentConfigPath, workdir: workDir });
       return {
         preset: presentConfig.defaultPreset,
@@ -68,7 +68,8 @@ export const LocalFileRuntimeConfigLoader: CoreRuntimeConfigLoader = {
       return null;
     }
   },
-};
+}; }
+export const LocalFileRuntimeConfigLoader = createLocalRuntimeConfigLoader();
 
 export function loadLLMProviderConfig(workDir: string, logger?: RuntimeLogFn): LLMProviderConfig | null {
   return LocalFileRuntimeConfigLoader.loadLLMProviderConfig(workDir, logger);
@@ -87,6 +88,7 @@ export function validateLocalRuntimeConfigFiles(workDir: string): void {
 
 export function resolveActorModelConfigFromLocalFiles(params: {
   workDir: string;
+  globalRoot?: string;
   agentKey: string;
   modelRef?: string;
   fallbackModelConfig: ActorModelConfig;
@@ -95,10 +97,11 @@ export function resolveActorModelConfigFromLocalFiles(params: {
   logger?: RuntimeLogFn;
 }): ActorModelConfig {
   const { workDir, logger } = params;
+  const loader = params.globalRoot ? createLocalRuntimeConfigLoader(params.globalRoot) : LocalFileRuntimeConfigLoader;
   return resolveActorModelConfig({
     ...params,
     modelRef: params.modelRef,
-    providerConfig: loadLLMProviderConfig(workDir, logger),
-    presetConfig: loadAgentPresetConfig(workDir, logger),
+    providerConfig: loader.loadLLMProviderConfig(workDir, logger),
+    presetConfig: loader.loadAgentPresetConfig(workDir, logger),
   });
 }

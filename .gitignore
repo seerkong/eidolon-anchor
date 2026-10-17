@@ -155,3 +155,4 @@ codument/**/reports
 
 # Temporary upstream public release candidates, verified before workspace preparation.
 !artifacts/holarchy-public-file/*.tgz
+!artifacts/task-manager-public-file/*.tgz

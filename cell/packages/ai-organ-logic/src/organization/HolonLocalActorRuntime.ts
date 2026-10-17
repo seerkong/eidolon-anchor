@@ -52,6 +52,7 @@ export interface HolonGenericActorOwnerPort {
 }
 
 export interface HolonExecutionAdapterInput {
+  readonly signal?: AbortSignal
   /** Stable key that the adapter MUST use to replay an already accepted effect. */
   readonly idempotencyKey: string
   readonly invocation: HolonExecutionInvocation
@@ -80,6 +81,7 @@ export interface HolonMemberDispatchResult {
 }
 
 type AddressedInvocation = Readonly<{
+  readonly signal?: AbortSignal
   readonly runtimeRef: string
   readonly idempotencyKey: string
   readonly invocation: HolonExecutionInvocation
@@ -204,7 +206,9 @@ implements HolonCoordinatorActorOwnerPort, HolonMemberActorOwnerPort, HolonMembe
     runtimeRef: string,
     invocationValue: HolonExecutionInvocation,
     idempotencyKeyValue = invocationValue.invocationRef,
+    signal?: AbortSignal,
   ): Promise<HolonMemberDispatchResult> {
+    signal?.throwIfAborted()
     const invocation = normalizeHolonExecutionInvocation(invocationValue)
     const idempotencyKey = exactString(idempotencyKeyValue, "idempotencyKey")
     if (idempotencyKey !== invocation.invocationRef) {
@@ -215,7 +219,7 @@ implements HolonCoordinatorActorOwnerPort, HolonMemberActorOwnerPort, HolonMembe
     const registration = resolveActor(this.addressing, { byAddress: actorAddress }, {}, {})
     return dispatchActor(this.addressing, { byAddress: actorAddress }, {
       expectedRegistrationId: registration.receipt.registrationId,
-      input: Object.freeze({ runtimeRef, idempotencyKey, invocation }),
+      input: Object.freeze({ runtimeRef, idempotencyKey, invocation, signal }),
     }, {})
   }
 
@@ -287,6 +291,7 @@ implements HolonCoordinatorActorOwnerPort, HolonMemberActorOwnerPort, HolonMembe
       runtimeRef: request.runtimeRef,
       sessionRef: session.sessionRef,
       taskAttempt: session.taskAttempt,
+      signal: request.signal,
     })
     return Object.freeze({
       kind: "holon-member-dispatch-result",

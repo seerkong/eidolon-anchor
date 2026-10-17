@@ -7,6 +7,7 @@ import type {
   HolonTaskSubmissionRecord,
 } from "@cell/ai-organ-contract/organization/HolonTaskRuntimeStorage"
 import { FileTaskSpaceOwner } from "task-manager-file-support"
+import type {TaskSpaceOwnerPort} from 'task-manager-contract'
 import { FileHolonTaskPumpJournalStore } from "./FileHolonTaskPumpJournalStore"
 
 function digest(value: unknown): `sha256:${string}` {
@@ -36,13 +37,13 @@ async function retainSubmission(supportRoot: string, value: HolonTaskSubmissionR
 
 /** Select physical storage at the host boundary; this factory owns no routes or task rules. */
 export function createLocalHolonTaskRuntimeStorage(
-  input: Readonly<{ supportRoot: string }>,
+  input: Readonly<{ supportRoot: string;taskManagerOwner?:TaskSpaceOwnerPort }>,
 ): HolonTaskRuntimeStorage {
   const supportRoot = path.resolve(input.supportRoot)
   return Object.freeze({
     supportRoot,
     taskManager: Object.freeze({
-      owner: new FileTaskSpaceOwner({ root: path.join(supportRoot, "task-spaces") }),
+      owner: input.taskManagerOwner??new FileTaskSpaceOwner({ root: path.join(supportRoot, "task-spaces") }),
     }),
     journalStore: new FileHolonTaskPumpJournalStore({ now: Date.now }, { supportRoot }),
     retainSubmission: (value: HolonTaskSubmissionRecord) => retainSubmission(supportRoot, value),

@@ -33,11 +33,11 @@ export type HeadlessConversationForkOptions = {
 }
 
 export async function readHeadlessInput(prompt?: string): Promise<string | undefined> {
-  const piped = !process.stdin.isTTY ? await Bun.stdin.text() : undefined
-  if (!prompt) {
-    return piped
-  }
-  return piped ? `${piped}\n${prompt}` : prompt
+  // An explicit prompt argument is used as-is; stdin is only read for `exec -` / no prompt.
+  // Reading stdin here unconditionally hung forever whenever stdin was a pipe left open
+  // (background Start-Process, ssh without -n).
+  if (prompt) return prompt
+  return !process.stdin.isTTY ? await Bun.stdin.text() : undefined
 }
 
 function shouldEmitHeadlessCategory(category?: string): boolean {

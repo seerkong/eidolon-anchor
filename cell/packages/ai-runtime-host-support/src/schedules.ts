@@ -6,12 +6,12 @@ import { parseDaemonScheduleView, parseDaemonScheduleReceipt } from '@cell/ai-ru
 /** Parent writer lease owns this store; an expected revision also guards accidental duplicate owners. */
 export function openDaemonScheduleStore(directory: string): DaemonScheduleStore {
     const info = lstatSync(directory);
-    if (!info.isDirectory() || info.isSymbolicLink() || (info.mode & 0o077) !== 0 || process.getuid && info.uid !== process.getuid())
+    if (!info.isDirectory() || info.isSymbolicLink() || process.platform !== 'win32' && ((info.mode & 0o077) !== 0 || process.getuid && info.uid !== process.getuid()))
         throw new Error('unsafe_schedule_directory');
     const filename = join(directory, 'schedules.sqlite'), fd = openSync(filename, constants.O_CREAT | constants.O_RDWR | constants.O_NOFOLLOW, 0o600);
     try {
         const f = fstatSync(fd);
-        if (!f.isFile() || (f.mode & 0o077) !== 0 || process.getuid && f.uid !== process.getuid())
+        if (!f.isFile() || process.platform !== 'win32' && ((f.mode & 0o077) !== 0 || process.getuid && f.uid !== process.getuid()))
             throw new Error('unsafe_schedule_store');
     }
     finally {

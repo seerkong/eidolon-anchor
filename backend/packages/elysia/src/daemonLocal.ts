@@ -16,7 +16,7 @@ export async function readDaemonDiscovery(globalRoot: string): Promise<DaemonDis
   try {
     handle = await open(files.discoveryFile, constants.O_RDONLY | constants.O_NOFOLLOW)
     const stat = await handle.stat()
-    if (!stat.isFile() || stat.size > 4096 || stat.mode & 0o077 || stat.uid !== process.getuid?.()) throw new Error('daemon_discovery_private_required')
+    if (!stat.isFile() || stat.size > 4096 || process.platform !== 'win32' && (stat.mode & 0o077 || stat.uid !== process.getuid?.())) throw new Error('daemon_discovery_private_required')
     const value = JSON.parse(await handle.readFile('utf8')) as DaemonDiscovery
     const url = new URL(value.baseURL)
     if (url.protocol !== 'http:' || !['127.0.0.1', '[::1]', 'localhost'].includes(url.hostname) || url.origin !== value.baseURL || value.credentialFile !== files.credentialFile || !value.daemonId || !value.daemonInstanceId) throw new Error('invalid_daemon_discovery')

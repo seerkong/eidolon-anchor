@@ -10,6 +10,8 @@ export async function canonicalWorkspace(directory: string) {
   if (!(await stat(canonical)).isDirectory()) throw new Error('workspace_unavailable')
   return canonical
 }
+// Windows has no POSIX mode bits or uid; fs reports synthetic 0o666/uid 0, so only enforce them on POSIX.
+const posixModes = process.platform !== 'win32'
 export const daemonControlDir = (workspace: string) => join(workspace, '.eidolon', 'projects', 'daemon-control')
 export async function ensureDaemonControlDirectory(globalRoot: string) {
   await mkdir(globalRoot, { recursive: true, mode: 0o700 })
@@ -18,18 +20,18 @@ export async function ensureDaemonControlDirectory(globalRoot: string) {
   for (const name of ['daemon', '.eidolon', 'projects', 'daemon-control']) {
     directory = join(directory, name); await mkdir(directory, { recursive: true, mode: 0o700 })
     const info = await lstat(directory)
-    if (!info.isDirectory() || info.isSymbolicLink() || process.getuid && info.uid !== process.getuid() || (info.mode & 0o022) !== 0
-      || name === 'daemon-control' && (info.mode & 0o077) !== 0) throw new Error('unsafe_daemon_control_directory')
+    if (!info.isDirectory() || info.isSymbolicLink() || posixModes && (process.getuid && info.uid !== process.getuid() || (info.mode & 0o022) !== 0
+      || name === 'daemon-control' && (info.mode & 0o077) !== 0)) throw new Error('unsafe_daemon_control_directory')
   }
   return directory
 }
 export function openDaemonRegistry(directory: string, capacity = 100): WorkspaceRegistryStore {
   mkdirSync(directory, { recursive: true, mode: 0o700 })
   const info = lstatSync(directory)
-  if (!info.isDirectory() || info.isSymbolicLink() || (info.mode & 0o077) !== 0 || process.getuid && info.uid !== process.getuid()) throw new Error('unsafe_daemon_control_directory')
+  if (!info.isDirectory() || info.isSymbolicLink() || posixModes && ((info.mode & 0o077) !== 0 || process.getuid && info.uid !== process.getuid())) throw new Error('unsafe_daemon_control_directory')
   const filename = join(directory, 'registry.sqlite')
   const descriptor = openSync(filename, constants.O_CREAT | constants.O_RDWR | constants.O_NOFOLLOW, 0o600)
-  try { const file = fstatSync(descriptor); if (!file.isFile() || (file.mode & 0o077) !== 0 || process.getuid && file.uid !== process.getuid()) throw new Error('unsafe_daemon_registry') }
+  try { const file = fstatSync(descriptor); if (!file.isFile() || posixModes && ((file.mode & 0o077) !== 0 || process.getuid && file.uid !== process.getuid())) throw new Error('unsafe_daemon_registry') }
   finally { closeSync(descriptor) }
   const database = new Database(filename, { strict: true })
   database.exec(`PRAGMA busy_timeout=2000;

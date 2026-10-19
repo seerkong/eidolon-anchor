@@ -1,3 +1,4 @@
+import { isAbsolute } from 'node:path'
 import {parseAgentAdapterConfigureCommand,parseAgentAdapterSendCommand,parseAgentAdapterSelector,parseAgentAdapterInterruptCommand} from '@cell/ai-runtime-host-contract'
 import { createDaemon } from '@cell/ai-runtime-host-capsule'
 import { createAnchorHttpHost, RequestFailure, body, json,parseBody } from './runtimeRoutes'
@@ -61,7 +62,7 @@ export async function serveDaemon(options: Parameters<typeof createDaemon>[0] & 
         if (method === 'GET') return json({ workspaces: daemon.workspaces() }, requestId)
         only('POST')
         const value = await body(request) as { workDir?: unknown }
-        if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== 1 || typeof value.workDir !== 'string' || !value.workDir.startsWith('/') || value.workDir.length > 4096) throw new RequestFailure(400, 'invalid_schema')
+        if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== 1 || typeof value.workDir !== 'string' || !isAbsolute(value.workDir) || value.workDir.length > 4096) throw new RequestFailure(400, 'invalid_schema')
         return json(await daemon.register(value.workDir), requestId, 201)
       }
       const key = parts[2]

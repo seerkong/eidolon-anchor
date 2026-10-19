@@ -43,12 +43,12 @@ export function validateAgentAdapterState(s: AgentAdapterState) {
 /** The daemon parent writer lease owns this SQLite store; no browser or worker writes it. */
 export function openAgentAdapterStore(directory: string): AgentAdapterStore {
     const info = lstatSync(directory);
-    if (!info.isDirectory() || info.isSymbolicLink() || (info.mode & 0o077) !== 0 || process.getuid && info.uid !== process.getuid())
+    if (!info.isDirectory() || info.isSymbolicLink() || process.platform !== 'win32' && ((info.mode & 0o077) !== 0 || process.getuid && info.uid !== process.getuid()))
         throw Error('unsafe_agent_adapter_directory');
     const filename = join(directory, 'agent-adapters.sqlite'), fd = openSync(filename, constants.O_CREAT | constants.O_RDWR | constants.O_NOFOLLOW, 0o600);
     try {
         const f = fstatSync(fd);
-        if (!f.isFile() || (f.mode & 0o077) !== 0 || process.getuid && f.uid !== process.getuid())
+        if (!f.isFile() || process.platform !== 'win32' && ((f.mode & 0o077) !== 0 || process.getuid && f.uid !== process.getuid()))
             throw Error('unsafe_agent_adapter_store');
     }
     finally {

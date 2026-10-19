@@ -64,11 +64,11 @@ export async function loadOrCreateBearer(filePath: string): Promise<string> {
     if (error?.code !== "EEXIST") throw error
   } finally { await file?.close() }
   const info = await lstat(filePath)
-  if (!info.isFile() || (info.mode & 0o077) !== 0 || (process.getuid && info.uid !== process.getuid()) || info.size > 512) throw new Error("Credential file must be owner-private")
+  if (!info.isFile() || process.platform !== 'win32' && ((info.mode & 0o077) !== 0 || (process.getuid && info.uid !== process.getuid())) || info.size > 512) throw new Error("Credential file must be owner-private")
   const reader = await open(filePath, constants.O_RDONLY | constants.O_NOFOLLOW)
   try {
     const current = await reader.stat()
-    if (current.ino !== info.ino || (current.mode & 0o077) !== 0) throw new Error("Credential file changed")
+    if (current.ino !== info.ino || (process.platform !== 'win32' && (current.mode & 0o077) !== 0)) throw new Error("Credential file changed")
     const token = (await reader.readFile("utf8")).trim()
     bearerAuthentication(token, { principalId: "validation", grantsVersion: "1" })
     return token

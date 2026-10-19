@@ -192,6 +192,10 @@ export function createExecCommand(deps: ExecCommandDeps = DEFAULT_EXEC_COMMAND_D
         return
       }
 
+      // Keep the event loop referenced for the whole headless turn. Some runtime waits are backed by
+      // unref'd handles; when the loop momentarily drains, Bun fires beforeExit and the process exits 0
+      // with no output before the model reply arrives (observed on Windows, esp. slower machines).
+      const keepAlive = setInterval(() => {}, 1 << 30)
       try {
         const result = await deps.runHeadlessExec({
           workDir,
@@ -236,6 +240,8 @@ export function createExecCommand(deps: ExecCommandDeps = DEFAULT_EXEC_COMMAND_D
       } catch (error) {
         deps.reportError(error instanceof Error ? error.message : String(error))
         setProcessExitCode(deps.processLike, 1)
+      } finally {
+        clearInterval(keepAlive)
       }
     },
   }

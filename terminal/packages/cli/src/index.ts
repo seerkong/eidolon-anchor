@@ -40,7 +40,11 @@ async function main() {
     .parseAsync()
 }
 
-main().catch((err) => {
+// Hold a referenced handle until main() settles. Lazy command imports and runtime startup can await
+// work backed only by unref'd handles; if the loop drains meanwhile, Bun exits 0 silently (seen with
+// `eidolon exec` on Windows). Long-running commands keep their own handles after main() resolves.
+const mainKeepAlive = setInterval(() => {}, 1 << 30)
+main().finally(() => clearInterval(mainKeepAlive)).catch((err) => {
   console.error(err)
   process.exit(1)
 })

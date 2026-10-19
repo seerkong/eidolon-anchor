@@ -24,7 +24,7 @@ export type WorkerConfig = Readonly<{
   taskTreeEnabled?:boolean;
   executionEnvironmentsEnabled?:boolean;
   sessionLimit?: number
-  runtimeConfig?: { adapter?: string; model?: string; mcp?: boolean; metadata?: Record<string,unknown>; captureProviderRequests?: boolean }
+  runtimeConfig?: { adapter?: string; model?: string; mcp?: boolean; metadata?: Record<string,unknown>; captureProviderRequests?: boolean; approvalMode?: 'default' | 'full-auto' | 'dangerous' }
 }>
 export type WorkerRequest =
   | { kind: 'init'; config: WorkerConfig }

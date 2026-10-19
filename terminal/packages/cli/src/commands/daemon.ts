@@ -6,8 +6,12 @@ import { bearerAuthentication, loadOrCreateBearer } from '@backend/elysia-shell/
 import { serveDaemon } from '@backend/elysia-shell/daemon-serve'
 import { daemonControlRequest, localDaemonFiles, readDaemonDiscovery, writeDaemonDiscovery, ensureDaemonControlDirectory } from '@backend/elysia-shell/daemon-local'
 
-type Args = { action: string; operation?: string; workspace?: string; globalRoot?: string; port: number; adapter?: string; model?: string; mcp: boolean }
-const cliCommand = () => Bun.main.startsWith('/$bunfs/') ? [process.execPath] : [process.execPath, Bun.main]
+type Args = { action: string; operation?: string; workspace?: string; globalRoot?: string; port: number; adapter?: string; model?: string; mcp: boolean; approvalMode?: string; dangerouslyBypassApprovalsAndSandbox?: boolean }
+const cliCommand = () => /^(\/\$bunfs\/|[A-Za-z]:[\\\/]~BUN[\\\/])/.test(Bun.main) ? [process.execPath] : [process.execPath, Bun.main]
+export function daemonApprovalMode(args: { approvalMode?: string; dangerouslyBypassApprovalsAndSandbox?: boolean }): 'default' | 'full-auto' | 'dangerous' | undefined {
+  if (args.dangerouslyBypassApprovalsAndSandbox) return 'dangerous'
+  return args.approvalMode === 'default' || args.approvalMode === 'full-auto' || args.approvalMode === 'dangerous' ? args.approvalMode : undefined
+}
 export const daemon: CommandModule<object, Args> = {
   command: 'daemon <action> [operation] [workspace]',
   describe: 'manage one local daemon and its isolated workspaces',
@@ -16,7 +20,9 @@ export const daemon: CommandModule<object, Args> = {
     .positional('operation', { type: 'string', describe: 'list | add | open | close | remove' })
     .positional('workspace', { type: 'string', describe: 'directory for add, opaque workspace key otherwise' })
     .option('global-root', { type: 'string' }).option('port', { type: 'number', default: 4003 })
-    .option('adapter', { type: 'string' }).option('model', { type: 'string' }).option('mcp', { type: 'boolean', default: true }),
+    .option('adapter', { type: 'string' }).option('model', { type: 'string' })
+    .option('approval-mode', { type: 'string', choices: ['default', 'full-auto', 'dangerous'] as const, describe: 'approval mode for every daemon session (same as exec)' })
+    .option('dangerously-bypass-approvals-and-sandbox', { type: 'boolean', alias: ['yolo'], describe: 'alias for --approval-mode dangerous' }).option('mcp', { type: 'boolean', default: true }),
   async handler(args) {
     const globalRoot = path.resolve(args.globalRoot ?? process.env.EIDOLON_GLOBAL_DIR ?? path.join(homedir(), '.eidolon'))
     if (!Number.isInteger(args.port) || args.port < 0 || args.port > 65535) throw new Error('invalid_port')
@@ -33,7 +39,7 @@ export const daemon: CommandModule<object, Args> = {
     if (args.action === 'start') {
       try { const cap = await daemonControlRequest(globalRoot); console.log(`ANCHOR_DAEMON_READY ${(await readDaemonDiscovery(globalRoot))!.baseURL} ${cap.daemonId}`); return } catch { /* A stale discovery file is not a live process claim. */ }
       const command = [...cliCommand(), 'daemon', 'serve', '--global-root', globalRoot, '--port', String(args.port), '--mcp', String(args.mcp),
-        ...(args.adapter ? ['--adapter', args.adapter] : []), ...(args.model ? ['--model', args.model] : [])]
+        ...(args.adapter ? ['--adapter', args.adapter] : []), ...(args.model ? ['--model', args.model] : []), ...(daemonApprovalMode(args) ? ['--approval-mode', daemonApprovalMode(args)!] : [])]
       const files = localDaemonFiles(globalRoot)
       await ensureDaemonControlDirectory(globalRoot)
       const log = path.join(files.directory, `startup-${crypto.randomUUID()}.log`), handle = await open(log, 'wx', 0o600)
@@ -60,7 +66,7 @@ export const daemon: CommandModule<object, Args> = {
     const files = localDaemonFiles(globalRoot), token = await loadOrCreateBearer(files.credentialFile)
     const old = await readDaemonDiscovery(globalRoot)
     const preferredPort = args.port === 4003 && old ? Number(new URL(old.baseURL).port) : args.port
-    const options = { globalRoot, workerCommand: [...cliCommand(), '__daemon-worker'], runtimeConfig: { adapter: args.adapter, model: args.model, mcp: args.mcp },
+    const options = { globalRoot, workerCommand: [...cliCommand(), '__daemon-worker'], runtimeConfig: { adapter: args.adapter, model: args.model, mcp: args.mcp, ...(daemonApprovalMode(args) ? { approvalMode: daemonApprovalMode(args) } : {}) },
       security: { authenticate: bearerAuthentication(token, principal), authorization }, onStop: () => { process.exitCode = 0 } }
     let server
     try { server = await serveDaemon({ ...options, listen: { port: preferredPort } }) }

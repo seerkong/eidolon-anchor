@@ -1,13 +1,18 @@
 import { randomUUID } from 'node:crypto'
 import { hostOperations, type WorkerReply, type WorkerRequest, type HostResourceEffects, type ResourceLease, type RuntimeHostPort, type Subscription } from '@cell/ai-runtime-host-contract'
 import { createHost } from './host'
-import type { ProviderRequestObservationBindingFactory, SessionRuntimeConfig } from './session/SessionRuntimeAssembly'
+import { buildExecRuntimeMetadata, type ProviderRequestObservationBindingFactory, type SessionRuntimeConfig } from './session/SessionRuntimeAssembly'
 import type { WorkerConfig } from '@cell/ai-runtime-host-contract'
 import type {WorkflowTaskTreeOwnerCall,WorkflowTaskTreeEffects} from '@cell/ai-runtime-host-contract'
 import type {ExecutionEnvironmentEffects,ExecutionEnvironmentContext} from '@cell/ai-runtime-host-contract'
 
-export function workspaceWorkerRuntimeConfig(config: WorkerConfig['runtimeConfig'], bindingFactory?: ProviderRequestObservationBindingFactory): Omit<SessionRuntimeConfig,'workDir'> {
-  const { captureProviderRequests, ...runtimeConfig } = config ?? {}
+export function workspaceWorkerRuntimeConfig(config: WorkerConfig['runtimeConfig'], bindingFactory?: ProviderRequestObservationBindingFactory, workDir?: string): Omit<SessionRuntimeConfig,'workDir'> {
+  const { captureProviderRequests, approvalMode, ...runtimeConfig } = config ?? {}
+  // Same mapping as `eidolon exec`: the approval mode becomes sandbox/exec metadata for every session in this workspace.
+  if (approvalMode && approvalMode !== 'default') {
+    if (!workDir) throw new Error('approval_mode_requires_workdir')
+    runtimeConfig.metadata = buildExecRuntimeMetadata({ workDir, approvalMode, metadata: runtimeConfig.metadata })
+  }
   if (captureProviderRequests && !bindingFactory) throw new Error('provider_observation_binding_unavailable')
   return { ...runtimeConfig, ...(captureProviderRequests ? { providerRequestObservationBindingFactory: bindingFactory } : {}) }
 }
@@ -74,7 +79,7 @@ export function runWorkspaceWorker(options: { providerRequestObservationBindingF
           ...(config.globalAuthority&&config.executionEnvironmentsEnabled?{executionEnvironments}:{}),
           ...(config.daemonAuthority&&config.taskTreeEnabled&&!config.globalAuthority?{taskTreeEffects,taskTreeAuthority:{daemonId:config.daemonAuthority.daemonId,workspaceKey:config.workspace.workspaceKey}}:{}),onTaskTreeOwner:call=>{taskTreeOwner=call},
           sessionPlacement: config.workspace.placement, maxActiveSessions: config.sessionLimit,
-          runtimeConfig: workspaceWorkerRuntimeConfig(config.runtimeConfig, options.providerRequestObservationBindingFactory), resources,
+          runtimeConfig: workspaceWorkerRuntimeConfig(config.runtimeConfig, options.providerRequestObservationBindingFactory, config.workspace.workDir), resources,
           authorization: { permits: principal => principal.principalId === config.principalId && principal.grantsVersion === config.grantsVersion,
             currentGrantsVersion: id => id === config.principalId ? config.grantsVersion : undefined } })
         send({ kind: 'ready', capabilities: runtime.capabilities({ requestId: 'worker-ready', principal: { principalId: config.principalId, grantsVersion: config.grantsVersion } }) })

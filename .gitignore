@@ -156,3 +156,36 @@ codument/**/reports
 # Temporary upstream public release candidates, verified before workspace preparation.
 !artifacts/holarchy-public-file/*.tgz
 !artifacts/task-manager-public-file/*.tgz
+
+# Local analysis artifacts
+.depa-analysis/
+
+# Mission execution artifacts; keep definitions, attractors and design documents.
+.cdmt-lite/missions/*/*/analysis/
+.cdmt-lite/missions/*/*/reports/
+.cdmt-lite/missions/*/*/verification/
+.cdmt-lite/missions/*/*/experiments/
+.cdmt-lite/missions/*/*/loop.md
+.cdmt-lite/missions/*/*/evidence.md
+.cdmt-lite/missions/*/*/final-review.md
+.cdmt-lite/missions/*/*/prototype.png
+.cdmt-lite/missions/*/*/context/*-resolved.json
+.cdmt-lite/missions/*/*/context/resolved-*.json
+.cdmt-lite/missions/*/*/context/history-*.json
+.cdmt-lite/missions/*/*/context/history.md
+.cdmt-lite/missions/*/*/context/lineage.md
+.cdmt-lite/missions/*/*/context/integrity.json
+.cdmt-lite/standalone/**/analysis/
+.cdmt-lite/standalone/**/reports/
+.cdmt-lite/standalone/**/verification/
+.cdmt-lite/standalone/**/experiments/
+.cdmt-lite/standalone/**/loop.md
+.cdmt-lite/standalone/**/evidence.md
+.cdmt-lite/standalone/**/final-review.md
+.cdmt-lite/standalone/**/prototype.png
+.cdmt-lite/standalone/**/context/*-resolved.json
+.cdmt-lite/standalone/**/context/resolved-*.json
+.cdmt-lite/standalone/**/context/history-*.json
+.cdmt-lite/standalone/**/context/history.md
+.cdmt-lite/standalone/**/context/lineage.md
+.cdmt-lite/standalone/**/context/integrity.json

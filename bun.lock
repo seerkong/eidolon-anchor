@@ -320,7 +320,7 @@
     },
     "cell/packages/ai-runtime-host-contract": {
       "name": "@cell/ai-runtime-host-contract",
-      "version": "0.2.3",
+      "version": "0.2.12",
     },
     "cell/packages/ai-runtime-host-logic": {
       "name": "@cell/ai-runtime-host-logic",

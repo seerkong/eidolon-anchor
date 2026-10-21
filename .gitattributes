@@ -1,0 +1,9 @@
+# Canonical text inputs and output of the bundled system-skill generator.
+cell/packages/ai-support/src/system-skill/resource-package/**/*.md text eol=lf
+cell/packages/ai-support/src/system-skill/resource-package/**/*.xnl text eol=lf
+cell/packages/ai-support/src/system-skill/resource-package/**/*.yaml text eol=lf
+cell/packages/ai-support/src/system-skill/resource-package/**/*.yml text eol=lf
+cell/packages/ai-support/src/system-skill/resource-package/**/*.json text eol=lf
+cell/packages/ai-support/src/system-skill/resource-package/**/*.ejs text eol=lf
+cell/packages/ai-support/src/system-skill/resource-package/**/*.txt text eol=lf
+cell/packages/ai-support/src/system-skill/GeneratedEidolonSystemSkillPlan.ts text eol=lf

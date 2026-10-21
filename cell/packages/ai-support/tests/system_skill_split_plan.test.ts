@@ -49,7 +49,7 @@ describe("Eidolon Anchor system Skill split plan", () => {
 
   test("pins the two published authoring modules exactly", async () => {
     const manifest = JSON.parse(await readFile(path.join(supportRoot, "package.json"), "utf8"))
-    expect(manifest.dependencies["halfcode-compiler.xnl"]).toBe("0.3.1")
+    expect(manifest.dependencies["halfcode-compiler.xnl"]).toBe("0.3.2")
     expect(manifest.dependencies["ai-workflow-flow-dsl-reference"]).toBe("0.2.0")
   })
 

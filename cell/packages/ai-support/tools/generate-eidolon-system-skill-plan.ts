@@ -4,12 +4,11 @@ import path from "node:path"
 import { loadAIWorkflowFlowDslReferenceModule } from "ai-workflow-flow-dsl-reference"
 import {
   loadHalfcodeResourceDslSystemSkillModule,
-  planSkillCapsuleDistribution,
-  resolveApplicationAssembly,
   skillCapsuleDistributionProjection,
 } from "halfcode-compiler.xnl"
 
 import { EIDOLON_ANCHOR_SYSTEM_SKILL_MODULE } from "../src/system-skill/EidolonAnchorSystemSkillModule"
+import { normalizeSkillSourceBytes, planLfSystemSkillDistribution } from "./lf-system-skill-plan"
 
 const generatedPath = path.resolve(
   import.meta.dir,
@@ -80,7 +79,8 @@ const mirroredSkillCapsuleKindDefinition = await readFile(path.join(
   EIDOLON_ANCHOR_SYSTEM_SKILL_MODULE.resourceRootDir,
   "KindDefinitions/SkillCapsule/manifest.xnl",
 ))
-if (!canonicalSkillCapsuleKindDefinition.equals(mirroredSkillCapsuleKindDefinition)) {
+if (!Buffer.from(normalizeSkillSourceBytes("manifest.xnl", canonicalSkillCapsuleKindDefinition))
+  .equals(normalizeSkillSourceBytes("manifest.xnl", mirroredSkillCapsuleKindDefinition))) {
   throw new Error("EIDOLON_SYSTEM_SKILL_KIND_DEFINITION_DRIFT: SkillCapsule must mirror Halfcode 0.3 canonical bytes")
 }
 
@@ -90,9 +90,8 @@ const modules = [
   EIDOLON_ANCHOR_SYSTEM_SKILL_MODULE,
 ] as const
 
-const assembly = await resolveApplicationAssembly({ modules, portBindings: [] })
-const plan = await planSkillCapsuleDistribution({
-  assembly,
+const plan = await planLfSystemSkillDistribution({
+  modules,
   rootSkillFqns: ["Eidolon.Anchor.Skill.DevOps"],
 })
 

@@ -1679,7 +1679,11 @@ export function createAiAgentOrchestratorDriver(params: {
       await flushMicrotasks();
 
       while (tickCount < max) {
-        if (Date.now() - start > wall) {
+        const next = selectNextFiberId(runtime.state);
+        // A slow preamble must not consume the whole quantum before a ready
+        // fiber is dispatched. Otherwise a mandatory phase (compress, start_llm)
+        // stays ready forever and an interactive turn never settles.
+        if (Date.now() - start > wall && (tickCount > 0 || !next)) {
           return {
             status: "budget_exhausted",
             budget: "wall",
@@ -1688,7 +1692,6 @@ export function createAiAgentOrchestratorDriver(params: {
           };
         }
 
-        const next = selectNextFiberId(runtime.state);
         if (!next) {
           // Drain any late-arriving messages that could make fibers ready.
           await flushMicrotasks();
@@ -1770,7 +1773,8 @@ export function createAiAgentOrchestratorDriver(params: {
       const isFg = (fiberId: string) => isForegroundAiAgentLane((runtime.state.fibers as any)?.[fiberId]?.lane);
 
       while (tickCount < max) {
-        if (Date.now() - start > wall) {
+        const nextFg = selectNextForegroundFiberId(runtime);
+        if (Date.now() - start > wall && (tickCount > 0 || !nextFg)) {
           return {
             status: "budget_exhausted",
             budget: "wall",
@@ -1779,7 +1783,6 @@ export function createAiAgentOrchestratorDriver(params: {
           };
         }
 
-        const nextFg = selectNextForegroundFiberId(runtime);
         if (!nextFg) {
           await flushMicrotasks();
 
@@ -1868,7 +1871,8 @@ export function createAiAgentOrchestratorDriver(params: {
         isBackgroundAiAgentLane((runtime.state.fibers as any)?.[fiberId]?.lane);
 
       while (tickCount < max) {
-        if (Date.now() - start > wall) {
+        const nextBackground = selectNextBackgroundFiberId(runtime.state);
+        if (Date.now() - start > wall && (tickCount > 0 || !nextBackground)) {
           return {
             status: "budget_exhausted",
             budget: "wall",
@@ -1877,7 +1881,6 @@ export function createAiAgentOrchestratorDriver(params: {
           };
         }
 
-        const nextBackground = selectNextBackgroundFiberId(runtime.state);
         if (!nextBackground) {
           await flushMicrotasks();
 
